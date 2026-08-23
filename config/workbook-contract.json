@@ -1,0 +1,117 @@
+{
+  "contractVersion": "1.0.2",
+  "packet": "CXP-01",
+  "status": "complete",
+  "authorities": {
+    "workbookObjects": "config/workbook-object-catalog.json",
+    "formulaFamilies": "config/formula-family-catalog.json",
+    "metricLineage": "config/metric-lineage-contract.json",
+    "sourceTables": "config/source-table-profile.json",
+    "sourceDeliveries": "config/source-delivery-contract.json",
+    "sourceSemantics": "config/source-schema-draft.json"
+  },
+  "evidenceStatusDefinitions": {
+    "verified_workbook_binary": "Extracted read-only from the exact SHA-256-bound XLSX package.",
+    "verified_workbook_cached_table_profile": "Observed in cached workbook table values without claiming the external delivery-file contract.",
+    "verified_project_record": "Stated in a supplied project record and reconciled where possible to the workbook binary.",
+    "verified_screenshot_record": "Visible in a meeting-note screenshot from a differently labeled workbook version.",
+    "verified_representative_external_source_files": "Observed in the five SHA-256-bound raw deliveries without claiming they are the exact WB0817 EOD load.",
+    "verified_owner_decision": "Explicitly approved by the repository owner on 2026-08-22 and recorded in the decision log."
+  },
+  "binaryEvidence": {
+    "sourceSha256": "CD8F8EC6F68FBEC85841CD64C251616FCECD0AD67DE4714EFB244F648548E65A",
+    "sourceFileName": "MSG Intraday EOD 0817.xlsx",
+    "sourceSizeBytes": 6975923,
+    "extractionStatus": "verified_workbook_binary"
+  },
+  "versionComparison": {
+    "inspectedWorkbook": "WB0817",
+    "screenshotWorkbook": "WB0816",
+    "supersededInspectedWorkbook": "WB0809",
+    "status": "resolved_user_selected_wb0817",
+    "decisionDate": "2026-08-22",
+    "decision": "The user selected WB0817 because the available raw delivery files are dated 0817.",
+    "consequence": "WB0817 is the sole validation-control authority; WB0809 and WB0816 remain comparison evidence only."
+  },
+  "projectRecordReconciliation": {
+    "matched": [
+      "17 worksheets",
+      "3 hidden worksheets",
+      "9 tables",
+      "15 PivotTables",
+      "1247 GETPIVOTDATA cells"
+    ],
+    "clarified": [
+      "The workbook has 5 slicer collection parts containing 24 slicer controls backed by 19 caches.",
+      "The workbook has 172617 structured-reference formula cells; 172521 of them use #This Row.",
+      "WB0817 has 271676 formula cells in 350 families; the prior 271677 count belongs to WB0809/project-record state.",
+      "WB0817 has 1885 cached errors; cached-error counts vary with workbook version and loaded data state."
+    ]
+  },
+  "screenshotEvidence": {
+    "displayedWorkbookTitle": "Messaging Interval - Template Intouch WB0816 (4)",
+    "sourceRef": "MEETING_NOTES:image1",
+    "status": "verified_screenshot_record"
+  },
+  "closureDecision": {
+    "date": "2026-08-22",
+    "status": "approved",
+    "sourceRef": "USER_DECISION:2026-08-22-CXP-01-closure",
+    "consequence": "CXP-01 is implementation-ready. Same-bundle intraday parity execution belongs to downstream ingestion and validation packets; the partial-day files are not reclassified as WB0817 EOD inputs."
+  },
+  "timezoneRevision": {
+    "date": "2026-08-22",
+    "status": "approved",
+    "sourceRef": "USER_DECISION:2026-08-22-CXP-01-GMT-extraction-revision",
+    "supersedes": "fixed_PST_source_interpretation",
+    "evidence": {
+      "operatorUiScreenshot": {
+        "sourceRef": "USER_ATTACHMENT:codex-clipboard-110a2a3f-7181-41c5-acae-daf5868aa42c.png",
+        "sha256": "7258F584DB24D8B5F484DBE5AC00F2ED8445AB70ADBE9D5FF960703EA9DD7BD1",
+        "observation": "Salesforce Language & Time Zone shows (GMT-07:00) Pacific Daylight Time (America/Los_Angeles).",
+        "classification": "user_display_setting_not_export_timezone_authority"
+      },
+      "legacyFormulaReview": {
+        "sourceRef": "config/formula-family-catalog.json",
+        "coreIntervalFormulaFamilies": 5,
+        "converterStatus": "not_found_on_core_source_to_interval_paths",
+        "constantShiftFinding": "Teams Update F8:F16 subtracts 15 hours, but Teams Update is downstream report support and does not convert source timestamps feeding Interval View."
+      }
+    },
+    "current": {
+      "source": {
+        "timeZoneLabel": "GMT",
+        "timeZoneId": "Etc/UTC",
+        "fixedUtcOffset": "+00:00",
+        "dstPolicy": "fixed_offset_no_dst"
+      },
+      "business": {
+        "timeZoneLabel": "PST",
+        "timeZoneId": "Etc/GMT+8",
+        "fixedUtcOffset": "-08:00",
+        "dstPolicy": "fixed_offset_no_dst"
+      },
+      "conversion": {
+        "required": true,
+        "offsetMinutes": -480,
+        "appliesTo": "date_time_values_only",
+        "applyBefore": "business_date_and_30_minute_bucket",
+        "legacyCorePath": "not_found",
+        "disposition": "approved_migration_defect_correction"
+      }
+    }
+  },
+  "remainingGate": {
+    "externalSourceSamples": "verified",
+    "validationVersionConfirmation": "verified_wb0817",
+    "sourceSnapshotParity": "resolved_intraday_same_bundle_strategy",
+    "timezoneAndReplacementSemantics": "resolved",
+    "manualInputAndSurfaceRetentionSemantics": "resolved",
+    "formulaAndErrorAnomalyClassification": "resolved_mixed_intentional_and_approved_timezone_correction",
+    "visualRender": "non_blocking_tooling_limit"
+  },
+  "toolingBoundary": {
+    "artifactReader": "Read-only import exhausted both 4 GB and 8 GB on the smaller superseded WB0809 package, so it was not retried on WB0817; no workbook edit/export occurred.",
+    "authoritativeExtraction": "Direct OOXML package parsing against the source hash."
+  }
+}

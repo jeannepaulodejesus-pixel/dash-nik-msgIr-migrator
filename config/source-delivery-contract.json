@@ -1,0 +1,3010 @@
+{
+  "contractVersion": "1.0.0",
+  "packet": "CXP-01",
+  "evidenceStatus": "verified_representative_external_source_files",
+  "validationAuthority": {
+    "decision": "WB0817",
+    "controlFileName": "MSG Intraday EOD 0817.xlsx",
+    "controlSha256": "CD8F8EC6F68FBEC85841CD64C251616FCECD0AD67DE4714EFB244F648548E65A"
+  },
+  "sourceFileCount": 5,
+  "privacyBoundary": "No literal source row values or personal metadata are retained in this artifact.",
+  "datasets": [
+    {
+      "dataset": "AHT - Raw",
+      "sourceFile": {
+        "fileName": "Nike Messaging - AHT.xls",
+        "sizeBytes": 2004591,
+        "modifiedTimeUtc": "2026-08-21T17:10:14.418022+00:00",
+        "sha256": "61590C6CE8F4B3388D4A310359431D092DAA3899637BB95F2BE18454CBEECED4",
+        "declaredExtension": ".xls",
+        "detectedContentType": "text/html",
+        "detectedEncoding": "ISO-8859-1",
+        "signatureHex": "3C686561643E3C4D"
+      },
+      "physicalLayout": {
+        "tableCount": 1,
+        "headerRow": 1,
+        "dataStartRow": 2,
+        "rowCount": 1969,
+        "columnCount": 27
+      },
+      "headers": [
+        "Agent Work ID",
+        "Work Item: Name",
+        "Athlete Site",
+        "Request Date",
+        "Assign Date",
+        "Accept Date",
+        "Close Date",
+        "Chat Exit Time",
+        "Handle Time - Total",
+        "Handle Time",
+        "After Conversation Work Actual Time",
+        "Work Time",
+        "Speed To Answer",
+        "Speed to Answer",
+        "Chat Time",
+        "Wrap Time",
+        "Active Time",
+        "Status",
+        "Is Transfer",
+        "Units of Capacity",
+        "Time To First Response",
+        "Language",
+        "Queue",
+        "Country",
+        "Created Date",
+        "Queue: Name",
+        "User: Full Name"
+      ],
+      "columns": [
+        {
+          "name": "Agent Work ID",
+          "ordinal": 1,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 1969
+          },
+          "uniqueNonBlankValueCount": 1969,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "text": 6656
+            },
+            "uniqueNonBlankValueCount": 6656
+          }
+        },
+        {
+          "name": "Work Item: Name",
+          "ordinal": 2,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 1969
+          },
+          "uniqueNonBlankValueCount": 1510,
+          "duplicateNonBlankCount": 459,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "text": 6656
+            },
+            "uniqueNonBlankValueCount": 5054
+          }
+        },
+        {
+          "name": "Athlete Site",
+          "ordinal": 3,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1969
+          },
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 1964,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "text": 6656
+            },
+            "uniqueNonBlankValueCount": 5
+          }
+        },
+        {
+          "name": "Request Date",
+          "ordinal": 4,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1969
+          },
+          "uniqueNonBlankValueCount": 346,
+          "duplicateNonBlankCount": 1623,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "date_time": 6656
+            },
+            "uniqueNonBlankValueCount": 1099,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:01",
+              "maximum": "2026-08-17T22:59"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:01",
+            "maximum": "2026-08-17T09:57"
+          }
+        },
+        {
+          "name": "Assign Date",
+          "ordinal": 5,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1969
+          },
+          "uniqueNonBlankValueCount": 347,
+          "duplicateNonBlankCount": 1622,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "date_time": 6656
+            },
+            "uniqueNonBlankValueCount": 1099,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:01",
+              "maximum": "2026-08-17T22:59"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:01",
+            "maximum": "2026-08-17T09:57"
+          }
+        },
+        {
+          "name": "Accept Date",
+          "ordinal": 6,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1969
+          },
+          "uniqueNonBlankValueCount": 348,
+          "duplicateNonBlankCount": 1621,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "date_time": 6656
+            },
+            "uniqueNonBlankValueCount": 1102,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:01",
+              "maximum": "2026-08-17T22:59"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:01",
+            "maximum": "2026-08-17T09:57"
+          }
+        },
+        {
+          "name": "Close Date",
+          "ordinal": 7,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1960,
+            "blank": 9
+          },
+          "uniqueNonBlankValueCount": 342,
+          "duplicateNonBlankCount": 1618,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "date_time": 6656
+            },
+            "uniqueNonBlankValueCount": 1114,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:09",
+              "maximum": "2026-08-17T23:13"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:09",
+            "maximum": "2026-08-17T10:02"
+          }
+        },
+        {
+          "name": "Chat Exit Time",
+          "ordinal": 8,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1969
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Handle Time - Total",
+          "ordinal": 9,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1969
+          },
+          "uniqueNonBlankValueCount": 1174,
+          "duplicateNonBlankCount": 795,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "number": 6656
+            },
+            "uniqueNonBlankValueCount": 2080
+          }
+        },
+        {
+          "name": "Handle Time",
+          "ordinal": 10,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1960,
+            "blank": 9
+          },
+          "uniqueNonBlankValueCount": 1174,
+          "duplicateNonBlankCount": 786,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "number": 6656
+            },
+            "uniqueNonBlankValueCount": 2044
+          }
+        },
+        {
+          "name": "After Conversation Work Actual Time",
+          "ordinal": 11,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1956,
+            "blank": 13
+          },
+          "uniqueNonBlankValueCount": 100,
+          "duplicateNonBlankCount": 1856,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6642,
+            "typeCounts": {
+              "number": 6642
+            },
+            "uniqueNonBlankValueCount": 107
+          }
+        },
+        {
+          "name": "Work Time",
+          "ordinal": 12,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1969
+          },
+          "uniqueNonBlankValueCount": 822,
+          "duplicateNonBlankCount": 1147,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "number": 6656
+            },
+            "uniqueNonBlankValueCount": 1337
+          }
+        },
+        {
+          "name": "Speed To Answer",
+          "ordinal": 13,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1969
+          },
+          "uniqueNonBlankValueCount": 59,
+          "duplicateNonBlankCount": 1910,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "number": 6656
+            },
+            "uniqueNonBlankValueCount": 164
+          }
+        },
+        {
+          "name": "Speed to Answer",
+          "ordinal": 14,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1969
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1968,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "number": 6656
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Chat Time",
+          "ordinal": 15,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1969
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Wrap Time",
+          "ordinal": 16,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1969
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Active Time",
+          "ordinal": 17,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1956,
+            "blank": 13
+          },
+          "uniqueNonBlankValueCount": 862,
+          "duplicateNonBlankCount": 1094,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6642,
+            "typeCounts": {
+              "number": 6642
+            },
+            "uniqueNonBlankValueCount": 1392
+          }
+        },
+        {
+          "name": "Status",
+          "ordinal": 18,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1969
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1967,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "text": 6656
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Is Transfer",
+          "ordinal": 19,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1969
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1967,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "number": 6656
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Units of Capacity",
+          "ordinal": 20,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1969
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1968,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "number": 6656
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Time To First Response",
+          "ordinal": 21,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1929,
+            "blank": 40
+          },
+          "uniqueNonBlankValueCount": 206,
+          "duplicateNonBlankCount": 1723,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6551,
+            "typeCounts": {
+              "number": 6551
+            },
+            "uniqueNonBlankValueCount": 293
+          }
+        },
+        {
+          "name": "Language",
+          "ordinal": 22,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1969
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1967,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "text": 6656
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Queue",
+          "ordinal": 23,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1142,
+            "text": 827
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 825,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2902,
+            "typeCounts": {
+              "text": 2902
+            },
+            "uniqueNonBlankValueCount": 3
+          }
+        },
+        {
+          "name": "Country",
+          "ordinal": 24,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1969
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1968,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "text": 6656
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Created Date",
+          "ordinal": 25,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1969
+          },
+          "uniqueNonBlankValueCount": 4,
+          "duplicateNonBlankCount": 1965,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "date_time": 6656
+            },
+            "uniqueNonBlankValueCount": 8,
+            "dateTimeRange": {
+              "minimum": "2024-08-12T00:00",
+              "maximum": "2026-08-17T00:00"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-06-06T00:00",
+            "maximum": "2026-08-17T00:00"
+          }
+        },
+        {
+          "name": "Queue: Name",
+          "ordinal": 26,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "blank": 1969
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "User: Full Name",
+          "ordinal": 27,
+          "privacyClass": "direct_personal_identifier",
+          "typeCounts": {
+            "text": 1969
+          },
+          "uniqueNonBlankValueCount": 90,
+          "duplicateNonBlankCount": 1879,
+          "workbookCachedProfile": {
+            "nonBlankCount": 6656,
+            "typeCounts": {
+              "text": 6656
+            },
+            "uniqueNonBlankValueCount": 169
+          }
+        }
+      ],
+      "candidateKeysFromSample": [
+        [
+          "Agent Work ID"
+        ]
+      ],
+      "workbookTarget": {
+        "sheet": "AHT - Raw",
+        "table": "AHT_Raw",
+        "range": "A1:AH7862",
+        "sourceColumnCount": 27,
+        "cachedPopulatedRows": 6656
+      },
+      "reconciliation": {
+        "orderedHeadersMatch": false,
+        "orderedHeadersMatchAfterAliases": true,
+        "headerSetMatch": true,
+        "headerAliasMappings": [
+          {
+            "rawHeader": "Speed to Answer",
+            "workbookHeader": "Speed to Answer2"
+          }
+        ],
+        "headerDifferences": [
+          {
+            "ordinal": 14,
+            "rawHeader": "Speed to Answer",
+            "mappedWorkbookHeader": "Speed to Answer2",
+            "workbookHeader": "Speed to Answer2"
+          }
+        ],
+        "rowCountsMatch": false,
+        "exactOrderedRowsMatch": false,
+        "rawRowsPresentInWorkbookMultiset": false,
+        "matchingRowCountIgnoringOrder": 0,
+        "valueEquivalentMatchingRowCountIgnoringOrder": 1898,
+        "rawRowsAbsentFromWorkbookCount": 1969,
+        "workbookRowsOutsideRawSnapshotCount": 6656,
+        "rawCanonicalSha256": "F5AF8304941B5D102368662C423F95BD79D7FBD324AF5FF0D8DD18C6585A0C5C",
+        "workbookCachedCanonicalSha256": "B8DA64737065CAE2CF6DA9AC22DFA5C10FD732B28AF0890E0C4AF05AE865BAF6",
+        "rowMismatchCount": 6656,
+        "mismatchCountByColumn": [
+          {
+            "name": "Agent Work ID",
+            "count": 6494
+          },
+          {
+            "name": "Work Item: Name",
+            "count": 6492
+          },
+          {
+            "name": "Athlete Site",
+            "count": 5959
+          },
+          {
+            "name": "Request Date",
+            "count": 6103
+          },
+          {
+            "name": "Assign Date",
+            "count": 6091
+          },
+          {
+            "name": "Accept Date",
+            "count": 6097
+          },
+          {
+            "name": "Close Date",
+            "count": 6424
+          },
+          {
+            "name": "Handle Time - Total",
+            "count": 6491
+          },
+          {
+            "name": "Handle Time",
+            "count": 6492
+          },
+          {
+            "name": "After Conversation Work Actual Time",
+            "count": 6101
+          },
+          {
+            "name": "Work Time",
+            "count": 6482
+          },
+          {
+            "name": "Speed To Answer",
+            "count": 5718
+          },
+          {
+            "name": "Speed to Answer",
+            "count": 4687
+          },
+          {
+            "name": "Active Time",
+            "count": 6483
+          },
+          {
+            "name": "Status",
+            "count": 5574
+          },
+          {
+            "name": "Is Transfer",
+            "count": 6656
+          },
+          {
+            "name": "Units of Capacity",
+            "count": 4687
+          },
+          {
+            "name": "Time To First Response",
+            "count": 6392
+          },
+          {
+            "name": "Language",
+            "count": 4825
+          },
+          {
+            "name": "Queue",
+            "count": 3042
+          },
+          {
+            "name": "Country",
+            "count": 4687
+          },
+          {
+            "name": "Created Date",
+            "count": 4719
+          },
+          {
+            "name": "User: Full Name",
+            "count": 6472
+          }
+        ],
+        "keyReconciliation": {
+          "keyHeader": "Agent Work ID",
+          "rawUniqueKeyCount": 1969,
+          "workbookUniqueKeyCount": 6656,
+          "workbookDuplicateKeyValueCount": 0,
+          "commonKeyCount": 1969,
+          "rawKeysAbsentFromWorkbookCount": 0,
+          "workbookKeysOutsideRawSnapshotCount": 4687,
+          "exactRowMatchCountOnCommonKeys": 0,
+          "valueEquivalentRowMatchCountOnCommonKeys": 1898,
+          "valueMismatchCountByColumnOnCommonKeys": [
+            {
+              "name": "Close Date",
+              "count": 9
+            },
+            {
+              "name": "Handle Time - Total",
+              "count": 9
+            },
+            {
+              "name": "Handle Time",
+              "count": 9
+            },
+            {
+              "name": "After Conversation Work Actual Time",
+              "count": 9
+            },
+            {
+              "name": "Work Time",
+              "count": 6
+            },
+            {
+              "name": "Active Time",
+              "count": 9
+            },
+            {
+              "name": "Status",
+              "count": 64
+            }
+          ]
+        }
+      },
+      "privacyBoundary": {
+        "literalValuesRetained": false,
+        "policy": "Only headers, hashes, aggregate counts, date ranges, and reconciliation counts are retained; source row values remain outside the repository."
+      }
+    },
+    {
+      "dataset": "Auxes - Raw",
+      "sourceFile": {
+        "fileName": "Nike Messaging - Aux.xls",
+        "sizeBytes": 639885,
+        "modifiedTimeUtc": "2026-08-21T17:10:01.283465+00:00",
+        "sha256": "5004B86A0428DB3A0EFE3021A4094D285A90F824EF969CA2F35304E484F12677",
+        "declaredExtension": ".xls",
+        "detectedContentType": "text/html",
+        "detectedEncoding": "ISO-8859-1",
+        "signatureHex": "3C686561643E3C4D"
+      },
+      "physicalLayout": {
+        "tableCount": 1,
+        "headerRow": 1,
+        "dataStartRow": 2,
+        "rowCount": 754,
+        "columnCount": 24
+      },
+      "headers": [
+        "Name",
+        "User Presence ID",
+        "Status Start Date",
+        "Status End Date",
+        "Productive Time Duration (minutes)",
+        "Available Time Duration (minutes)",
+        "Is Away",
+        "Engaged Duration (minutes)",
+        "Idle Duration",
+        "Idle Status Duration (minutes)",
+        "Status Duration",
+        "Status Duration (minutes)",
+        "Occupancy",
+        "Configured Capacity",
+        "Is My BPO",
+        "Athlete Display Name",
+        "Average Capacity",
+        "At Capacity Duration",
+        "Athlete CS Owner",
+        "Sign On Time",
+        "Sign On Time (hours)",
+        "Athlete Site",
+        "Created Date",
+        "Service Presence Status: Status Name"
+      ],
+      "columns": [
+        {
+          "name": "Name",
+          "ordinal": 1,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 754
+          },
+          "uniqueNonBlankValueCount": 754,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "text": 2904
+            },
+            "uniqueNonBlankValueCount": 2904
+          }
+        },
+        {
+          "name": "User Presence ID",
+          "ordinal": 2,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 754
+          },
+          "uniqueNonBlankValueCount": 754,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "text": 2904
+            },
+            "uniqueNonBlankValueCount": 2904
+          }
+        },
+        {
+          "name": "Status Start Date",
+          "ordinal": 3,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 754
+          },
+          "uniqueNonBlankValueCount": 286,
+          "duplicateNonBlankCount": 468,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "date_time": 2904
+            },
+            "uniqueNonBlankValueCount": 949,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:00",
+              "maximum": "2026-08-17T23:01"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:00",
+            "maximum": "2026-08-17T10:12"
+          }
+        },
+        {
+          "name": "Status End Date",
+          "ordinal": 4,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 653,
+            "blank": 101
+          },
+          "uniqueNonBlankValueCount": 265,
+          "duplicateNonBlankCount": 388,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "date_time": 2904
+            },
+            "uniqueNonBlankValueCount": 944,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:00",
+              "maximum": "2026-08-17T23:18"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:00",
+            "maximum": "2026-08-17T10:12"
+          }
+        },
+        {
+          "name": "Productive Time Duration (minutes)",
+          "ordinal": 5,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 225,
+          "duplicateNonBlankCount": 529,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 709
+          }
+        },
+        {
+          "name": "Available Time Duration (minutes)",
+          "ordinal": 6,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 65,
+          "duplicateNonBlankCount": 689,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 167
+          }
+        },
+        {
+          "name": "Is Away",
+          "ordinal": 7,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 754
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 752,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "text": 2904
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Engaged Duration (minutes)",
+          "ordinal": 8,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 218,
+          "duplicateNonBlankCount": 536,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 683
+          }
+        },
+        {
+          "name": "Idle Duration",
+          "ordinal": 9,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 291,
+          "duplicateNonBlankCount": 463,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 856
+          }
+        },
+        {
+          "name": "Idle Status Duration (minutes)",
+          "ordinal": 10,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 218,
+          "duplicateNonBlankCount": 536,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 416
+          }
+        },
+        {
+          "name": "Status Duration",
+          "ordinal": 11,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 653,
+            "blank": 101
+          },
+          "uniqueNonBlankValueCount": 569,
+          "duplicateNonBlankCount": 84,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 1898
+          }
+        },
+        {
+          "name": "Status Duration (minutes)",
+          "ordinal": 12,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 570,
+          "duplicateNonBlankCount": 184,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 1898
+          }
+        },
+        {
+          "name": "Occupancy",
+          "ordinal": 13,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 653,
+            "error": 101
+          },
+          "uniqueNonBlankValueCount": 3,
+          "duplicateNonBlankCount": 751,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Configured Capacity",
+          "ordinal": 14,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 752,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Is My BPO",
+          "ordinal": 15,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 754
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 752,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "text": 2904
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Athlete Display Name",
+          "ordinal": 16,
+          "privacyClass": "direct_personal_identifier",
+          "typeCounts": {
+            "text": 754
+          },
+          "uniqueNonBlankValueCount": 109,
+          "duplicateNonBlankCount": 645,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "text": 2904
+            },
+            "uniqueNonBlankValueCount": 186
+          }
+        },
+        {
+          "name": "Average Capacity",
+          "ordinal": 17,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 231,
+          "duplicateNonBlankCount": 523,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 289
+          }
+        },
+        {
+          "name": "At Capacity Duration",
+          "ordinal": 18,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 247,
+          "duplicateNonBlankCount": 507,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 584
+          }
+        },
+        {
+          "name": "Athlete CS Owner",
+          "ordinal": 19,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 754
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 753,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "text": 2904
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Sign On Time",
+          "ordinal": 20,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 653,
+            "blank": 101
+          },
+          "uniqueNonBlankValueCount": 569,
+          "duplicateNonBlankCount": 84,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 1898
+          }
+        },
+        {
+          "name": "Sign On Time (hours)",
+          "ordinal": 21,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 754
+          },
+          "uniqueNonBlankValueCount": 168,
+          "duplicateNonBlankCount": 586,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "number": 2904
+            },
+            "uniqueNonBlankValueCount": 270
+          }
+        },
+        {
+          "name": "Athlete Site",
+          "ordinal": 22,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 754
+          },
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 749,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "text": 2904
+            },
+            "uniqueNonBlankValueCount": 5
+          }
+        },
+        {
+          "name": "Created Date",
+          "ordinal": 23,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 754
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 753,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "date_time": 2904
+            },
+            "uniqueNonBlankValueCount": 1,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T00:00",
+              "maximum": "2026-08-17T00:00"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T00:00",
+            "maximum": "2026-08-17T00:00"
+          }
+        },
+        {
+          "name": "Service Presence Status: Status Name",
+          "ordinal": 24,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 754
+          },
+          "uniqueNonBlankValueCount": 10,
+          "duplicateNonBlankCount": 744,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2904,
+            "typeCounts": {
+              "text": 2904
+            },
+            "uniqueNonBlankValueCount": 14
+          }
+        }
+      ],
+      "candidateKeysFromSample": [
+        [
+          "Name"
+        ],
+        [
+          "User Presence ID"
+        ]
+      ],
+      "workbookTarget": {
+        "sheet": "Auxes - Raw",
+        "table": "Table4",
+        "range": "A1:AB3399",
+        "sourceColumnCount": 24,
+        "cachedPopulatedRows": 2904
+      },
+      "reconciliation": {
+        "orderedHeadersMatch": true,
+        "orderedHeadersMatchAfterAliases": true,
+        "headerSetMatch": true,
+        "headerAliasMappings": [],
+        "headerDifferences": [],
+        "rowCountsMatch": false,
+        "exactOrderedRowsMatch": false,
+        "rawRowsPresentInWorkbookMultiset": false,
+        "matchingRowCountIgnoringOrder": 653,
+        "valueEquivalentMatchingRowCountIgnoringOrder": 653,
+        "rawRowsAbsentFromWorkbookCount": 101,
+        "workbookRowsOutsideRawSnapshotCount": 2251,
+        "rawCanonicalSha256": "B2EFA7B729F231E811A50449114D6424B3B19996A4B351B2072AB464C65E46CD",
+        "workbookCachedCanonicalSha256": "1BBB8133E150D7A95190162B24846D491AA44D259AF31259A86D57DE9A8B49FD",
+        "rowMismatchCount": 2904,
+        "mismatchCountByColumn": [
+          {
+            "name": "Name",
+            "count": 2904
+          },
+          {
+            "name": "User Presence ID",
+            "count": 2904
+          },
+          {
+            "name": "Status Start Date",
+            "count": 2901
+          },
+          {
+            "name": "Status End Date",
+            "count": 2903
+          },
+          {
+            "name": "Productive Time Duration (minutes)",
+            "count": 2587
+          },
+          {
+            "name": "Available Time Duration (minutes)",
+            "count": 2518
+          },
+          {
+            "name": "Is Away",
+            "count": 2454
+          },
+          {
+            "name": "Engaged Duration (minutes)",
+            "count": 2581
+          },
+          {
+            "name": "Idle Duration",
+            "count": 2863
+          },
+          {
+            "name": "Idle Status Duration (minutes)",
+            "count": 2725
+          },
+          {
+            "name": "Status Duration",
+            "count": 2904
+          },
+          {
+            "name": "Status Duration (minutes)",
+            "count": 2904
+          },
+          {
+            "name": "Occupancy",
+            "count": 2512
+          },
+          {
+            "name": "Configured Capacity",
+            "count": 2204
+          },
+          {
+            "name": "Is My BPO",
+            "count": 2279
+          },
+          {
+            "name": "Athlete Display Name",
+            "count": 2895
+          },
+          {
+            "name": "Average Capacity",
+            "count": 2863
+          },
+          {
+            "name": "At Capacity Duration",
+            "count": 2571
+          },
+          {
+            "name": "Athlete CS Owner",
+            "count": 2150
+          },
+          {
+            "name": "Sign On Time",
+            "count": 2904
+          },
+          {
+            "name": "Sign On Time (hours)",
+            "count": 2896
+          },
+          {
+            "name": "Athlete Site",
+            "count": 2732
+          },
+          {
+            "name": "Created Date",
+            "count": 2150
+          },
+          {
+            "name": "Service Presence Status: Status Name",
+            "count": 2648
+          }
+        ],
+        "keyReconciliation": {
+          "keyHeader": "Name",
+          "rawUniqueKeyCount": 754,
+          "workbookUniqueKeyCount": 2904,
+          "workbookDuplicateKeyValueCount": 0,
+          "commonKeyCount": 754,
+          "rawKeysAbsentFromWorkbookCount": 0,
+          "workbookKeysOutsideRawSnapshotCount": 2150,
+          "exactRowMatchCountOnCommonKeys": 653,
+          "valueEquivalentRowMatchCountOnCommonKeys": 653,
+          "valueMismatchCountByColumnOnCommonKeys": [
+            {
+              "name": "Status End Date",
+              "count": 101
+            },
+            {
+              "name": "Productive Time Duration (minutes)",
+              "count": 60
+            },
+            {
+              "name": "Available Time Duration (minutes)",
+              "count": 12
+            },
+            {
+              "name": "Engaged Duration (minutes)",
+              "count": 60
+            },
+            {
+              "name": "Idle Duration",
+              "count": 49
+            },
+            {
+              "name": "Idle Status Duration (minutes)",
+              "count": 41
+            },
+            {
+              "name": "Status Duration",
+              "count": 101
+            },
+            {
+              "name": "Status Duration (minutes)",
+              "count": 101
+            },
+            {
+              "name": "Occupancy",
+              "count": 101
+            },
+            {
+              "name": "Average Capacity",
+              "count": 78
+            },
+            {
+              "name": "At Capacity Duration",
+              "count": 50
+            },
+            {
+              "name": "Sign On Time",
+              "count": 101
+            },
+            {
+              "name": "Sign On Time (hours)",
+              "count": 101
+            }
+          ]
+        }
+      },
+      "privacyBoundary": {
+        "literalValuesRetained": false,
+        "policy": "Only headers, hashes, aggregate counts, date ranges, and reconciliation counts are retained; source row values remain outside the repository."
+      }
+    },
+    {
+      "dataset": "Handled",
+      "sourceFile": {
+        "fileName": "Nike Messaging - Handled.xls",
+        "sizeBytes": 2078037,
+        "modifiedTimeUtc": "2026-08-21T17:09:46.086802+00:00",
+        "sha256": "C4BB2747A36BA191E847037D412B89052FDD65D3B8E25F80A8E6CBEC6C5D25E0",
+        "declaredExtension": ".xls",
+        "detectedContentType": "text/html",
+        "detectedEncoding": "ISO-8859-1",
+        "signatureHex": "3C686561643E3C4D"
+      },
+      "physicalLayout": {
+        "tableCount": 1,
+        "headerRow": 1,
+        "dataStartRow": 2,
+        "rowCount": 1614,
+        "columnCount": 27
+      },
+      "headers": [
+        "Case: Case Number",
+        "Messaging Session Name",
+        "Initial Queue",
+        "Start Time",
+        "End Time",
+        "Wait Time",
+        "Total Resolution Time (minutes)",
+        "Service Level Met",
+        "Initial Queue Level",
+        "Initial Queue CS Owner",
+        "Initial Queue LOB",
+        "Case Business Unit",
+        "Initial Athlete CS Owner",
+        "Related Case Resolution",
+        "Related Case Purpose",
+        "Consumer Email",
+        "Speed to Answer",
+        "Case Language",
+        "Is Internal",
+        "Status",
+        "Case: BU",
+        "Request Time",
+        "Country",
+        "Messaging Channel: Channel Name",
+        "Initial Athlete Site",
+        "Created Date",
+        "Language"
+      ],
+      "columns": [
+        {
+          "name": "Case: Case Number",
+          "ordinal": 1,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 1609,
+          "duplicateNonBlankCount": 5,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "number": 5024
+            },
+            "uniqueNonBlankValueCount": 5001
+          }
+        },
+        {
+          "name": "Messaging Session Name",
+          "ordinal": 2,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 1614,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "text": 5024
+            },
+            "uniqueNonBlankValueCount": 5024
+          }
+        },
+        {
+          "name": "Initial Queue",
+          "ordinal": 3,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1614
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Start Time",
+          "ordinal": 4,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1614
+          },
+          "uniqueNonBlankValueCount": 350,
+          "duplicateNonBlankCount": 1264,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "date_time": 5024
+            },
+            "uniqueNonBlankValueCount": 1091,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T03:55",
+              "maximum": "2026-08-17T22:55"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T03:55",
+            "maximum": "2026-08-17T09:59"
+          }
+        },
+        {
+          "name": "End Time",
+          "ordinal": 5,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 671,
+            "blank": 943
+          },
+          "uniqueNonBlankValueCount": 274,
+          "duplicateNonBlankCount": 397,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2278,
+            "typeCounts": {
+              "date_time": 2278
+            },
+            "uniqueNonBlankValueCount": 920,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:12",
+              "maximum": "2026-08-17T23:13"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:12",
+            "maximum": "2026-08-17T10:00"
+          }
+        },
+        {
+          "name": "Wait Time",
+          "ordinal": 6,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1614
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1613,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "number": 5024
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Total Resolution Time (minutes)",
+          "ordinal": 7,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1179,
+            "number": 435
+          },
+          "uniqueNonBlankValueCount": 402,
+          "duplicateNonBlankCount": 33,
+          "workbookCachedProfile": {
+            "nonBlankCount": 1484,
+            "typeCounts": {
+              "number": 812,
+              "date_time": 672
+            },
+            "uniqueNonBlankValueCount": 1300,
+            "dateTimeRange": {
+              "minimum": "1899-12-30T01:40:48",
+              "maximum": "1902-03-15T20:52:48"
+            }
+          }
+        },
+        {
+          "name": "Service Level Met",
+          "ordinal": 8,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1612,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "number": 5024
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Initial Queue Level",
+          "ordinal": 9,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1614
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Initial Queue CS Owner",
+          "ordinal": 10,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1614
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Initial Queue LOB",
+          "ordinal": 11,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1614
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Case Business Unit",
+          "ordinal": 12,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1613,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "text": 5024
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Initial Athlete CS Owner",
+          "ordinal": 13,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1613,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "text": 5024
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Related Case Resolution",
+          "ordinal": 14,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1456,
+            "blank": 158
+          },
+          "uniqueNonBlankValueCount": 80,
+          "duplicateNonBlankCount": 1376,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4927,
+            "typeCounts": {
+              "text": 4927
+            },
+            "uniqueNonBlankValueCount": 102
+          }
+        },
+        {
+          "name": "Related Case Purpose",
+          "ordinal": 15,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 22,
+          "duplicateNonBlankCount": 1592,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5023,
+            "typeCounts": {
+              "text": 5023
+            },
+            "uniqueNonBlankValueCount": 23
+          }
+        },
+        {
+          "name": "Consumer Email",
+          "ordinal": 16,
+          "privacyClass": "direct_personal_identifier",
+          "typeCounts": {
+            "text": 1613,
+            "blank": 1
+          },
+          "uniqueNonBlankValueCount": 1469,
+          "duplicateNonBlankCount": 144,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5019,
+            "typeCounts": {
+              "text": 5019
+            },
+            "uniqueNonBlankValueCount": 4490
+          }
+        },
+        {
+          "name": "Speed to Answer",
+          "ordinal": 17,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1614
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1613,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "number": 5024
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Case Language",
+          "ordinal": 18,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1614
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Is Internal",
+          "ordinal": 19,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1613,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "number": 5024
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Status",
+          "ordinal": 20,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 3,
+          "duplicateNonBlankCount": 1611,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "text": 5024
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Case: BU",
+          "ordinal": 21,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1612,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "text": 5024
+            },
+            "uniqueNonBlankValueCount": 4
+          }
+        },
+        {
+          "name": "Request Time",
+          "ordinal": 22,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1614
+          },
+          "uniqueNonBlankValueCount": 350,
+          "duplicateNonBlankCount": 1264,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "date_time": 5024
+            },
+            "uniqueNonBlankValueCount": 1091,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T03:55",
+              "maximum": "2026-08-17T22:55"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T03:55",
+            "maximum": "2026-08-17T09:59"
+          }
+        },
+        {
+          "name": "Country",
+          "ordinal": 23,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1613,
+            "blank": 1
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1612,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5019,
+            "typeCounts": {
+              "text": 5019
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Messaging Channel: Channel Name",
+          "ordinal": 24,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 6,
+          "duplicateNonBlankCount": 1608,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "text": 5024
+            },
+            "uniqueNonBlankValueCount": 7
+          }
+        },
+        {
+          "name": "Initial Athlete Site",
+          "ordinal": 25,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1614
+          },
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 1609,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "text": 5024
+            },
+            "uniqueNonBlankValueCount": 5
+          }
+        },
+        {
+          "name": "Created Date",
+          "ordinal": 26,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1614
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1613,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5024,
+            "typeCounts": {
+              "date_time": 5024
+            },
+            "uniqueNonBlankValueCount": 1,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T00:00",
+              "maximum": "2026-08-17T00:00"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T00:00",
+            "maximum": "2026-08-17T00:00"
+          }
+        },
+        {
+          "name": "Language",
+          "ordinal": 27,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1613,
+            "blank": 1
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1611,
+          "workbookCachedProfile": {
+            "nonBlankCount": 5019,
+            "typeCounts": {
+              "text": 5019
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        }
+      ],
+      "candidateKeysFromSample": [
+        [
+          "Messaging Session Name"
+        ]
+      ],
+      "workbookTarget": {
+        "sheet": "Handled",
+        "table": "Handled",
+        "range": "A1:AD6055",
+        "sourceColumnCount": 27,
+        "cachedPopulatedRows": 5024
+      },
+      "reconciliation": {
+        "orderedHeadersMatch": true,
+        "orderedHeadersMatchAfterAliases": true,
+        "headerSetMatch": true,
+        "headerAliasMappings": [],
+        "headerDifferences": [],
+        "rowCountsMatch": false,
+        "exactOrderedRowsMatch": false,
+        "rawRowsPresentInWorkbookMultiset": false,
+        "matchingRowCountIgnoringOrder": 0,
+        "valueEquivalentMatchingRowCountIgnoringOrder": 1246,
+        "rawRowsAbsentFromWorkbookCount": 1614,
+        "workbookRowsOutsideRawSnapshotCount": 5024,
+        "rawCanonicalSha256": "2812F3CD66CBC6955386A4260916AC7B80BF2D977D2019464DB4A171153914C5",
+        "workbookCachedCanonicalSha256": "E3BC0D2F5B260AEDCEFDF6FECB651E4F426B796B4F32F58E71608FD6A372955B",
+        "rowMismatchCount": 5024,
+        "mismatchCountByColumn": [
+          {
+            "name": "Case: Case Number",
+            "count": 5024
+          },
+          {
+            "name": "Messaging Session Name",
+            "count": 5024
+          },
+          {
+            "name": "Start Time",
+            "count": 4991
+          },
+          {
+            "name": "End Time",
+            "count": 2646
+          },
+          {
+            "name": "Wait Time",
+            "count": 3410
+          },
+          {
+            "name": "Total Resolution Time (minutes)",
+            "count": 1788
+          },
+          {
+            "name": "Service Level Met",
+            "count": 5024
+          },
+          {
+            "name": "Case Business Unit",
+            "count": 3410
+          },
+          {
+            "name": "Initial Athlete CS Owner",
+            "count": 3410
+          },
+          {
+            "name": "Related Case Resolution",
+            "count": 4812
+          },
+          {
+            "name": "Related Case Purpose",
+            "count": 4752
+          },
+          {
+            "name": "Consumer Email",
+            "count": 5021
+          },
+          {
+            "name": "Speed to Answer",
+            "count": 3410
+          },
+          {
+            "name": "Is Internal",
+            "count": 5024
+          },
+          {
+            "name": "Status",
+            "count": 4287
+          },
+          {
+            "name": "Case: BU",
+            "count": 3429
+          },
+          {
+            "name": "Request Time",
+            "count": 4991
+          },
+          {
+            "name": "Country",
+            "count": 3410
+          },
+          {
+            "name": "Messaging Channel: Channel Name",
+            "count": 4433
+          },
+          {
+            "name": "Initial Athlete Site",
+            "count": 4405
+          },
+          {
+            "name": "Created Date",
+            "count": 3410
+          },
+          {
+            "name": "Language",
+            "count": 3460
+          }
+        ],
+        "keyReconciliation": {
+          "keyHeader": "Messaging Session Name",
+          "rawUniqueKeyCount": 1614,
+          "workbookUniqueKeyCount": 5024,
+          "workbookDuplicateKeyValueCount": 0,
+          "commonKeyCount": 1611,
+          "rawKeysAbsentFromWorkbookCount": 3,
+          "workbookKeysOutsideRawSnapshotCount": 3413,
+          "exactRowMatchCountOnCommonKeys": 0,
+          "valueEquivalentRowMatchCountOnCommonKeys": 1246,
+          "valueMismatchCountByColumnOnCommonKeys": [
+            {
+              "name": "End Time",
+              "count": 108
+            },
+            {
+              "name": "Total Resolution Time (minutes)",
+              "count": 244
+            },
+            {
+              "name": "Service Level Met",
+              "count": 130
+            },
+            {
+              "name": "Related Case Resolution",
+              "count": 154
+            },
+            {
+              "name": "Related Case Purpose",
+              "count": 91
+            },
+            {
+              "name": "Status",
+              "count": 173
+            },
+            {
+              "name": "Case: BU",
+              "count": 6
+            }
+          ]
+        }
+      },
+      "privacyBoundary": {
+        "literalValuesRetained": false,
+        "policy": "Only headers, hashes, aggregate counts, date ranges, and reconciliation counts are retained; source row values remain outside the repository."
+      }
+    },
+    {
+      "dataset": "Offered",
+      "sourceFile": {
+        "fileName": "Nike Messaging - Offered.xls",
+        "sizeBytes": 2068657,
+        "modifiedTimeUtc": "2026-08-21T17:09:35.953968+00:00",
+        "sha256": "78C944F41913FD4EDFAE26AF11DABE3D24BC2D5E4947E01FA6E3AB8423E293F8",
+        "declaredExtension": ".xls",
+        "detectedContentType": "text/html",
+        "detectedEncoding": "ISO-8859-1",
+        "signatureHex": "3C686561643E3C4D"
+      },
+      "physicalLayout": {
+        "tableCount": 1,
+        "headerRow": 1,
+        "dataStartRow": 2,
+        "rowCount": 1652,
+        "columnCount": 27
+      },
+      "headers": [
+        "Case: Case Number",
+        "Messaging Session Name",
+        "Initial Queue",
+        "Start Time",
+        "End Time",
+        "Wait Time",
+        "Total Resolution Time (minutes)",
+        "Initial Queue CS Owner",
+        "Initial Queue LOB",
+        "Initial Queue Level",
+        "Country",
+        "Language",
+        "Case Business Unit",
+        "Initial Athlete CS Owner",
+        "Consumer Email",
+        "Related Case Purpose",
+        "Related Case Resolution",
+        "Contact Fragment Count",
+        "Case: Athlete CS Owner",
+        "Handled Count",
+        "Chat Bot Transferred to Athlete",
+        "Case: Queue CS Owner",
+        "Initial Athlete BPO",
+        "Initial Athlete Site",
+        "Messaging Channel: Channel Name",
+        "Created Date",
+        "Service Level Met"
+      ],
+      "columns": [
+        {
+          "name": "Case: Case Number",
+          "ordinal": 1,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1646,
+          "duplicateNonBlankCount": 6,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "number": 4797
+            },
+            "uniqueNonBlankValueCount": 4774
+          }
+        },
+        {
+          "name": "Messaging Session Name",
+          "ordinal": 2,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1652,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 4797
+          }
+        },
+        {
+          "name": "Initial Queue",
+          "ordinal": 3,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1652
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Start Time",
+          "ordinal": 4,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1652
+          },
+          "uniqueNonBlankValueCount": 365,
+          "duplicateNonBlankCount": 1287,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "date_time": 4797
+            },
+            "uniqueNonBlankValueCount": 1089,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T03:55",
+              "maximum": "2026-08-17T22:55"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T03:55",
+            "maximum": "2026-08-17T10:14"
+          }
+        },
+        {
+          "name": "End Time",
+          "ordinal": 5,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 958,
+            "date_time": 694
+          },
+          "uniqueNonBlankValueCount": 285,
+          "duplicateNonBlankCount": 409,
+          "workbookCachedProfile": {
+            "nonBlankCount": 2224,
+            "typeCounts": {
+              "date_time": 2224
+            },
+            "uniqueNonBlankValueCount": 912,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:24",
+              "maximum": "2026-08-17T23:13"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:24",
+            "maximum": "2026-08-17T10:14"
+          }
+        },
+        {
+          "name": "Wait Time",
+          "ordinal": 6,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1652
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1651,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "number": 4797
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Total Resolution Time (minutes)",
+          "ordinal": 7,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1188,
+            "number": 464
+          },
+          "uniqueNonBlankValueCount": 429,
+          "duplicateNonBlankCount": 35,
+          "workbookCachedProfile": {
+            "nonBlankCount": 1482,
+            "typeCounts": {
+              "number": 1482
+            },
+            "uniqueNonBlankValueCount": 1166
+          }
+        },
+        {
+          "name": "Initial Queue CS Owner",
+          "ordinal": 8,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1652
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Initial Queue LOB",
+          "ordinal": 9,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1652
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Initial Queue Level",
+          "ordinal": 10,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 1652
+          },
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "workbookCachedProfile": {
+            "nonBlankCount": 0,
+            "typeCounts": {},
+            "uniqueNonBlankValueCount": 0
+          }
+        },
+        {
+          "name": "Country",
+          "ordinal": 11,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1651,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Language",
+          "ordinal": 12,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1651,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Case Business Unit",
+          "ordinal": 13,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1651,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Initial Athlete CS Owner",
+          "ordinal": 14,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1651,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Consumer Email",
+          "ordinal": 15,
+          "privacyClass": "direct_personal_identifier",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1511,
+          "duplicateNonBlankCount": 141,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 4301
+          }
+        },
+        {
+          "name": "Related Case Purpose",
+          "ordinal": 16,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1650,
+            "blank": 2
+          },
+          "uniqueNonBlankValueCount": 22,
+          "duplicateNonBlankCount": 1628,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 23
+          }
+        },
+        {
+          "name": "Related Case Resolution",
+          "ordinal": 17,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "blank": 170,
+            "text": 1482
+          },
+          "uniqueNonBlankValueCount": 81,
+          "duplicateNonBlankCount": 1401,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4705,
+            "typeCounts": {
+              "text": 4705
+            },
+            "uniqueNonBlankValueCount": 101
+          }
+        },
+        {
+          "name": "Contact Fragment Count",
+          "ordinal": 18,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 84,
+            "blank": 1568
+          },
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 79,
+          "workbookCachedProfile": {
+            "nonBlankCount": 286,
+            "typeCounts": {
+              "number": 286
+            },
+            "uniqueNonBlankValueCount": 6
+          }
+        },
+        {
+          "name": "Case: Athlete CS Owner",
+          "ordinal": 19,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1651,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Handled Count",
+          "ordinal": 20,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "number": 1652
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1650,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "number": 4797
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Chat Bot Transferred to Athlete",
+          "ordinal": 21,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1650,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "number": 4797
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Case: Queue CS Owner",
+          "ordinal": 22,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1651,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        },
+        {
+          "name": "Initial Athlete BPO",
+          "ordinal": 23,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 3,
+          "duplicateNonBlankCount": 1649,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 3
+          }
+        },
+        {
+          "name": "Initial Athlete Site",
+          "ordinal": 24,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 1647,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 5
+          }
+        },
+        {
+          "name": "Messaging Channel: Channel Name",
+          "ordinal": 25,
+          "privacyClass": "record_or_indirect_identifier",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 4,
+          "duplicateNonBlankCount": 1648,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "text": 4797
+            },
+            "uniqueNonBlankValueCount": 4
+          }
+        },
+        {
+          "name": "Created Date",
+          "ordinal": 26,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 1652
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 1651,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "date_time": 4797
+            },
+            "uniqueNonBlankValueCount": 1,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T00:00",
+              "maximum": "2026-08-17T00:00"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T00:00",
+            "maximum": "2026-08-17T00:00"
+          }
+        },
+        {
+          "name": "Service Level Met",
+          "ordinal": 27,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 1652
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1650,
+          "workbookCachedProfile": {
+            "nonBlankCount": 4797,
+            "typeCounts": {
+              "number": 4797
+            },
+            "uniqueNonBlankValueCount": 1
+          }
+        }
+      ],
+      "candidateKeysFromSample": [
+        [
+          "Messaging Session Name"
+        ]
+      ],
+      "workbookTarget": {
+        "sheet": "Offered",
+        "table": "Offered",
+        "range": "A1:AP5717",
+        "sourceColumnCount": 27,
+        "cachedPopulatedRows": 4797
+      },
+      "reconciliation": {
+        "orderedHeadersMatch": true,
+        "orderedHeadersMatchAfterAliases": true,
+        "headerSetMatch": true,
+        "headerAliasMappings": [],
+        "headerDifferences": [],
+        "rowCountsMatch": false,
+        "exactOrderedRowsMatch": false,
+        "rawRowsPresentInWorkbookMultiset": false,
+        "matchingRowCountIgnoringOrder": 0,
+        "valueEquivalentMatchingRowCountIgnoringOrder": 1437,
+        "rawRowsAbsentFromWorkbookCount": 1652,
+        "workbookRowsOutsideRawSnapshotCount": 4797,
+        "rawCanonicalSha256": "309502270B39546B519CD97E9517E59779B3E3516498022CEBBD7534572B3FD6",
+        "workbookCachedCanonicalSha256": "4396E5F21BFE0F802D73212A7D231FBD88831AEE3E0159287F3158EA755BA335",
+        "rowMismatchCount": 4797,
+        "mismatchCountByColumn": [
+          {
+            "name": "Case: Case Number",
+            "count": 4797
+          },
+          {
+            "name": "Messaging Session Name",
+            "count": 4797
+          },
+          {
+            "name": "Start Time",
+            "count": 4797
+          },
+          {
+            "name": "End Time",
+            "count": 2585
+          },
+          {
+            "name": "Wait Time",
+            "count": 3145
+          },
+          {
+            "name": "Total Resolution Time (minutes)",
+            "count": 1791
+          },
+          {
+            "name": "Country",
+            "count": 3145
+          },
+          {
+            "name": "Language",
+            "count": 3145
+          },
+          {
+            "name": "Case Business Unit",
+            "count": 3145
+          },
+          {
+            "name": "Initial Athlete CS Owner",
+            "count": 3145
+          },
+          {
+            "name": "Consumer Email",
+            "count": 4796
+          },
+          {
+            "name": "Related Case Purpose",
+            "count": 4540
+          },
+          {
+            "name": "Related Case Resolution",
+            "count": 4589
+          },
+          {
+            "name": "Contact Fragment Count",
+            "count": 365
+          },
+          {
+            "name": "Case: Athlete CS Owner",
+            "count": 3145
+          },
+          {
+            "name": "Handled Count",
+            "count": 3959
+          },
+          {
+            "name": "Chat Bot Transferred to Athlete",
+            "count": 4797
+          },
+          {
+            "name": "Case: Queue CS Owner",
+            "count": 3145
+          },
+          {
+            "name": "Initial Athlete BPO",
+            "count": 3908
+          },
+          {
+            "name": "Initial Athlete Site",
+            "count": 4357
+          },
+          {
+            "name": "Messaging Channel: Channel Name",
+            "count": 4146
+          },
+          {
+            "name": "Created Date",
+            "count": 3145
+          },
+          {
+            "name": "Service Level Met",
+            "count": 4797
+          }
+        ],
+        "keyReconciliation": {
+          "keyHeader": "Messaging Session Name",
+          "rawUniqueKeyCount": 1652,
+          "workbookUniqueKeyCount": 4797,
+          "workbookDuplicateKeyValueCount": 0,
+          "commonKeyCount": 1651,
+          "rawKeysAbsentFromWorkbookCount": 1,
+          "workbookKeysOutsideRawSnapshotCount": 3146,
+          "exactRowMatchCountOnCommonKeys": 0,
+          "valueEquivalentRowMatchCountOnCommonKeys": 1437,
+          "valueMismatchCountByColumnOnCommonKeys": [
+            {
+              "name": "End Time",
+              "count": 102
+            },
+            {
+              "name": "Total Resolution Time (minutes)",
+              "count": 76
+            },
+            {
+              "name": "Related Case Purpose",
+              "count": 105
+            },
+            {
+              "name": "Related Case Resolution",
+              "count": 161
+            },
+            {
+              "name": "Contact Fragment Count",
+              "count": 18
+            },
+            {
+              "name": "Service Level Met",
+              "count": 130
+            }
+          ]
+        }
+      },
+      "privacyBoundary": {
+        "literalValuesRetained": false,
+        "policy": "Only headers, hashes, aggregate counts, date ranges, and reconciliation counts are retained; source row values remain outside the repository."
+      }
+    },
+    {
+      "dataset": "Staff",
+      "sourceFile": {
+        "fileName": "Nike Messaging - Staffing.xls",
+        "sizeBytes": 22255,
+        "modifiedTimeUtc": "2026-08-21T17:09:07.509690+00:00",
+        "sha256": "E57C24CD70AF2170B12B2CB41AD3EB089781A6DB830A7B90CAAACD3DA5D321F1",
+        "declaredExtension": ".xls",
+        "detectedContentType": "text/html",
+        "detectedEncoding": "ISO-8859-1",
+        "signatureHex": "3C686561643E3C4D"
+      },
+      "physicalLayout": {
+        "tableCount": 1,
+        "headerRow": 1,
+        "dataStartRow": 2,
+        "rowCount": 87,
+        "columnCount": 5
+      },
+      "headers": [
+        "Status Start Date",
+        "Status End Date",
+        "Athlete Display Name",
+        "Athlete Site",
+        "Athlete Profile"
+      ],
+      "columns": [
+        {
+          "name": "Status Start Date",
+          "ordinal": 1,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 87
+          },
+          "uniqueNonBlankValueCount": 69,
+          "duplicateNonBlankCount": 18,
+          "workbookCachedProfile": {
+            "nonBlankCount": 306,
+            "typeCounts": {
+              "date_time": 306
+            },
+            "uniqueNonBlankValueCount": 243,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:00",
+              "maximum": "2026-08-17T21:54"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:00",
+            "maximum": "2026-08-17T10:01"
+          }
+        },
+        {
+          "name": "Status End Date",
+          "ordinal": 2,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "date_time": 69,
+            "blank": 18
+          },
+          "uniqueNonBlankValueCount": 58,
+          "duplicateNonBlankCount": 11,
+          "workbookCachedProfile": {
+            "nonBlankCount": 306,
+            "typeCounts": {
+              "date_time": 306
+            },
+            "uniqueNonBlankValueCount": 241,
+            "dateTimeRange": {
+              "minimum": "2026-08-17T04:00",
+              "maximum": "2026-08-17T23:08"
+            }
+          },
+          "dateTimeRange": {
+            "minimum": "2026-08-17T04:00",
+            "maximum": "2026-08-17T09:59"
+          }
+        },
+        {
+          "name": "Athlete Display Name",
+          "ordinal": 3,
+          "privacyClass": "direct_personal_identifier",
+          "typeCounts": {
+            "text": 87
+          },
+          "uniqueNonBlankValueCount": 19,
+          "duplicateNonBlankCount": 68,
+          "workbookCachedProfile": {
+            "nonBlankCount": 306,
+            "typeCounts": {
+              "text": 306
+            },
+            "uniqueNonBlankValueCount": 28
+          }
+        },
+        {
+          "name": "Athlete Site",
+          "ordinal": 4,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 87
+          },
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 85,
+          "workbookCachedProfile": {
+            "nonBlankCount": 306,
+            "typeCounts": {
+              "text": 306
+            },
+            "uniqueNonBlankValueCount": 2
+          }
+        },
+        {
+          "name": "Athlete Profile",
+          "ordinal": 5,
+          "privacyClass": "operational_field",
+          "typeCounts": {
+            "text": 87
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 86,
+          "workbookCachedProfile": {
+            "nonBlankCount": 306,
+            "typeCounts": {
+              "text": 306
+            },
+            "uniqueNonBlankValueCount": 3
+          }
+        }
+      ],
+      "candidateKeysFromSample": [],
+      "workbookTarget": {
+        "sheet": "Staff",
+        "table": "ActualStaffAH",
+        "range": "A2:BA1877",
+        "sourceColumnCount": 5,
+        "cachedPopulatedRows": 306
+      },
+      "reconciliation": {
+        "orderedHeadersMatch": true,
+        "orderedHeadersMatchAfterAliases": true,
+        "headerSetMatch": true,
+        "headerAliasMappings": [],
+        "headerDifferences": [],
+        "rowCountsMatch": false,
+        "exactOrderedRowsMatch": false,
+        "rawRowsPresentInWorkbookMultiset": false,
+        "matchingRowCountIgnoringOrder": 67,
+        "valueEquivalentMatchingRowCountIgnoringOrder": 67,
+        "rawRowsAbsentFromWorkbookCount": 20,
+        "workbookRowsOutsideRawSnapshotCount": 239,
+        "rawCanonicalSha256": "F8D03A11B259B903BF7EDD2E5B2B152730EE3FA5796AAB69F73A14F1DB5CEB46",
+        "workbookCachedCanonicalSha256": "9A96F80EBAFA5495A927F8E783A75ABB7F7C06BB8A79BBBDD54BBBC74C272AB2",
+        "rowMismatchCount": 239,
+        "mismatchCountByColumn": [
+          {
+            "name": "Status Start Date",
+            "count": 219
+          },
+          {
+            "name": "Status End Date",
+            "count": 237
+          },
+          {
+            "name": "Athlete Display Name",
+            "count": 219
+          },
+          {
+            "name": "Athlete Site",
+            "count": 219
+          },
+          {
+            "name": "Athlete Profile",
+            "count": 221
+          }
+        ],
+        "keyReconciliation": null
+      },
+      "privacyBoundary": {
+        "literalValuesRetained": false,
+        "policy": "Only headers, hashes, aggregate counts, date ranges, and reconciliation counts are retained; source row values remain outside the repository."
+      }
+    }
+  ]
+}

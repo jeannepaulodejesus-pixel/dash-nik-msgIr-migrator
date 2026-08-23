@@ -1,0 +1,28 @@
+{
+  "name": "nike-messaging-sheets-migration",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone Apps Script control plane for the Nike Messaging reporting migration.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "clasp:configure": "node scripts/configure-clasp.mjs",
+    "clasp:push": "clasp push",
+    "clasp:status": "clasp show-file-status",
+    "guardrails": "node scripts/check-repository.mjs",
+    "lint": "node scripts/check-js.mjs",
+    "test": "node --test",
+    "test:cxp01": "node --test tests/cxp01-contracts.test.cjs",
+    "test:cxp02": "node --test tests/cxp02-initializers.test.cjs",
+    "test:cxp03": "node --test tests/cxp03-schema.test.cjs",
+    "test:cxp04": "node --test tests/cxp04-run-orchestration.test.cjs",
+    "test:cxp05": "node --test tests/cxp05-input-adapters.test.cjs",
+    "test:cxp06": "node --test tests/cxp06-transactional-raw-replacement.test.cjs tests/cxp06-staging.test.cjs tests/cxp06-raw-backup.test.cjs tests/cxp06-backup-failure.test.cjs tests/cxp06-rollback.test.cjs tests/cxp06-commit.test.cjs tests/cxp06-failures.test.cjs tests/cxp06-peak.test.cjs tests/cxp06-packet-status.test.cjs",
+    "test:cxp06:uat": "node --test tests/cxp06-uat-harness.test.cjs",
+    "verify": "npm run lint && npm test && npm run guardrails"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.4.0"
+  }
+}

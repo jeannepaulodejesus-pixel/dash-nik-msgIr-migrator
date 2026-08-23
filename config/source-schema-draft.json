@@ -1,0 +1,216 @@
+{
+  "contractVersion": "1.0.2",
+  "packet": "CXP-01",
+  "status": "approved_for_implementation",
+  "schemaEvidenceAvailable": true,
+  "externalSourceSamplesAvailable": true,
+  "authorities": {
+    "workbookCachedTables": "config/source-table-profile.json",
+    "representativeDeliveries": "config/source-delivery-contract.json"
+  },
+  "physicalPackaging": {
+    "status": "verified_representative_delivery_layout",
+    "recordedStatements": [
+      {
+        "statement": "Five separate logical source files/datasets: Handled, Offered, AHT - Raw, Auxes - Raw, and Staff.",
+        "sourceRef": "LEVEL_SETTING:section-3"
+      },
+      {
+        "statement": "One file per day, with hourly processing.",
+        "sourceRef": "LEVEL_SETTING:section-10"
+      }
+    ],
+    "observedDelivery": "Five separate files, each containing one ISO-8859-1 HTML table despite a .xls extension.",
+    "safeInterpretation": "Each hourly run consumes a complete five-file export bundle, detects HTML content by signature, maps one file per logical dataset, and replaces the prior full export after validation."
+  },
+  "recordedFormats": {
+    "declaredExtension": [
+      "XLS"
+    ],
+    "detectedContentType": [
+      "text/html"
+    ],
+    "detectedEncoding": [
+      "ISO-8859-1"
+    ],
+    "status": "verified_representative_delivery_format"
+  },
+  "timeSemantics": {
+    "sourceTimeZone": {
+      "timeZoneLabel": "GMT",
+      "timeZoneId": "Etc/UTC",
+      "fixedUtcOffset": "+00:00",
+      "dstPolicy": "fixed_offset_no_dst",
+      "naiveTimestampInterpretation": "interpret_as_UTC"
+    },
+    "businessTimeZone": {
+      "timeZoneLabel": "PST",
+      "timeZoneId": "Etc/GMT+8",
+      "fixedUtcOffset": "-08:00",
+      "dstPolicy": "fixed_offset_no_dst"
+    },
+    "conversion": {
+      "required": true,
+      "offsetMinutes": -480,
+      "appliesTo": "date_time_values_only",
+      "applyBefore": "business_date_and_30_minute_bucket",
+      "preserveRawUtcTimestamp": true,
+      "legacyDisposition": "approved_migration_defect_correction"
+    },
+    "sourceLocale": "en-US",
+    "acceptedDateTimeFormats": [
+      "M/d/yyyy h:mm AM/PM"
+    ],
+    "acceptedDateFormats": [
+      "M/d/yyyy"
+    ],
+    "dateOnlyPolicy": "preserve_calendar_date_without_timezone_conversion",
+    "ambiguousTimestampPolicy": "not_applicable_fixed_offset",
+    "nonexistentTimestampPolicy": "not_applicable_fixed_offset",
+    "bucketMinutes": 30,
+    "bucketBoundary": "left_closed_right_open",
+    "bucketFormula": "TIME(HOUR(businessTimestamp),FLOOR(MINUTE(businessTimestamp),30),0)"
+  },
+  "parityStrategy": {
+    "status": "approved",
+    "checkpointIdentity": "five_file_bundle_run_id_and_acquisition_timestamp",
+    "sourceBundleRule": "All five full exports must come from one RTA acquisition cycle; do not derive the checkpoint from per-row maximum timestamps.",
+    "legacyControl": "fresh_legacy_copy_loaded_from_the_same_five_file_bundle",
+    "migratedControl": "migrated_system_loaded_from_the_same_five_file_bundle",
+    "comparisonGrain": [
+      "source table",
+      "date",
+      "30-minute interval",
+      "site",
+      "queue_or_lob",
+      "metric"
+    ],
+    "compareOnlyClosedIntervals": true,
+    "closedIntervalRule": "Convert the GMT acquisition timestamp to fixed PST, then compare buckets whose fixed-PST right boundary is at or before that checkpoint.",
+    "legacyIntervalAlignmentRule": "Subtract 480 minutes from each legacy GMT-bucket interval key before comparing it with the migrated fixed-PST interval key.",
+    "timezoneVarianceDisposition": "approved_expected_variance_from_legacy_missing_conversion",
+    "outputScope": "All five normalized source tables and all 25 Interval View metrics; compare values, blanks, accepted legacy errors, and zero-versus-blank behavior.",
+    "wb0817Role": "Formula, object, and accepted-legacy-behavior authority; not an exact EOD row fixture for the representative partial-day bundle."
+  },
+  "ingestionSemantics": {
+    "replacementMode": "replace_full_export",
+    "ownerProcedure": "RTA extracts all five files hourly, then copies and pastes the complete export into the legacy workbook.",
+    "allHeadersRequired": true,
+    "headerOrderRequired": true,
+    "duplicatePolicy": "collapse_exact_canonical_row_duplicates_only",
+    "divergentDuplicateKeyPolicy": "fail_validation",
+    "canonicalRowDefinition": "required_header_order_after_HTML_entity_decode_before_type_coercion",
+    "blankAndErrorPolicy": {
+      "acceptedBlankTokens": [
+        "",
+        "whitespace_only"
+      ],
+      "blankNormalization": "trim_then_null; never synthesize a default; authoritative key cells must be nonblank",
+      "acceptedErrorTokens": [],
+      "rejectedErrorTokenPattern": "^#",
+      "rejectedErrorTokens": [
+        "#N/A",
+        "#REF!",
+        "#DIV/0!",
+        "#VALUE!",
+        "#NAME?",
+        "#NUM!",
+        "#NULL!",
+        "#ERROR!"
+      ],
+      "errorTokenComparison": "case_insensitive_exact_token",
+      "naTextPolicy": "NA is ordinary text, not a null token"
+    }
+  },
+  "manualDependencies": {
+    "dataColumns": [
+      "B",
+      "D",
+      "F",
+      "M",
+      "R",
+      "X"
+    ],
+    "dataColumnsSource": "RTA_pastes_from_Staff",
+    "staffSummaryMatrix": "Staff_BE_BF_copied_into_Data",
+    "auxProductivePivot": "required_operational_dependency",
+    "backlogsAndDetail1": "retire_if_no_direct_Interval_View_dependency",
+    "retirementVerification": "Before removal, automated dependency extraction must confirm no formula, PivotTable, slicer, defined-name, or manual parity dependency reaches Interval View."
+  },
+  "logicalDatasets": [
+    {
+      "name": "Handled",
+      "workbookSheet": "Handled",
+      "workbookTable": "Handled",
+      "workbookRange": "A1:AD6055",
+      "schemaStatus": "approved_required_header_schema_with_representative_profile",
+      "allHeadersRequired": true,
+      "authoritativeKey": [
+        "Messaging Session Name"
+      ],
+      "dedupeKey": null,
+      "duplicatePolicy": "collapse_exact_canonical_row_duplicates_only",
+      "profileRef": "config/source-table-profile.json#Handled",
+      "deliveryRef": "config/source-delivery-contract.json#Handled"
+    },
+    {
+      "name": "Offered",
+      "workbookSheet": "Offered",
+      "workbookTable": "Offered",
+      "workbookRange": "A1:AP5717",
+      "schemaStatus": "approved_required_header_schema_with_representative_profile",
+      "allHeadersRequired": true,
+      "authoritativeKey": [
+        "Messaging Session Name"
+      ],
+      "dedupeKey": null,
+      "duplicatePolicy": "collapse_exact_canonical_row_duplicates_only",
+      "profileRef": "config/source-table-profile.json#Offered",
+      "deliveryRef": "config/source-delivery-contract.json#Offered"
+    },
+    {
+      "name": "AHT - Raw",
+      "workbookSheet": "AHT - Raw",
+      "workbookTable": "AHT_Raw",
+      "workbookRange": "A1:AH7862",
+      "schemaStatus": "approved_required_header_schema_with_representative_profile",
+      "allHeadersRequired": true,
+      "authoritativeKey": [
+        "Agent Work ID"
+      ],
+      "dedupeKey": null,
+      "duplicatePolicy": "collapse_exact_canonical_row_duplicates_only",
+      "profileRef": "config/source-table-profile.json#AHT - Raw",
+      "deliveryRef": "config/source-delivery-contract.json#AHT - Raw"
+    },
+    {
+      "name": "Auxes - Raw",
+      "workbookSheet": "Auxes - Raw",
+      "workbookTable": "Table4",
+      "workbookRange": "A1:AB3399",
+      "schemaStatus": "approved_required_header_schema_with_representative_profile",
+      "allHeadersRequired": true,
+      "authoritativeKey": [
+        "User Presence ID"
+      ],
+      "dedupeKey": null,
+      "duplicatePolicy": "collapse_exact_canonical_row_duplicates_only",
+      "profileRef": "config/source-table-profile.json#Auxes - Raw",
+      "deliveryRef": "config/source-delivery-contract.json#Auxes - Raw"
+    },
+    {
+      "name": "Staff",
+      "workbookSheet": "Staff",
+      "workbookTable": "ActualStaffAH",
+      "workbookRange": "A2:BA1877",
+      "schemaStatus": "approved_required_header_schema_with_representative_profile",
+      "allHeadersRequired": true,
+      "authoritativeKey": null,
+      "dedupeKey": "canonical_full_row_hash",
+      "duplicatePolicy": "collapse_exact_canonical_row_duplicates_only",
+      "profileRef": "config/source-table-profile.json#Staff",
+      "deliveryRef": "config/source-delivery-contract.json#Staff"
+    }
+  ],
+  "requiredEvidenceToResolve": []
+}

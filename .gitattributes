@@ -1,0 +1,13 @@
+* text=auto
+*.cjs text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.docx binary
+*.png binary
+
+# The supplied handoff uses Markdown's two-space hard line breaks intentionally.
+CODEX_HANDOFF.md whitespace=-blank-at-eol

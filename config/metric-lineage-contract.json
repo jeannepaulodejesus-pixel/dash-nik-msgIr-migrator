@@ -1,0 +1,821 @@
+{
+  "contractVersion": "1.0.1",
+  "packet": "CXP-01",
+  "evidenceStatus": "verified_workbook_binary",
+  "sourceSha256": "CD8F8EC6F68FBEC85841CD64C251616FCECD0AD67DE4714EFB244F648548E65A",
+  "output": {
+    "sheet": "Interval View",
+    "headerRange": "C112:AB112",
+    "intervalRows": "113:150",
+    "totalRow": 151,
+    "intervalCount": 38,
+    "comparisonGrain": [
+      "date",
+      "interval",
+      "site",
+      "queue_or_lob",
+      "metric"
+    ]
+  },
+  "metrics": [
+    {
+      "name": "Forecast",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "D112",
+        "intervalRange": "D113:D150",
+        "totalCell": "D151"
+      },
+      "numberFormat": "0",
+      "sampleCell": "D113",
+      "sampleFormula": "IF(E113=\"\",0,VLOOKUP(C113,Data!A3:I42,9,0))",
+      "totalFormula": "SUM(D113:D150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IF(R[0]C[1]=\"\",0,VLOOKUP(R[0]C[-1],Data!R[-110]C[-3]:R[-71]C[5],9,0))",
+          "count": 38,
+          "ranges": [
+            "D113:D150"
+          ],
+          "sampleCell": "D113",
+          "sampleFormula": "IF(E113=\"\",0,VLOOKUP(C113,Data!A3:I42,9,0))"
+        }
+      ],
+      "internalLineage": [
+        "Interval View D113:D150 looks up Data I3:I42 by PST interval.",
+        "Data I5:I42 sums Forecast PH and Forecast LAS from Data G:H.",
+        "Data G:H use GETPIVOTDATA on Forecast and Allocation Pivot::PivotTable1 for Type=Forecast and Site=PH/LAS.",
+        "PivotTable1 aggregates SEF::Table510[Required] by Time, Site, Type, and Date; SEF stages MOM weekly forecast inputs."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Offered",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "E112",
+        "intervalRange": "E113:E150",
+        "totalCell": "E151"
+      },
+      "numberFormat": "0",
+      "sampleCell": "E113",
+      "sampleFormula": "IF(SUM(E11,E54)=0,\"\",SUM(E11,E54))",
+      "totalFormula": "SUM(E113:E150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IF(SUM(R[-102]C[0],R[-59]C[0])=0,\"\",SUM(R[-102]C[0],R[-59]C[0]))",
+          "count": 38,
+          "ranges": [
+            "E113:E150"
+          ],
+          "sampleCell": "E113",
+          "sampleFormula": "IF(SUM(E11,E54)=0,\"\",SUM(E11,E54))"
+        }
+      ],
+      "internalLineage": [
+        "Interval View E113:E150 sums the corresponding PH and LAS Interval View blocks.",
+        "Those blocks use GETPIVOTDATA Offered from AHT Handled Offered::All Sites.",
+        "All Sites aggregates Offered::Offered[Count] by Interval View and Athlete Site."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Handled",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "F112",
+        "intervalRange": "F113:F150",
+        "totalCell": "F151"
+      },
+      "numberFormat": "0",
+      "sampleCell": "F113",
+      "sampleFormula": "SUM(F11,F54)",
+      "totalFormula": "SUM(F113:F150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IF(SUM(R[-102]C[0],R[-59]C[0])=0,\"\",SUM(R[-102]C[0],R[-59]C[0]))",
+          "count": 29,
+          "ranges": [
+            "F122:F150"
+          ],
+          "sampleCell": "F122",
+          "sampleFormula": "IF(SUM(F20,F63)=0,\"\",SUM(F20,F63))"
+        },
+        {
+          "normalizedFormula": "SUM(R[-102]C[0],R[-59]C[0])",
+          "count": 9,
+          "ranges": [
+            "F113:F121"
+          ],
+          "sampleCell": "F113",
+          "sampleFormula": "SUM(F11,F54)"
+        }
+      ],
+      "internalLineage": [
+        "Interval View F113:F150 sums the corresponding PH and LAS Interval View blocks.",
+        "Those blocks use GETPIVOTDATA Handled from AHT Handled Offered::All Sites.",
+        "All Sites aggregates Offered::Offered[Handled] by Interval View and Athlete Site."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Chats in SL",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "G112",
+        "intervalRange": "G113:G150",
+        "totalCell": "G151"
+      },
+      "numberFormat": "0",
+      "sampleCell": "G113",
+      "sampleFormula": "SUM(G11,G54)",
+      "totalFormula": "SUM(G113:G150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "SUM(R[-102]C[0],R[-59]C[0])",
+          "count": 38,
+          "ranges": [
+            "G113:G150"
+          ],
+          "sampleCell": "G113",
+          "sampleFormula": "SUM(G11,G54)"
+        }
+      ],
+      "internalLineage": [
+        "Interval View G113:G150 sums the corresponding PH and LAS Chats in SL blocks.",
+        "Those blocks use GETPIVOTDATA In SL from AHT Handled Offered::All Sites.",
+        "All Sites aggregates Offered::Offered[SL Total] by Interval View and Athlete Site."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Abandoned",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "H112",
+        "intervalRange": "H113:H150",
+        "totalCell": "H151"
+      },
+      "numberFormat": "General",
+      "sampleCell": "H113",
+      "sampleFormula": "IFERROR(E113-F113,\"\")",
+      "totalFormula": "SUM(H113:H150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(R[0]C[-3]-R[0]C[-2],\"\")",
+          "count": 38,
+          "ranges": [
+            "H113:H150"
+          ],
+          "sampleCell": "H113",
+          "sampleFormula": "IFERROR(E113-F113,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View H113:H150 calculates Offered minus Handled."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "SL % Total",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "I112",
+        "intervalRange": "I113:I150",
+        "totalCell": "I151"
+      },
+      "numberFormat": "0.00%",
+      "sampleCell": "I113",
+      "sampleFormula": "IFERROR(G113/E113,\"\")",
+      "totalFormula": "G151/E151",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(R[0]C[-2]/R[0]C[-4],\"\")",
+          "count": 38,
+          "ranges": [
+            "I113:I150"
+          ],
+          "sampleCell": "I113",
+          "sampleFormula": "IFERROR(G113/E113,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View I113:I150 calculates Chats in SL divided by Offered with IFERROR blank fallback."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "SL (Time To Connect)",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "J112",
+        "intervalRange": "J113:J150",
+        "totalCell": "J151"
+      },
+      "numberFormat": "0.00%",
+      "sampleCell": "J113",
+      "sampleFormula": "IFERROR(GETPIVOTDATA(\"SL TTC\",'AHT Handled Offered'!$B$58,\"Interval View\",$C113),\"\")",
+      "totalFormula": "GETPIVOTDATA(\"SL TTC\",'AHT Handled Offered'!$B$58)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(GETPIVOTDATA(\"SL TTC\",'AHT Handled Offered'!R58C2,\"Interval View\",R[0]C3),\"\")",
+          "count": 38,
+          "ranges": [
+            "J113:J150"
+          ],
+          "sampleCell": "J113",
+          "sampleFormula": "IFERROR(GETPIVOTDATA(\"SL TTC\",'AHT Handled Offered'!$B$58,\"Interval View\",$C113),\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View J113:J150 uses GETPIVOTDATA SL TTC from AHT Handled Offered::All Sites.",
+        "All Sites averages Offered::Offered[SL] by Interval View and Athlete Site."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "% of Forecast Offered",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "K112",
+        "intervalRange": "K113:K150",
+        "totalCell": "K151"
+      },
+      "numberFormat": "0.00%",
+      "sampleCell": "K113",
+      "sampleFormula": "IFERROR(E113/D113,\" \")",
+      "totalFormula": "IFERROR((IF(E151=\"\",\"\",(E151/D151))),\"\")",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(R[0]C[-6]/R[0]C[-7],\" \")",
+          "count": 38,
+          "ranges": [
+            "K113:K150"
+          ],
+          "sampleCell": "K113",
+          "sampleFormula": "IFERROR(E113/D113,\" \")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View K113:K150 calculates Offered divided by Forecast with a single-space fallback."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "% of Forecast Handled",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "L112",
+        "intervalRange": "L113:L150",
+        "totalCell": "L151"
+      },
+      "numberFormat": "0.00%",
+      "sampleCell": "L113",
+      "sampleFormula": "IFERROR(F113/D113,\" \")",
+      "totalFormula": "IFERROR(IF(F151=0,\"\",(F151/D151)),\"\")",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(R[0]C[-6]/R[0]C[-8],\" \")",
+          "count": 38,
+          "ranges": [
+            "L113:L150"
+          ],
+          "sampleCell": "L113",
+          "sampleFormula": "IFERROR(F113/D113,\" \")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View L113:L150 calculates Handled divided by Forecast with a single-space fallback."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Allocation",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "M112",
+        "intervalRange": "M113:M150",
+        "totalCell": "M151"
+      },
+      "numberFormat": "0.00%",
+      "sampleCell": "M113",
+      "sampleFormula": "IFERROR(VLOOKUP(C113,'Drivers and Allocation'!G:K,3,0),\"\")",
+      "totalFormula": "IFERROR(VLOOKUP(C151,'Drivers and Allocation'!G:K,3,0),\"\")",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(VLOOKUP(R[0]C[-10],'Drivers and Allocation'!G:K,3,0),\"\")",
+          "count": 38,
+          "ranges": [
+            "M113:M150"
+          ],
+          "sampleCell": "M113",
+          "sampleFormula": "IFERROR(VLOOKUP(C113,'Drivers and Allocation'!G:K,3,0),\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View M113:M150 looks up the INT column in Drivers and Allocation G:K by PST interval.",
+        "Drivers and Allocation::Allocation counts Offered cases by Interval View and Initial Athlete BPO, then expresses interval allocation shares."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Cumulative Allocation",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "N112",
+        "intervalRange": "N113:N150",
+        "totalCell": "N151"
+      },
+      "numberFormat": "0.00%",
+      "sampleCell": "N113",
+      "sampleFormula": "IFERROR(VLOOKUP(C113,'Drivers and Allocation'!N:S,6,0),\"\")",
+      "totalFormula": "M151",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(VLOOKUP(R[0]C[-11],'Drivers and Allocation'!N:S,6,0),\"\")",
+          "count": 38,
+          "ranges": [
+            "N113:N150"
+          ],
+          "sampleCell": "N113",
+          "sampleFormula": "IFERROR(VLOOKUP(C113,'Drivers and Allocation'!N:S,6,0),\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View N113:N150 looks up Drivers and Allocation N:S column 6 by PST interval.",
+        "Drivers and Allocation S16:S54 divides the INT count by the Grand Total from PivotTable3.",
+        "PivotTable3 counts Initial Athlete BPO over Offered A1:AP1048576 by Interval View."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "AHT (Session)",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "O112",
+        "intervalRange": "O113:O150",
+        "totalCell": "O151"
+      },
+      "numberFormat": "0.00",
+      "sampleCell": "O113",
+      "sampleFormula": "IFERROR(GETPIVOTDATA(\"AHT Session\",'AHT Handled Offered'!$B$106,\"Interval View\",$C113)/63,\"\")",
+      "totalFormula": "GETPIVOTDATA(\"AHT Session \",'AHT Handled Offered'!$B$106)/60",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(GETPIVOTDATA(\"AHT Session\",'AHT Handled Offered'!R106C2,\"Interval View\",R[0]C3)/63,\"\")",
+          "count": 38,
+          "ranges": [
+            "O113:O150"
+          ],
+          "sampleCell": "O113",
+          "sampleFormula": "IFERROR(GETPIVOTDATA(\"AHT Session\",'AHT Handled Offered'!$B$106,\"Interval View\",$C113)/63,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View O113:O150 uses GETPIVOTDATA AHT Session from AHT Handled Offered::CNX Enterprise.",
+        "CNX Enterprise averages Offered::Offered[AHT Session] by Interval View and Athlete Site."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "AHT",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "P112",
+        "intervalRange": "P113:P150",
+        "totalCell": "P151"
+      },
+      "numberFormat": "0.00",
+      "sampleCell": "P113",
+      "sampleFormula": "IFERROR(GETPIVOTDATA(\"AHT\",'AHT Handled Offered'!$B$12,\"Interval\",$C113)/60,\"\")",
+      "totalFormula": "GETPIVOTDATA(\"AHT\",'AHT Handled Offered'!$B$12)/60",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(GETPIVOTDATA(\"AHT\",'AHT Handled Offered'!R12C2,\"Interval\",R[0]C3)/60,\"\")",
+          "count": 38,
+          "ranges": [
+            "P113:P150"
+          ],
+          "sampleCell": "P113",
+          "sampleFormula": "IFERROR(GETPIVOTDATA(\"AHT\",'AHT Handled Offered'!$B$12,\"Interval\",$C113)/60,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View P113:P150 uses GETPIVOTDATA AHT from AHT Handled Offered::CNX AHT and divides by 60.",
+        "CNX AHT averages AHT_Raw[Handle Time - Total] by Interval and Athlete Site."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "ACW",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "Q112",
+        "intervalRange": "Q113:Q150",
+        "totalCell": "Q151"
+      },
+      "numberFormat": "0.00",
+      "sampleCell": "Q113",
+      "sampleFormula": "IFERROR(GETPIVOTDATA(\"ACW\",'AHT Handled Offered'!$B$12,\"Interval\",$C113)/60,\"\")",
+      "totalFormula": "GETPIVOTDATA(\"ACW\",'AHT Handled Offered'!$B$12)/60",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(GETPIVOTDATA(\"ACW\",'AHT Handled Offered'!R12C2,\"Interval\",R[0]C3)/60,\"\")",
+          "count": 38,
+          "ranges": [
+            "Q113:Q150"
+          ],
+          "sampleCell": "Q113",
+          "sampleFormula": "IFERROR(GETPIVOTDATA(\"ACW\",'AHT Handled Offered'!$B$12,\"Interval\",$C113)/60,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View Q113:Q150 uses GETPIVOTDATA ACW from AHT Handled Offered::CNX AHT and divides by 60.",
+        "CNX AHT averages AHT_Raw[After Conversation Work Actual Time] by Interval and Athlete Site."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "ASA in Seconds",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "R112",
+        "intervalRange": "R113:R150",
+        "totalCell": "R151"
+      },
+      "numberFormat": "0.00",
+      "sampleCell": "R113",
+      "sampleFormula": "IFERROR(IFERROR(GETPIVOTDATA(\"ASA Total\",'AHT Handled Offered'!$B$12,\"Interval\",$C113)/60,\"\")*60,\"\")",
+      "totalFormula": "(GETPIVOTDATA(\"ASA Total \",'AHT Handled Offered'!$B$12)/60)*60",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(IFERROR(GETPIVOTDATA(\"ASA Total\",'AHT Handled Offered'!R12C2,\"Interval\",R[0]C3)/60,\"\")*60,\"\")",
+          "count": 38,
+          "ranges": [
+            "R113:R150"
+          ],
+          "sampleCell": "R113",
+          "sampleFormula": "IFERROR(IFERROR(GETPIVOTDATA(\"ASA Total\",'AHT Handled Offered'!$B$12,\"Interval\",$C113)/60,\"\")*60,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View R113:R150 retrieves ASA Total from AHT Handled Offered::CNX AHT; /60 then *60 is algebraically neutral.",
+        "CNX AHT averages AHT_Raw[ASA Total], calculated as Speed To Answer plus Time To First Response."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Concurrency",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "S112",
+        "intervalRange": "S113:S150",
+        "totalCell": "S151"
+      },
+      "numberFormat": "0.00",
+      "sampleCell": "S113",
+      "sampleFormula": "IFERROR(GETPIVOTDATA(\"Concurrency\",'AHT Handled Offered'!$B$12,\"Interval\",C113),\"\")",
+      "totalFormula": "GETPIVOTDATA(\"Concurrency\",'AHT Handled Offered'!$B$12)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(GETPIVOTDATA(\"Concurrency\",'AHT Handled Offered'!R12C2,\"Interval\",R[0]C[-16]),\"\")",
+          "count": 38,
+          "ranges": [
+            "S113:S150"
+          ],
+          "sampleCell": "S113",
+          "sampleFormula": "IFERROR(GETPIVOTDATA(\"Concurrency\",'AHT Handled Offered'!$B$12,\"Interval\",C113),\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View S113:S150 uses GETPIVOTDATA Concurrency from AHT Handled Offered::CNX AHT.",
+        "CNX AHT averages AHT_Raw[CC], whose calculated-column formula divides summed Handle Time by summed Active Time for interval and site."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Scheduled",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "T112",
+        "intervalRange": "T113:T150",
+        "totalCell": "T151"
+      },
+      "numberFormat": "0",
+      "sampleCell": "T113",
+      "sampleFormula": "IF(E113=\"\",\"\",VLOOKUP(C113,Data!A:O,15,0))",
+      "totalFormula": "SUM(T113:T150)/COUNT(T113:T150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IF(R[0]C[-15]=\"\",\"\",VLOOKUP(R[0]C[-17],Data!A:O,15,0))",
+          "count": 38,
+          "ranges": [
+            "T113:T150"
+          ],
+          "sampleCell": "T113",
+          "sampleFormula": "IF(E113=\"\",\"\",VLOOKUP(C113,Data!A:O,15,0))"
+        }
+      ],
+      "internalLineage": [
+        "Interval View T113:T150 looks up Data O (Scheduled Combined) by PST interval.",
+        "Data O5:O42 sums scheduled/support inputs from Data B, F, R, and X; the owner confirms RTA pastes the Staff-derived inputs into Data."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Required",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "U112",
+        "intervalRange": "U113:U150",
+        "totalCell": "U151"
+      },
+      "numberFormat": "0",
+      "sampleCell": "U113",
+      "sampleFormula": "IF(E113=\"\",\"\",VLOOKUP(C113,Data!A:P,16,0))",
+      "totalFormula": "SUM(U113:U150)/COUNT(U113:U150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IF(R[0]C[-16]=\"\",\"\",VLOOKUP(R[0]C[-18],Data!A:P,16,0))",
+          "count": 38,
+          "ranges": [
+            "U113:U150"
+          ],
+          "sampleCell": "U113",
+          "sampleFormula": "IF(E113=\"\",\"\",VLOOKUP(C113,Data!A:P,16,0))"
+        }
+      ],
+      "internalLineage": [
+        "Interval View U113:U150 looks up Data P (Combined Required) by PST interval.",
+        "Data P5:P42 sums PH and LAS Required values retrieved from Forecast and Allocation Pivot::PivotTable1."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Actual (SO)",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "V112",
+        "intervalRange": "V113:V150",
+        "totalCell": "V151"
+      },
+      "numberFormat": "0",
+      "sampleCell": "V113",
+      "sampleFormula": "IF(E113=\"\",\"\",VLOOKUP(C113,Data!A:L,12,0))",
+      "totalFormula": "SUM(V113:V150)/COUNT(V113:V150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IF(R[0]C[-17]=\"\",\"\",VLOOKUP(R[0]C[-19],Data!A:L,12,0))",
+          "count": 38,
+          "ranges": [
+            "V113:V150"
+          ],
+          "sampleCell": "V113",
+          "sampleFormula": "IF(E113=\"\",\"\",VLOOKUP(C113,Data!A:L,12,0))"
+        }
+      ],
+      "internalLineage": [
+        "Interval View V113:V150 looks up Data L (PH & LV Staffing) by PST interval.",
+        "Data L5:L42 sums actual/support inputs from Data D, M, and X; the owner confirms RTA pastes the Staff-derived inputs into Data."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Actual vs Required",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "W112",
+        "intervalRange": "W113:W150",
+        "totalCell": "W151"
+      },
+      "numberFormat": "0",
+      "sampleCell": "W113",
+      "sampleFormula": "IFERROR(V113-U113,\"\")",
+      "totalFormula": "IFERROR(V151-U151,\"\")",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(R[0]C[-1]-R[0]C[-2],\"\")",
+          "count": 38,
+          "ranges": [
+            "W113:W150"
+          ],
+          "sampleCell": "W113",
+          "sampleFormula": "IFERROR(V113-U113,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View W113:W150 calculates Actual (SO) minus Required."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Scheduled Hours",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "X112",
+        "intervalRange": "X113:X150",
+        "totalCell": "X151"
+      },
+      "numberFormat": "builtin:46",
+      "sampleCell": "X113",
+      "sampleFormula": "IFERROR((T113*30)/1440,\"\")",
+      "totalFormula": "SUM(X113:X150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR((R[0]C[-4]*30)/1440,\"\")",
+          "count": 38,
+          "ranges": [
+            "X113:X150"
+          ],
+          "sampleCell": "X113",
+          "sampleFormula": "IFERROR((T113*30)/1440,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View X113:X150 converts Scheduled half-hour staffing to Excel day fractions: Scheduled*30/1440."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Required Hours",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "Y112",
+        "intervalRange": "Y113:Y150",
+        "totalCell": "Y151"
+      },
+      "numberFormat": "builtin:46",
+      "sampleCell": "Y113",
+      "sampleFormula": "IF(D113=\"\",\"\",IFERROR((U113*30)/1440,\"\"))",
+      "totalFormula": "SUM(Y113:Y150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IF(R[0]C[-21]=\"\",\"\",IFERROR((R[0]C[-4]*30)/1440,\"\"))",
+          "count": 38,
+          "ranges": [
+            "Y113:Y150"
+          ],
+          "sampleCell": "Y113",
+          "sampleFormula": "IF(D113=\"\",\"\",IFERROR((U113*30)/1440,\"\"))"
+        }
+      ],
+      "internalLineage": [
+        "Interval View Y113:Y150 converts Required half-hour staffing to Excel day fractions: Required*30/1440."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Actual",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "Z112",
+        "intervalRange": "Z113:Z150",
+        "totalCell": "Z151"
+      },
+      "numberFormat": "builtin:46",
+      "sampleCell": "Z113",
+      "sampleFormula": "IFERROR((V113*30)/1440,\"\")",
+      "totalFormula": "SUM(Z113:Z150)",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR((R[0]C[-4]*30)/1440,\"\")",
+          "count": 38,
+          "ranges": [
+            "Z113:Z150"
+          ],
+          "sampleCell": "Z113",
+          "sampleFormula": "IFERROR((V113*30)/1440,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View Z113:Z150 converts Actual (SO) half-hour staffing to Excel day fractions: Actual (SO)*30/1440."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Actual to Required",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "AA112",
+        "intervalRange": "AA113:AA150",
+        "totalCell": "AA151"
+      },
+      "numberFormat": "0.00%",
+      "sampleCell": "AA113",
+      "sampleFormula": "IFERROR(Z113/Y113,\"\")",
+      "totalFormula": "IFERROR(Z151/Y151,\"\")",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "IFERROR(R[0]C[-1]/R[0]C[-2],\"\")",
+          "count": 38,
+          "ranges": [
+            "AA113:AA150"
+          ],
+          "sampleCell": "AA113",
+          "sampleFormula": "IFERROR(Z113/Y113,\"\")"
+        }
+      ],
+      "internalLineage": [
+        "Interval View AA113:AA150 divides Actual hours by Required hours with IFERROR blank fallback."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    },
+    {
+      "name": "Scheduled to Required",
+      "lineageStatus": "verified_workbook_internal_lineage_source_schema_and_approved_intraday_parity_protocol",
+      "outputLocation": {
+        "sheet": "Interval View",
+        "headerCell": "AB112",
+        "intervalRange": "AB113:AB150",
+        "totalCell": "AB151"
+      },
+      "numberFormat": "0.00%",
+      "sampleCell": "AB113",
+      "sampleFormula": "T113/U113",
+      "totalFormula": "IFERROR(X151/Y151,\"\")",
+      "formulaFamilies": [
+        {
+          "normalizedFormula": "R[0]C[-8]/R[0]C[-7]",
+          "count": 38,
+          "ranges": [
+            "AB113:AB150"
+          ],
+          "sampleCell": "AB113",
+          "sampleFormula": "T113/U113"
+        }
+      ],
+      "internalLineage": [
+        "Interval View AB113:AB150 divides Scheduled by Required without an error wrapper at interval level."
+      ],
+      "externalSourceBoundary": "Representative delivery schema is verified. Implementation parity uses a fresh legacy copy and the migrated system loaded from the same five-file intraday bundle under config/source-schema-draft.json."
+    }
+  ],
+  "anomalies": [
+    {
+      "id": "METRIC-AHT-SESSION-DIVISOR-MISMATCH",
+      "severity": "accepted_legacy_baseline",
+      "disposition": "intentional_legacy_behavior",
+      "evidence": "Interval O113:O150 divides AHT Session by 63; total O151 divides by 60."
+    },
+    {
+      "id": "METRIC-SCHEDULED-TO-REQUIRED-NO-ERROR-GUARD",
+      "severity": "accepted_legacy_baseline",
+      "disposition": "intentional_legacy_behavior",
+      "evidence": "Interval AB113:AB150 uses direct Scheduled/Required division while the total AB151 uses IFERROR."
+    },
+    {
+      "id": "METRIC-HANDLED-ZERO-BLANK-VARIANT",
+      "severity": "accepted_legacy_baseline",
+      "disposition": "intentional_legacy_behavior",
+      "evidence": "Interval F113:F121 uses a plain SUM that returns zero, while F122:F150 wraps the same shifted SUM pattern to return blank when the result is zero."
+    },
+    {
+      "id": "WORKBOOK-CACHED-ERRORS",
+      "severity": "accepted_legacy_baseline",
+      "disposition": "intentional_legacy_behavior",
+      "evidence": "The WB0817 binary contains 1,885 cached errors; exact types and sheet locations are in the formula catalog."
+    },
+    {
+      "id": "WORKBOOK-BROKEN-NAMES-AND-REFERENCES",
+      "severity": "accepted_legacy_baseline",
+      "disposition": "intentional_legacy_behavior",
+      "evidence": "Defined names LOB and sst resolve to #REF!, and Teams Update contains broken reference operands; the owner accepts these as legacy behavior for parity."
+    },
+    {
+      "id": "WORKBOOK-MISSING-GMT-TO-PST-CONVERTER",
+      "severity": "approved_legacy_defect_correction",
+      "disposition": "approved_migration_defect_correction",
+      "evidence": "Five core WB0817 source-to-interval formula families floor raw timestamp hours directly without a GMT-to-PST offset. The only negative constant time shift is Teams Update F8:F16 (-15 hours), a downstream report-support calculation with no path into Interval View source bucketing."
+    },
+    {
+      "id": "SOURCE-SNAPSHOT-CUTOFF-MISMATCH",
+      "severity": "resolved_control_strategy",
+      "disposition": "resolved_by_intraday_same_bundle_strategy",
+      "evidence": "Representative raw exports stop around 10:00-10:14, while WB0817 cached source tables extend to approximately 21:54-23:18 and contain materially more rows."
+    }
+  ]
+}

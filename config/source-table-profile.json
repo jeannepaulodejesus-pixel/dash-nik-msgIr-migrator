@@ -1,0 +1,2976 @@
+{
+  "profileVersion": "1.0.0",
+  "packet": "CXP-01",
+  "evidenceStatus": "verified_workbook_cached_table_profile",
+  "sourceSha256": "CD8F8EC6F68FBEC85841CD64C251616FCECD0AD67DE4714EFB244F648548E65A",
+  "externalSourceSamplesAvailable": true,
+  "externalSourceAuthority": "config/source-delivery-contract.json",
+  "privacyBoundary": "Column names and aggregate profiles are retained; cached workbook values are not copied into the repository.",
+  "datasets": [
+    {
+      "name": "Handled",
+      "workbookSheet": "Handled",
+      "workbookTable": "Handled",
+      "range": "A1:AD6055",
+      "rowCount": 6054,
+      "columns": [
+        {
+          "name": "Accept Date",
+          "role": "calculated",
+          "calculatedColumnFormula": "IFERROR(INT(TEXT(IF(_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date])=0,_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date]),_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date])),\"mm/dd/yy\")),\"\")",
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 6054
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Interval",
+          "role": "calculated",
+          "calculatedColumnFormula": "_xlfn.IFNA(TIME(HOUR(IF(_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date],,1,1)=0,_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date],,1,-1),_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date],,1,1))),FLOOR(MINUTE(IF(_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date],,1,1)=0,_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date],,1,-1),_xlfn.XLOOKUP(Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date],,1,1))),30),0),\"\")",
+          "rowCount": 6054,
+          "profileCounts": {
+            "date_or_time_serial": 6054,
+            "formula": 6054
+          },
+          "numberFormats": {
+            "[$-409]h:mm\\ AM/PM;@": 6054
+          },
+          "uniqueNonBlankValueCount": 39,
+          "duplicateNonBlankCount": 6015,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "AHT",
+          "role": "calculated",
+          "calculatedColumnFormula": "SUMIFS(AHT_Raw[Handle Time],AHT_Raw[Work Item: Name],Handled[[#This Row],[Messaging Session Name]],AHT_Raw[Date],Handled[[#This Row],[Accept Date]])",
+          "rowCount": 6054,
+          "profileCounts": {
+            "number": 6054,
+            "formula": 6054
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 6053,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Case: Case Number",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "number": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5001,
+          "duplicateNonBlankCount": 23,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Messaging Session Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5024,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Queue",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 6054
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Start Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "date_or_time_serial": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 5024
+          },
+          "uniqueNonBlankValueCount": 1091,
+          "duplicateNonBlankCount": 3933,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "End Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 3776,
+            "date_or_time_serial": 2278,
+            "constant": 2278
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 2278
+          },
+          "uniqueNonBlankValueCount": 920,
+          "duplicateNonBlankCount": 1358,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Wait Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "number": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 5023,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Total Resolution Time (minutes)",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 4570,
+            "number": 812,
+            "constant": 1484,
+            "date_or_time_serial": 672
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 672
+          },
+          "uniqueNonBlankValueCount": 1300,
+          "duplicateNonBlankCount": 184,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Service Level Met",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "number": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 5023,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Queue Level",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 6054
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Queue CS Owner",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 6054
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Queue LOB",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 6054
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Case Business Unit",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 5023,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Athlete CS Owner",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5022,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Related Case Resolution",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 4927,
+            "constant": 4927,
+            "blank": 1127
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 102,
+          "duplicateNonBlankCount": 4825,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Related Case Purpose",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 5023,
+            "constant": 5023,
+            "blank": 1031
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 23,
+          "duplicateNonBlankCount": 5000,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Consumer Email",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 1035,
+            "string": 5019,
+            "constant": 5019
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 4490,
+          "duplicateNonBlankCount": 529,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Speed to Answer",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "number": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 5023,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Case Language",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 6054
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Is Internal",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "number": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 5023,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Status",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5022,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Case: BU",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 4,
+          "duplicateNonBlankCount": 5020,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Request Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "date_or_time_serial": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 5024
+          },
+          "uniqueNonBlankValueCount": 1091,
+          "duplicateNonBlankCount": 3933,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Country",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 1035,
+            "string": 5019,
+            "constant": 5019
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5017,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Messaging Channel: Channel Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 7,
+          "duplicateNonBlankCount": 5017,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Athlete Site",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "string": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 5019,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Created Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "date_or_time_serial": 5024,
+            "constant": 5024,
+            "blank": 1030
+          },
+          "numberFormats": {
+            "m/d/yy": 5024
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 5023,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Language",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 6054,
+          "profileCounts": {
+            "blank": 1035,
+            "string": 5019,
+            "constant": 5019
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5017,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        }
+      ],
+      "rangeBoundaryProfile": {
+        "sheet": "Handled",
+        "table": "Handled",
+        "tableRange": "A1:AD6055",
+        "usedRange": "A1:AD7274",
+        "trailingBlankRowsInsideTable": 0,
+        "overflowRows": {
+          "first": null,
+          "last": null,
+          "populatedRowCount": 0,
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "errorCellCount": 0,
+          "dateTimeRanges": []
+        },
+        "overflowColumns": {
+          "first": null,
+          "last": null,
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "headers": []
+        },
+        "privacyBoundary": "Only counts, coordinates, formula/error classes, and date ranges are retained; overflow values are excluded."
+      },
+      "externalSourceContractStatus": "representative_delivery_verified_partial_day_snapshot"
+    },
+    {
+      "name": "Offered",
+      "workbookSheet": "Offered",
+      "workbookTable": "Offered",
+      "range": "A1:AP5717",
+      "rowCount": 5716,
+      "columns": [
+        {
+          "name": "Accept Date",
+          "role": "calculated",
+          "calculatedColumnFormula": "IFERROR(INT(TEXT(IF(_xlfn.XLOOKUP(Offered[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date])=0,_xlfn.XLOOKUP(Offered[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date]),_xlfn.XLOOKUP(Offered[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Accept Date])),\"mm/dd/yy\")),\"\")",
+          "rowCount": 5716,
+          "profileCounts": {
+            "blank": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Interval View",
+          "role": "calculated",
+          "calculatedColumnFormula": "_xlfn.IFNA(TIME(HOUR(VLOOKUP(Offered[[#This Row],[Messaging Session Name]],'AHT - Raw'!I:M,5,0)),FLOOR(MINUTE(VLOOKUP(Offered[[#This Row],[Messaging Session Name]],'AHT - Raw'!I:M,5,0)),30),0),\"\")",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "formula": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 38,
+          "duplicateNonBlankCount": 4759,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Athlete Site",
+          "role": "calculated",
+          "calculatedColumnFormula": "_xlfn.IFNA(VLOOKUP(Offered[[#This Row],[Messaging Session Name]],Handled!E:AB,24,0),\"\")",
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "formula": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 4792,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "SL",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(Offered[[#This Row],[ASA]]<91,1,0)",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5716,
+            "formula": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5714,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "ASA",
+          "role": "calculated",
+          "calculatedColumnFormula": "_xlfn.IFNA(_xlfn.XLOOKUP(Offered[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Speed To Answer]),\"\")",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5563,
+            "formula": 5563,
+            "blank": 153
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 90,
+          "duplicateNonBlankCount": 5473,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Handled SL",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(Offered[[#This Row],[Handled ASA]]<91,1,0)",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "formula": 5716,
+            "error:#N/A": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5714,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Handled ASA",
+          "role": "calculated",
+          "calculatedColumnFormula": "VLOOKUP(Offered[[#This Row],[Case: Case Number]],Handled!D:T,17,0)",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "formula": 5716,
+            "error:#N/A": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5714,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Count",
+          "role": "calculated",
+          "calculatedColumnFormula": "COUNTIF(Offered[[#This Row],[Initial Athlete CS Owner]],\"NA\")",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5716,
+            "formula": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5714,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Handled",
+          "role": "calculated",
+          "calculatedColumnFormula": "COUNTIFS(Handled[Messaging Session Name],Offered[[#This Row],[Messaging Session Name]],Handled[Language],\"English\",Handled[Initial Athlete CS Owner],\"NA\")",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5716,
+            "formula": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5714,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Handled Fragments",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(AND(Offered[[#This Row],[Language]]=\"English\",Offered[[#This Row],[Initial Athlete CS Owner]]=\"NA\",Offered[[#This Row],[Contact Fragment Count]]=\"\"),1,IF(AND(Offered[[#This Row],[Language]]=\"English\",Offered[[#This Row],[Initial Athlete CS Owner]]=\"NA\"),Offered[[#This Row],[Contact Fragment Count]],0))",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5716,
+            "formula": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 7,
+          "duplicateNonBlankCount": 5709,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Response",
+          "role": "calculated",
+          "calculatedColumnFormula": "_xlfn.IFNA(_xlfn.XLOOKUP(Offered[[#This Row],[Messaging Session Name]],AHT_Raw[Work Item: Name],AHT_Raw[Time To First Response]),\"\")",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5563,
+            "formula": 5563,
+            "blank": 153
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 252,
+          "duplicateNonBlankCount": 5311,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "SL Total",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(SUM(Offered[[#This Row],[ASA]],Offered[[#This Row],[Response]])<91,1,0)",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5716,
+            "formula": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 5714,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "SL Total (Session)",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(Offered[[#This Row],[Handled Fragments]]=0,\"\",Offered[[#This Row],[SL Total]])",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "formula": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 4795,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "AHT Session",
+          "role": "calculated",
+          "calculatedColumnFormula": "SUMIFS(AHT_Raw[Handle Time],AHT_Raw[Work Item: Name],Offered[[#This Row],[Messaging Session Name]],AHT_Raw[Date],Offered[[#This Row],[Accept Date]])",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5716,
+            "formula": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 5715,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Active Time",
+          "role": "calculated",
+          "calculatedColumnFormula": "SUMIFS(AHT_Raw[Active Time],AHT_Raw[Work Item: Name],Offered[[#This Row],[Messaging Session Name]],AHT_Raw[Date],Offered[[#This Row],[Accept Date]])",
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 5716,
+            "formula": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 5715,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Case: Case Number",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 4774,
+          "duplicateNonBlankCount": 23,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Messaging Session Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 4797,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Queue",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "blank": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Start Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "date_or_time_serial": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 4797
+          },
+          "uniqueNonBlankValueCount": 1089,
+          "duplicateNonBlankCount": 3708,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "End Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "blank": 3492,
+            "date_or_time_serial": 2224,
+            "constant": 2224
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 2224
+          },
+          "uniqueNonBlankValueCount": 912,
+          "duplicateNonBlankCount": 1312,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Wait Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Total Resolution Time (minutes)",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "blank": 4234,
+            "number": 1482,
+            "constant": 1482
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1166,
+          "duplicateNonBlankCount": 316,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Queue CS Owner",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "blank": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Queue LOB",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "blank": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Queue Level",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "blank": 5716
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Country",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Language",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Case Business Unit",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Athlete CS Owner",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Consumer Email",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 4301,
+          "duplicateNonBlankCount": 496,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Related Case Purpose",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 23,
+          "duplicateNonBlankCount": 4774,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Related Case Resolution",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4705,
+            "constant": 4705,
+            "blank": 1011
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 101,
+          "duplicateNonBlankCount": 4604,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Contact Fragment Count",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "blank": 5430,
+            "number": 286,
+            "constant": 286
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 6,
+          "duplicateNonBlankCount": 280,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Case: Athlete CS Owner",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Handled Count",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 4795,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Chat Bot Transferred to Athlete",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 4795,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Case: Queue CS Owner",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Athlete BPO",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 3,
+          "duplicateNonBlankCount": 4794,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Initial Athlete Site",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 4792,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Messaging Channel: Channel Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "string": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 4,
+          "duplicateNonBlankCount": 4793,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Created Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "date_or_time_serial": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {
+            "m/d/yy": 4797
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Service Level Met",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 5716,
+          "profileCounts": {
+            "number": 4797,
+            "constant": 4797,
+            "blank": 919
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 4796,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        }
+      ],
+      "rangeBoundaryProfile": {
+        "sheet": "Offered",
+        "table": "Offered",
+        "tableRange": "A1:AP5717",
+        "usedRange": "A1:AP5717",
+        "trailingBlankRowsInsideTable": 0,
+        "overflowRows": {
+          "first": null,
+          "last": null,
+          "populatedRowCount": 0,
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "errorCellCount": 0,
+          "dateTimeRanges": []
+        },
+        "overflowColumns": {
+          "first": null,
+          "last": null,
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "headers": []
+        },
+        "privacyBoundary": "Only counts, coordinates, formula/error classes, and date ranges are retained; overflow values are excluded."
+      },
+      "externalSourceContractStatus": "representative_delivery_verified_partial_day_snapshot"
+    },
+    {
+      "name": "AHT - Raw",
+      "workbookSheet": "AHT - Raw",
+      "workbookTable": "AHT_Raw",
+      "range": "A1:AH7862",
+      "rowCount": 7861,
+      "columns": [
+        {
+          "name": "Date",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(ISBLANK(AHT_Raw[[#This Row],[Accept Date]]),\"\",INT(AHT_Raw[[#This Row],[Accept Date]]))",
+          "rowCount": 7861,
+          "profileCounts": {
+            "date_or_time_serial": 6656,
+            "formula": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {
+            "m/d/yy;@": 6656
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 6655,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Interval",
+          "role": "calculated",
+          "calculatedColumnFormula": "TIME(HOUR(AHT_Raw[[#This Row],[Accept Date]]),FLOOR(MINUTE(AHT_Raw[[#This Row],[Accept Date]]),30),0)",
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 7861,
+            "formula": 7861
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 39,
+          "duplicateNonBlankCount": 7822,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Count",
+          "role": "calculated",
+          "calculatedColumnFormula": "COUNT(AHT_Raw[[#This Row],[Request Date]])",
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 7861,
+            "formula": 7861
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 7859,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Service Level",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(AHT_Raw[[#This Row],[Speed To Answer]]<91,1,0)",
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 7861,
+            "formula": 7861
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 7859,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "ASA Total",
+          "role": "calculated",
+          "calculatedColumnFormula": "SUM(AHT_Raw[[#This Row],[Speed To Answer]],AHT_Raw[[#This Row],[Time To First Response]])",
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 7861,
+            "formula": 7861
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 341,
+          "duplicateNonBlankCount": 7520,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "CC",
+          "role": "calculated",
+          "calculatedColumnFormula": "IFERROR(SUMIFS(AHT_Raw[Handle Time],AHT_Raw[Interval],AHT_Raw[[#This Row],[Interval]],AHT_Raw[Athlete Site],AHT_Raw[[#This Row],[Athlete Site]])/SUMIFS(AHT_Raw[Active Time],AHT_Raw[Interval],AHT_Raw[[#This Row],[Interval]],AHT_Raw[Athlete Site],AHT_Raw[[#This Row],[Athlete Site]]),\"\")",
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6656,
+            "formula": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 161,
+          "duplicateNonBlankCount": 6495,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Request Interval",
+          "role": "calculated",
+          "calculatedColumnFormula": "TIME(HOUR(AHT_Raw[[#This Row],[Request Date]]),FLOOR(MINUTE(AHT_Raw[[#This Row],[Request Date]]),30),0)",
+          "rowCount": 7861,
+          "profileCounts": {
+            "date_or_time_serial": 7861,
+            "formula": 7861
+          },
+          "numberFormats": {
+            "[$-409]h:mm\\ AM/PM;@": 7861
+          },
+          "uniqueNonBlankValueCount": 39,
+          "duplicateNonBlankCount": 7822,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Agent Work ID",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "string": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 6656,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Work Item: Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "string": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5054,
+          "duplicateNonBlankCount": 1602,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Athlete Site",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "string": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 6651,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Request Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "date_or_time_serial": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 6656
+          },
+          "uniqueNonBlankValueCount": 1099,
+          "duplicateNonBlankCount": 5557,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Assign Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "date_or_time_serial": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 6656
+          },
+          "uniqueNonBlankValueCount": 1099,
+          "duplicateNonBlankCount": 5557,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Accept Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "date_or_time_serial": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 6656
+          },
+          "uniqueNonBlankValueCount": 1102,
+          "duplicateNonBlankCount": 5554,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Close Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "date_or_time_serial": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 6656
+          },
+          "uniqueNonBlankValueCount": 1114,
+          "duplicateNonBlankCount": 5542,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Chat Exit Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "blank": 7861
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Handle Time - Total",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2080,
+          "duplicateNonBlankCount": 4576,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Handle Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2044,
+          "duplicateNonBlankCount": 4612,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "After Conversation Work Actual Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6642,
+            "constant": 6642,
+            "blank": 1219
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 107,
+          "duplicateNonBlankCount": 6535,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Work Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1337,
+          "duplicateNonBlankCount": 5319,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Speed To Answer",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 164,
+          "duplicateNonBlankCount": 6492,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Speed to Answer2",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 6655,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Chat Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "blank": 7861
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Wrap Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "blank": 7861
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Active Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6642,
+            "constant": 6642,
+            "blank": 1219
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1392,
+          "duplicateNonBlankCount": 5250,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Status",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "string": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 6654,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Is Transfer",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 6654,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Units of Capacity",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 6655,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Time To First Response",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "number": 6551,
+            "constant": 6551,
+            "blank": 1310
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 293,
+          "duplicateNonBlankCount": 6258,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Language",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "string": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 6654,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Queue",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "blank": 4959,
+            "string": 2902,
+            "constant": 2902
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 3,
+          "duplicateNonBlankCount": 2899,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Country",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "string": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 6655,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Created Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "date_or_time_serial": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {
+            "m/d/yy": 6656
+          },
+          "uniqueNonBlankValueCount": 8,
+          "duplicateNonBlankCount": 6648,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Queue: Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "blank": 7861
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 0,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "User: Full Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 7861,
+          "profileCounts": {
+            "string": 6656,
+            "constant": 6656,
+            "blank": 1205
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 169,
+          "duplicateNonBlankCount": 6487,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        }
+      ],
+      "rangeBoundaryProfile": {
+        "sheet": "AHT - Raw",
+        "table": "AHT_Raw",
+        "tableRange": "A1:AH7862",
+        "usedRange": "A1:AH9280",
+        "trailingBlankRowsInsideTable": 0,
+        "overflowRows": {
+          "first": null,
+          "last": null,
+          "populatedRowCount": 0,
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "errorCellCount": 0,
+          "dateTimeRanges": []
+        },
+        "overflowColumns": {
+          "first": null,
+          "last": null,
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "headers": []
+        },
+        "privacyBoundary": "Only counts, coordinates, formula/error classes, and date ranges are retained; overflow values are excluded."
+      },
+      "externalSourceContractStatus": "representative_delivery_verified_partial_day_snapshot"
+    },
+    {
+      "name": "Auxes - Raw",
+      "workbookSheet": "Auxes - Raw",
+      "workbookTable": "Table4",
+      "range": "A1:AB3399",
+      "rowCount": 3398,
+      "columns": [
+        {
+          "name": "Date",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(ISBLANK(Table4[[#This Row],[Status Start Date]]),\"\",INT(Table4[[#This Row],[Status Start Date]]))",
+          "rowCount": 3398,
+          "profileCounts": {
+            "date_or_time_serial": 2904,
+            "formula": 2904,
+            "blank": 494
+          },
+          "numberFormats": {
+            "m/d/yy;@": 2904
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 2903,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Interval",
+          "role": "calculated",
+          "calculatedColumnFormula": "TIME(HOUR(Table4[[#This Row],[Status Start Date]]),FLOOR(MINUTE(Table4[[#This Row],[Status Start Date]]),30),0)",
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 3398,
+            "formula": 3398
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 40,
+          "duplicateNonBlankCount": 3358,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Available Messaging in Hours",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(Table4[[#This Row],[Service Presence Status: Status Name]]=\"Available - Messaging\",Table4[[#This Row],[Sign On Time (hours)]],0)",
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 3398,
+            "formula": 3398
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 258,
+          "duplicateNonBlankCount": 3140,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Concluding in Hours",
+          "role": "calculated",
+          "calculatedColumnFormula": "IF(Table4[[#This Row],[Service Presence Status: Status Name]]=\"Concluding\",Table4[[#This Row],[Sign On Time (hours)]],0)",
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 3398,
+            "formula": 3398
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 83,
+          "duplicateNonBlankCount": 3315,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "string": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2904,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "User Presence ID",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "string": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2904,
+          "duplicateNonBlankCount": 0,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Status Start Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "date_or_time_serial": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 2904
+          },
+          "uniqueNonBlankValueCount": 949,
+          "duplicateNonBlankCount": 1955,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Status End Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "date_or_time_serial": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 2904
+          },
+          "uniqueNonBlankValueCount": 944,
+          "duplicateNonBlankCount": 1960,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Productive Time Duration (minutes)",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 709,
+          "duplicateNonBlankCount": 2195,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Available Time Duration (minutes)",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 167,
+          "duplicateNonBlankCount": 2737,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Is Away",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "string": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 2902,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Engaged Duration (minutes)",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 683,
+          "duplicateNonBlankCount": 2221,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Idle Duration",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 856,
+          "duplicateNonBlankCount": 2048,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Idle Status Duration (minutes)",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 416,
+          "duplicateNonBlankCount": 2488,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Status Duration",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1898,
+          "duplicateNonBlankCount": 1006,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Status Duration (minutes)",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1898,
+          "duplicateNonBlankCount": 1006,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Occupancy",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 2902,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Configured Capacity",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 2902,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Is My BPO",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "string": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 2902,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Athlete Display Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "string": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 186,
+          "duplicateNonBlankCount": 2718,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Average Capacity",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 289,
+          "duplicateNonBlankCount": 2615,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "At Capacity Duration",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 584,
+          "duplicateNonBlankCount": 2320,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Athlete CS Owner",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "string": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 2903,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Sign On Time",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 1898,
+          "duplicateNonBlankCount": 1006,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Sign On Time (hours)",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "number": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 270,
+          "duplicateNonBlankCount": 2634,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Athlete Site",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "string": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 2899,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Created Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "date_or_time_serial": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {
+            "m/d/yy": 2904
+          },
+          "uniqueNonBlankValueCount": 1,
+          "duplicateNonBlankCount": 2903,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Service Presence Status: Status Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 3398,
+          "profileCounts": {
+            "string": 2904,
+            "constant": 2904,
+            "blank": 494
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 14,
+          "duplicateNonBlankCount": 2890,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        }
+      ],
+      "rangeBoundaryProfile": {
+        "sheet": "Auxes - Raw",
+        "table": "Table4",
+        "tableRange": "A1:AB3399",
+        "usedRange": "A1:AD3399",
+        "trailingBlankRowsInsideTable": 0,
+        "overflowRows": {
+          "first": null,
+          "last": null,
+          "populatedRowCount": 0,
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "errorCellCount": 0,
+          "dateTimeRanges": []
+        },
+        "overflowColumns": {
+          "first": "AC",
+          "last": "AD",
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "headers": [
+            {
+              "column": "AC",
+              "headerPresent": false
+            },
+            {
+              "column": "AD",
+              "headerPresent": false
+            }
+          ]
+        },
+        "privacyBoundary": "Only counts, coordinates, formula/error classes, and date ranges are retained; overflow values are excluded."
+      },
+      "externalSourceContractStatus": "representative_delivery_verified_partial_day_snapshot"
+    },
+    {
+      "name": "Staff",
+      "workbookSheet": "Staff",
+      "workbookTable": "ActualStaffAH",
+      "range": "A2:BA1877",
+      "rowCount": 1875,
+      "columns": [
+        {
+          "name": "Status Start Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 1875,
+          "profileCounts": {
+            "date_or_time_serial": 306,
+            "constant": 306,
+            "blank": 1569
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 306
+          },
+          "uniqueNonBlankValueCount": 243,
+          "duplicateNonBlankCount": 63,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Status End Date",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 1875,
+          "profileCounts": {
+            "date_or_time_serial": 306,
+            "constant": 306,
+            "blank": 1569
+          },
+          "numberFormats": {
+            "m/d/yy h:mm": 306
+          },
+          "uniqueNonBlankValueCount": 241,
+          "duplicateNonBlankCount": 65,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Athlete Display Name",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 1875,
+          "profileCounts": {
+            "string": 306,
+            "constant": 306,
+            "blank": 1569
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 28,
+          "duplicateNonBlankCount": 278,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Athlete Site",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 1875,
+          "profileCounts": {
+            "string": 306,
+            "constant": 306,
+            "blank": 1569
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 304,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "Athlete Profile",
+          "role": "source_or_pasted",
+          "calculatedColumnFormula": null,
+          "rowCount": 1875,
+          "profileCounts": {
+            "string": 306,
+            "constant": 306,
+            "blank": 1569
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 3,
+          "duplicateNonBlankCount": 303,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "12:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+G$2) - MAX($A3, $A$1+F$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "12:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+H$2) - MAX($A3, $A$1+G$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "1:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+I$2) - MAX($A3, $A$1+H$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "1:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+J$2) - MAX($A3, $A$1+I$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "2:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+K$2) - MAX($A3, $A$1+J$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "2:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+L$2) - MAX($A3, $A$1+K$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "3:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+M$2) - MAX($A3, $A$1+L$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "3:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+N$2) - MAX($A3, $A$1+M$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "4:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+O$2) - MAX($A3, $A$1+N$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 1870,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "4:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+P$2) - MAX($A3, $A$1+O$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 7,
+          "duplicateNonBlankCount": 1868,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "5:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+Q$2) - MAX($A3, $A$1+P$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 8,
+          "duplicateNonBlankCount": 1867,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "5:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+R$2) - MAX($A3, $A$1+Q$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 10,
+          "duplicateNonBlankCount": 1865,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "6:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+S$2) - MAX($A3, $A$1+R$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 10,
+          "duplicateNonBlankCount": 1865,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "6:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+T$2) - MAX($A3, $A$1+S$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 7,
+          "duplicateNonBlankCount": 1868,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "7:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+U$2) - MAX($A3, $A$1+T$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 10,
+          "duplicateNonBlankCount": 1865,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "7:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+V$2) - MAX($A3, $A$1+U$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 12,
+          "duplicateNonBlankCount": 1863,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "8:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+W$2) - MAX($A3, $A$1+V$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 17,
+          "duplicateNonBlankCount": 1858,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "8:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+X$2) - MAX($A3, $A$1+W$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 6,
+          "duplicateNonBlankCount": 1869,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "9:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+Y$2) - MAX($A3, $A$1+X$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 17,
+          "duplicateNonBlankCount": 1858,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "9:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+Z$2) - MAX($A3, $A$1+Y$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 17,
+          "duplicateNonBlankCount": 1858,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "10:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AA$2) - MAX($A3, $A$1+Z$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 13,
+          "duplicateNonBlankCount": 1862,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "10:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AB$2) - MAX($A3, $A$1+AA$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 17,
+          "duplicateNonBlankCount": 1858,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "11:00 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AC$2) - MAX($A3, $A$1+AB$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 15,
+          "duplicateNonBlankCount": 1860,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "11:30 AM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AD$2) - MAX($A3, $A$1+AC$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 11,
+          "duplicateNonBlankCount": 1864,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "12:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AE$2) - MAX($A3, $A$1+AD$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 21,
+          "duplicateNonBlankCount": 1854,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "12:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AF$2) - MAX($A3, $A$1+AE$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 14,
+          "duplicateNonBlankCount": 1861,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "1:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AG$2) - MAX($A3, $A$1+AF$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 14,
+          "duplicateNonBlankCount": 1861,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "1:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AH$2) - MAX($A3, $A$1+AG$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 15,
+          "duplicateNonBlankCount": 1860,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "2:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AI$2) - MAX($A3, $A$1+AH$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 18,
+          "duplicateNonBlankCount": 1857,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "2:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AJ$2) - MAX($A3, $A$1+AI$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 16,
+          "duplicateNonBlankCount": 1859,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "3:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AK$2) - MAX($A3, $A$1+AJ$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 16,
+          "duplicateNonBlankCount": 1859,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "3:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AL$2) - MAX($A3, $A$1+AK$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 12,
+          "duplicateNonBlankCount": 1863,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "4:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AM$2) - MAX($A3, $A$1+AL$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 15,
+          "duplicateNonBlankCount": 1860,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "4:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AN$2) - MAX($A3, $A$1+AM$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 13,
+          "duplicateNonBlankCount": 1862,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "5:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AO$2) - MAX($A3, $A$1+AN$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 7,
+          "duplicateNonBlankCount": 1868,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "5:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AP$2) - MAX($A3, $A$1+AO$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 4,
+          "duplicateNonBlankCount": 1871,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "6:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AQ$2) - MAX($A3, $A$1+AP$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 9,
+          "duplicateNonBlankCount": 1866,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "6:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AR$2) - MAX($A3, $A$1+AQ$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 9,
+          "duplicateNonBlankCount": 1866,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "7:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AS$2) - MAX($A3, $A$1+AR$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 11,
+          "duplicateNonBlankCount": 1864,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "7:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AT$2) - MAX($A3, $A$1+AS$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 9,
+          "duplicateNonBlankCount": 1866,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "8:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AU$2) - MAX($A3, $A$1+AT$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 11,
+          "duplicateNonBlankCount": 1864,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "8:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AV$2) - MAX($A3, $A$1+AU$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 15,
+          "duplicateNonBlankCount": 1860,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "9:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AW$2) - MAX($A3, $A$1+AV$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 10,
+          "duplicateNonBlankCount": 1865,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "9:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AX$2) - MAX($A3, $A$1+AW$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 1870,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "10:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AY$2) - MAX($A3, $A$1+AX$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "10:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+AZ$2) - MAX($A3, $A$1+AY$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "11:00 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+BA$2) - MAX($A3, $A$1+AZ$2))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 5,
+          "duplicateNonBlankCount": 1870,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        },
+        {
+          "name": "11:30 PM",
+          "role": "calculated",
+          "calculatedColumnFormula": "MAX(0, MIN($B3, $A$1+1) - MAX($A3, $A$1+0.979166666666666))",
+          "rowCount": 1875,
+          "profileCounts": {
+            "number": 1875,
+            "formula": 1875
+          },
+          "numberFormats": {},
+          "uniqueNonBlankValueCount": 2,
+          "duplicateNonBlankCount": 1873,
+          "evidenceBoundary": "workbook_cached_table_data_not_external_source_sample"
+        }
+      ],
+      "rangeBoundaryProfile": {
+        "sheet": "Staff",
+        "table": "ActualStaffAH",
+        "tableRange": "A2:BA1877",
+        "usedRange": "A1:BF1877",
+        "trailingBlankRowsInsideTable": 0,
+        "overflowRows": {
+          "first": null,
+          "last": null,
+          "populatedRowCount": 0,
+          "populatedCellCount": 0,
+          "formulaCellCount": 0,
+          "constantCellCount": 0,
+          "errorCellCount": 0,
+          "dateTimeRanges": []
+        },
+        "overflowColumns": {
+          "first": "BB",
+          "last": "BF",
+          "populatedCellCount": 196,
+          "formulaCellCount": 96,
+          "constantCellCount": 100,
+          "headers": [
+            {
+              "column": "BB",
+              "headerPresent": false
+            },
+            {
+              "column": "BC",
+              "headerPresent": true
+            },
+            {
+              "column": "BD",
+              "headerPresent": true
+            },
+            {
+              "column": "BE",
+              "headerPresent": true
+            },
+            {
+              "column": "BF",
+              "headerPresent": true
+            }
+          ]
+        },
+        "privacyBoundary": "Only counts, coordinates, formula/error classes, and date ranges are retained; overflow values are excluded."
+      },
+      "externalSourceContractStatus": "representative_delivery_verified_partial_day_snapshot"
+    }
+  ]
+}
