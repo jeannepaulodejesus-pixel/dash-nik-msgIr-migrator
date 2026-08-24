@@ -195,6 +195,18 @@ test('payload normalization enforces UTC dates, nulls, keys, types, and error to
   assert.equal(payload.records[0]['Initial Queue'], null);
   assert.equal(payload.records[0]['Case Language'], 'NA');
 
+  const numericTextRow = blankRow(handled.headers, {
+    ...validValues,
+    'Case: Case Number': 990000001,
+    'Service Level Met': 1,
+  });
+  const numericTextPayload = DatasetPayload.create({
+    ...input,
+    rows: [numericTextRow],
+  });
+  assert.equal(numericTextPayload.records[0]['Case: Case Number'], '990000001');
+  assert.equal(numericTextPayload.records[0]['Service Level Met'], '1');
+
   const missingKeyRow = blankRow(handled.headers, validValues);
   missingKeyRow[handled.headers.indexOf('Messaging Session Name')] = ' ';
   assert.throws(

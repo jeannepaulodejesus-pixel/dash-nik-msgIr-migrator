@@ -227,6 +227,16 @@ var SchemaValidator = (function () {
     return Number.isFinite(numberValue) ? numberValue : null;
   }
 
+  function normalizeText(value) {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+    return null;
+  }
+
   function normalizeValue(column, value, datasetName, rowNumber) {
     if (value === null || value === undefined) {
       return null;
@@ -247,7 +257,7 @@ var SchemaValidator = (function () {
 
     var normalized = null;
     if (column.type === 'text') {
-      normalized = typeof value === 'string' ? value : null;
+      normalized = normalizeText(value);
     } else if (column.type === 'number') {
       normalized = normalizeNumber(value);
     } else if (column.type === 'date') {

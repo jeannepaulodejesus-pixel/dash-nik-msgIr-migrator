@@ -98,6 +98,25 @@ var StageValidator = (function () {
     return false;
   }
 
+  function normalizePersistedValue(column, value) {
+    if (
+      column.type === 'text' &&
+      typeof value === 'number' &&
+      Number.isFinite(value)
+    ) {
+      return String(value);
+    }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      if (column.type === 'date') {
+        return value.toISOString().slice(0, 10);
+      }
+      if (column.type === 'date_time') {
+        return value.toISOString();
+      }
+    }
+    return value;
+  }
+
   function requireDatasetSet(items, label) {
     var bindings = resolveDatasetSheets().listBindings();
     if (!Array.isArray(items) || items.length !== bindings.length) {
@@ -158,6 +177,7 @@ var StageValidator = (function () {
     var seenKeys = Object.create(null);
     decoded.records.forEach(function (record, rowIndex) {
       schema.columns.forEach(function (column) {
+        record[column.name] = normalizePersistedValue(column, record[column.name]);
         if (!validValue(column, record[column.name])) {
           fail('invalid_type', payload.datasetName, {
             column: column.name,
@@ -193,7 +213,10 @@ var StageValidator = (function () {
 
     if (!resolveCodec().matricesEqual(
       resolveCodec().encodePayload(payload),
-      snapshot.values,
+      resolveCodec().encodePayload({
+        headers: decoded.headers,
+        records: decoded.records,
+      }),
     )) {
       fail('persisted_values_mismatch', payload.datasetName);
     }

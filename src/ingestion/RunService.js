@@ -148,9 +148,22 @@
     });
   }
 
-  function runOperation(machine, operations, context, state, operationName) {
+  function notifyTelemetry(telemetry, operationName, status) {
+    if (typeof telemetry !== 'function') {
+      return;
+    }
+    try {
+      telemetry({ operationName: operationName, status: status });
+    } catch (telemetryError) {
+      // Diagnostic telemetry must never change the run outcome.
+    }
+  }
+
+  function runOperation(machine, operations, context, state, operationName, telemetry) {
     machine.transition(state);
+    notifyTelemetry(telemetry, operationName, 'STARTED');
     context.operationResults[operationName] = operations[operationName](context);
+    notifyTelemetry(telemetry, operationName, 'COMPLETED');
   }
 
   function execute(request, operations, services) {
@@ -182,21 +195,21 @@
         });
       }
 
-      runOperation(machine, operations, context, 'VALIDATING_FILE', 'validateFile');
-      runOperation(machine, operations, context, 'PARSING', 'parse');
-      runOperation(machine, operations, context, 'VALIDATING_SCHEMA', 'validateSchema');
-      runOperation(machine, operations, context, 'CHECKING_DUPLICATE', 'checkDuplicate');
-      runOperation(machine, operations, context, 'STAGING', 'stage');
-      runOperation(machine, operations, context, 'VALIDATING_STAGE', 'validateStage');
+      runOperation(machine, operations, context, 'VALIDATING_FILE', 'validateFile', dependencies.telemetry);
+      runOperation(machine, operations, context, 'PARSING', 'parse', dependencies.telemetry);
+      runOperation(machine, operations, context, 'VALIDATING_SCHEMA', 'validateSchema', dependencies.telemetry);
+      runOperation(machine, operations, context, 'CHECKING_DUPLICATE', 'checkDuplicate', dependencies.telemetry);
+      runOperation(machine, operations, context, 'STAGING', 'stage', dependencies.telemetry);
+      runOperation(machine, operations, context, 'VALIDATING_STAGE', 'validateStage', dependencies.telemetry);
 
       ScriptLock.withLock(
         dependencies.lockService,
         dependencies.lockTimeoutMs === undefined ? DEFAULT_LOCK_TIMEOUT_MS : dependencies.lockTimeoutMs,
         typeof dependencies.flush === 'function' ? dependencies.flush : function () {},
         function () {
-          runOperation(machine, operations, context, 'COMMITTING', 'commit');
-          runOperation(machine, operations, context, 'RECALCULATING', 'recalculate');
-          runOperation(machine, operations, context, 'HEALTH_CHECK', 'healthCheck');
+          runOperation(machine, operations, context, 'COMMITTING', 'commit', dependencies.telemetry);
+          runOperation(machine, operations, context, 'RECALCULATING', 'recalculate', dependencies.telemetry);
+          runOperation(machine, operations, context, 'HEALTH_CHECK', 'healthCheck', dependencies.telemetry);
         }
       );
 

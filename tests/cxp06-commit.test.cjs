@@ -150,7 +150,7 @@ function frontOperations(payloads, events) {
 }
 
 // Defect caught: CXP-06 bypasses CXP-04's lock boundary or records success before health verification.
-test('commit service composes a five-dataset two-phase happy path inside the existing lock', () => {
+test('commit service runs its pre-reconciliation hook inside the existing lock', () => {
   const CommitService = loadModule('../src/services/CommitService.js');
   assert.equal(typeof CommitService?.createOperations, 'function');
   assert.deepEqual(Object.keys(InputAdapter.createOperations({}, {})), [
@@ -166,8 +166,45 @@ test('commit service composes a five-dataset two-phase happy path inside the exi
   const ledger = new TransactionLedger(target.events);
   const clock = tickingClock();
   const flush = () => target.events.push(['flush']);
+  const rawCalls = [];
+  let decoratedBackupRepository;
+  let lock;
   const commitOperations = CommitService.createOperations({
+    beforeReconcile(context) {
+      target.events.push(['beforeReconcile', lock?.held]);
+      assert.equal(context.backupRepository, decoratedBackupRepository);
+      assert.equal(context.ledgerRepository, ledger);
+      assert.equal(context.targetSpreadsheet, target);
+      assert.equal(Object.isFrozen(context), true);
+    },
     clock,
+    decorateBackupRepository(repository) {
+      target.events.push(['decorateBackupRepository']);
+      decoratedBackupRepository = Object.assign({}, repository, {
+        discoverGroups() {
+          target.events.push(['discoverGroups']);
+          return repository.discoverGroups();
+        },
+      });
+      return decoratedBackupRepository;
+    },
+    decorateRawRepository(repository) {
+      target.events.push(['decorateRawRepository']);
+      return Object.assign({}, repository, {
+        preflight() {
+          rawCalls.push(['preflight']);
+          return repository.preflight();
+        },
+        replaceAll(payloads, options) {
+          rawCalls.push(['replaceAll', options]);
+          return repository.replaceAll(payloads, options);
+        },
+      });
+    },
+    decorateStagingRepository(repository) {
+      target.events.push(['decorateStagingRepository']);
+      return repository;
+    },
     flush,
     ledgerRepository: ledger,
     session: { getEffectiveUser: () => owner },
@@ -181,8 +218,13 @@ test('commit service composes a five-dataset two-phase happy path inside the exi
     'recalculate',
     'healthCheck',
   ]);
+  assert.deepEqual(target.events.slice(-3), [
+    ['decorateStagingRepository'],
+    ['decorateRawRepository'],
+    ['decorateBackupRepository'],
+  ]);
 
-  const lock = new FakeScriptLock(target.events);
+  lock = new FakeScriptLock(target.events);
   const auditRepository = new FakeAuditRepository();
   const operations = Object.assign(
     frontOperations(payloads, target.events),
@@ -198,6 +240,10 @@ test('commit service composes a five-dataset two-phase happy path inside the exi
   });
 
   assert.equal(result.runRecord.status, 'SUCCESS');
+  assert.deepEqual(rawCalls, [
+    ['preflight'],
+    ['replaceAll', { preflightVerified: true }],
+  ]);
   assert.equal(ledger.records.filter((record) => record.result === 'SUCCESS').length, 1);
   assert.equal(result.operationResults.commit.datasetCount, 5);
   assert.deepEqual(result.operationResults.healthCheck, {
@@ -220,6 +266,9 @@ test('commit service composes a five-dataset two-phase happy path inside the exi
   const indexOf = (name) => target.events.findIndex((event) => event[0] === name);
   const lastIndexOf = (name) => target.events.findLastIndex((event) => event[0] === name);
   assert.ok(lastIndexOf('setValues') > indexOf('tryLock'));
+  assert.deepEqual(target.events[indexOf('beforeReconcile')], ['beforeReconcile', true]);
+  assert.ok(indexOf('beforeReconcile') > indexOf('tryLock'));
+  assert.ok(indexOf('beforeReconcile') < indexOf('discoverGroups'));
   assert.ok(indexOf('ledgerFingerprint') > indexOf('tryLock'));
   assert.ok(lastIndexOf('copyTo') < target.events.findIndex(
     ([name, sheetName]) => name === 'clearContent' && sheetName.startsWith('_RAW_'),

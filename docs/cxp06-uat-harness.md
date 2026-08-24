@@ -33,10 +33,10 @@ The harness exposes 12 parameterless entrypoint functions in `src/main/Cxp06UatE
 | `cxp06UatCase3MidCommitFailure` | `CASE3_MID_COMMIT_FAILURE` | Injects mid-commit failure after 2 raw dataset replacements to test rollback. |
 | `cxp06UatCase4HealthMismatch` | `CASE4_HEALTH_MISMATCH` | Forces raw mismatch during health check to trigger rollback. |
 | `cxp06UatCase4RollbackFailure` | `CASE4_ROLLBACK_FAILURE` | Injects restore or verification failure during rollback to verify `MIGRATION_ROLLBACK_FAILED`. |
-| `cxp06UatCase5IncompleteBackup` | `CASE5_INCOMPLETE_BACKUP` | Seeds an incomplete backup group and verifies recovery deletion without restore. |
-| `cxp06UatCase5CompleteUnsuccessfulBackup` | `CASE5_COMPLETE_UNSUCCESSFUL_BACKUP` | Seeds a complete backup group without SUCCESS and verifies restore on next run. |
-| `cxp06UatCase5SuccessfulLeftoverBackup` | `CASE5_SUCCESSFUL_LEFTOVER_BACKUP` | Seeds a complete backup group with SUCCESS and verifies leftover group deletion. |
-| `cxp06UatCase5TwoCompleteUnsuccessfulBackups` | `CASE5_TWO_COMPLETE_UNSUCCESSFUL_BACKUPS` | Seeds 2 complete unfinished groups and verifies fail-closed recovery error. |
+| `cxp06UatCase5IncompleteBackup` | `CASE5_INCOMPLETE_BACKUP` | Seeds one incomplete group and verifies deletion without restore. |
+| `cxp06UatCase5CompleteUnsuccessfulBackup` | `CASE5_COMPLETE_UNSUCCESSFUL_BACKUP` | Seeds one complete unfinished group and verifies restore, verification, and deletion. |
+| `cxp06UatCase5SuccessfulLeftoverBackup` | `CASE5_SUCCESSFUL_LEFTOVER_BACKUP` | Seeds one complete group with a confirmed synthetic SUCCESS row and verifies deletion without restore. |
+| `cxp06UatCase5TwoCompleteUnsuccessfulBackups` | `CASE5_TWO_COMPLETE_UNSUCCESSFUL_BACKUPS` | Seeds two complete unfinished groups and verifies fail-closed ambiguous recovery. |
 | `cxp06UatCase5CleanupFailure` | `CASE5_CLEANUP_FAILURE` | Injects backup deletion failure after SUCCESS confirmation to test `PENDING` cleanup status. |
 | `cxp06UatReaderVisibility` | `READER_VISIBILITY` | Introduces a delay after raw replacement during `COMMITTING` to observe reader isolation. |
 
@@ -44,8 +44,11 @@ The harness exposes 12 parameterless entrypoint functions in `src/main/Cxp06UatE
 
 - **Operation Composition:** `Cxp06UatHarness.composeOperations` merges `InputAdapter.createOperations()` (4 phases: `validateFile`, `parse`, `validateSchema`, `checkDuplicate`) and `CommitService.createOperations()` (5 phases: `stage`, `validateStage`, `commit`, `recalculate`, `healthCheck`) into the 9-phase object supplied to `RunService.execute()`.
 - **No Secondary Orchestrator:** All executions pass through the production `RunService` and script lock boundary.
-- **Fault Injection:** Controlled via `Cxp06FaultInjector.create(faultKind)` wrapping production repository seams.
-- **Backup Topology Seeding:** Recovery scenarios use standard `BackupRepository` sheet naming convention (`_CXP06_BAK_<TOKEN>_<runId>`).
+- **Fault Injection:** Controlled via `Cxp06FaultInjector.create(faultKind)` decorators supplied before `CommitService` constructs the production staging, raw, and backup repositories. Raw replacement/restore observers fire only after each persisted dataset write.
+- **Backup Topology Seeding:** `Cxp06BackupTopologySeeder` uses `BackupRepository.createGroup()` and the standard `_CXP06_BAK_<TOKEN>_<runId>` naming convention. `CommitService` invokes it under the existing script lock immediately before production reconciliation; ordinary runs do not install the hook.
+- **Clean-start refusal:** The controlled seeder refuses to seed when any `_CXP06_BAK_*` sheet already exists. It never deletes or replaces prior recovery evidence. Operators must investigate a dirty workbook before another writer is allowed.
+- **Bounded mutations:** The incomplete case creates a verified group and deletes four exact resolved sheet objects, leaving Handled. The successful-leftover case appends and read-confirms one bounded `UAT-SEED` SUCCESS record. The ambiguous case creates two distinct complete groups and retains them when reconciliation fails closed.
+- **Partial setup failure:** Any group created before a setup error remains in the workbook as diagnostic evidence. The sanitized code is `UAT_BACKUP_TOPOLOGY_SEED_FAILED`; dependency messages and cell contents are excluded.
 
 ## Evidence Sanitization
 

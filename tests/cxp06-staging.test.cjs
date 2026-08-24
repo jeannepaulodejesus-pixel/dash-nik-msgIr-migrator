@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
+const SchemaRegistry = require('../src/ingestion/SchemaRegistry.js');
+
 const {
   TransactionSpreadsheet,
   allNormalizedPayloads,
@@ -79,6 +81,31 @@ test('stage validation accepts only exact formula-free persisted normalized payl
       Staff: 1,
     },
   });
+
+  const handledPayload = payloads.find((payload) => payload.datasetName === 'Handled');
+  const caseNumberIndex = handledPayload.headers.indexOf('Case: Case Number');
+  handledPayload.records[0]['Case: Case Number'] = '880000001';
+  const coercedSnapshots = snapshotsForPayloads(payloads);
+  coercedSnapshots.find((snapshot) => snapshot.datasetName === 'Handled')
+    .values[1][caseNumberIndex] = 880000001;
+
+  payloads.forEach((payload) => {
+    const schema = SchemaRegistry.getSchema(payload.datasetName);
+    const snapshot = coercedSnapshots.find(
+      (candidate) => candidate.datasetName === payload.datasetName,
+    );
+    schema.columns.forEach((column, columnIndex) => {
+      if (column.type === 'date') {
+        snapshot.values[1][columnIndex] = new Date(
+          payload.records[0][column.name] + 'T08:00:00.000Z',
+        );
+      } else if (column.type === 'date_time') {
+        snapshot.values[1][columnIndex] = new Date(payload.records[0][column.name]);
+      }
+    });
+  });
+
+  assert.equal(StageValidator.validate(payloads, coercedSnapshots).rowCounts.Handled, 1);
 });
 
 // Defect caught: stage formulas, duplicate keys, invalid dates, or wrong text types reach raw data.
@@ -119,7 +146,7 @@ test('stage validation fails closed with a bounded reason for every persisted-st
     {
       mutate(copy) {
         const queueIndex = copy[0].values[0].indexOf('Initial Queue');
-        copy[0].values[1][queueIndex] = 7;
+        copy[0].values[1][queueIndex] = true;
       },
       reason: 'invalid_type',
     },

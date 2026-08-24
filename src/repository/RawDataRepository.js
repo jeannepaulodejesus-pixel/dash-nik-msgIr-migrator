@@ -30,7 +30,8 @@ var RawDataRepository = (function () {
     });
   }
 
-  function create(spreadsheet) {
+  function create(spreadsheet, options) {
+    var observer = options && options.observer ? options.observer : {};
     function rawEntries() {
       if (!spreadsheet || typeof spreadsheet.getSheetByName !== 'function') {
         throw new Error('Target spreadsheet is unavailable.');
@@ -92,6 +93,21 @@ var RawDataRepository = (function () {
       });
     }
 
+    function groupEntries(group) {
+      if (!group || group.complete !== true || !group.sheetsByDataset) {
+        throw new Error('A complete backup group is required.');
+      }
+      return rawEntries().map(function (entry) {
+        var reference = group.sheetsByDataset[entry.binding.datasetName];
+        var backupSheet = reference && spreadsheet.getSheetByName(reference.sheetName);
+        if (!backupSheet) {
+          throw new Error('A required backup sheet is unavailable.');
+        }
+        entry.backupSheet = backupSheet;
+        return entry;
+      });
+    }
+
     function preflight() {
       try {
         var entries = rawEntries();
@@ -111,15 +127,23 @@ var RawDataRepository = (function () {
       }
     }
 
-    function replaceAll(payloads) {
+    function replaceAll(payloads, options) {
       try {
-        preflight();
+        if (!options || options.preflightVerified !== true) {
+          preflight();
+        }
         var entries = payloadEntries(payloads);
         var rowCounts = {};
-        entries.forEach(function (entry) {
+        entries.forEach(function (entry, index) {
           var matrix = resolveCodec().encodePayload(entry.payload);
           entry.sheet.getDataRange().clearContent();
           entry.sheet.getRange(1, 1, matrix.length, matrix[0].length).setValues(matrix);
+          if (typeof observer.afterReplacement === 'function') {
+            observer.afterReplacement({
+              datasetName: entry.binding.datasetName,
+              index: index,
+            });
+          }
           rowCounts[entry.binding.datasetName] = entry.payload.rowCount;
         });
         return Object.freeze({ datasetCount: entries.length, rowCounts: Object.freeze(rowCounts) });
@@ -130,13 +154,43 @@ var RawDataRepository = (function () {
 
     function restoreAll(snapshots) {
       var entries = snapshotEntries(snapshots);
-      entries.forEach(function (entry) {
+      entries.forEach(function (entry, index) {
         var values = entry.snapshot.values;
         if (!Array.isArray(values) || values.length === 0 || values[0].length === 0) {
           throw new Error('Backup snapshot matrix is unavailable.');
         }
         entry.sheet.getDataRange().clearContent();
         entry.sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+        if (typeof observer.afterRestoreWrite === 'function') {
+          observer.afterRestoreWrite({
+            datasetName: entry.binding.datasetName,
+            index: index,
+          });
+        }
+      });
+      return Object.freeze({ datasetCount: entries.length });
+    }
+
+    function restoreGroup(group) {
+      var entries = groupEntries(group);
+      entries.forEach(function (entry, index) {
+        var sourceRange = entry.backupSheet.getDataRange();
+        entry.sheet.getDataRange().clearContent();
+        sourceRange.copyTo(
+          entry.sheet.getRange(
+            1,
+            1,
+            sourceRange.getNumRows(),
+            sourceRange.getNumColumns(),
+          ),
+          { contentsOnly: true },
+        );
+        if (typeof observer.afterRestoreWrite === 'function') {
+          observer.afterRestoreWrite({
+            datasetName: entry.binding.datasetName,
+            index: index,
+          });
+        }
       });
       return Object.freeze({ datasetCount: entries.length });
     }
@@ -158,6 +212,7 @@ var RawDataRepository = (function () {
       readAll: readAll,
       replaceAll: replaceAll,
       restoreAll: restoreAll,
+      restoreGroup: restoreGroup,
     });
   }
 

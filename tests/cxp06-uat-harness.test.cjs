@@ -5,6 +5,7 @@ const Cxp06FaultInjector = require('../src/uat/Cxp06FaultInjector.js');
 const Cxp06UatEvidence = require('../src/uat/Cxp06UatEvidence.js');
 const Cxp06UatHarness = require('../src/uat/Cxp06UatHarness.js');
 const Cxp06UatEntrypoints = require('../src/main/Cxp06UatEntrypoints.js');
+const ErrorCodes = require('../src/monitoring/ErrorCodes.js');
 
 function properties(values) {
   return {
@@ -126,6 +127,308 @@ test('execute delegates the composed operations exactly once to RunService.execu
   assert.equal(result.runRecord.status, 'SUCCESS');
 });
 
+// Defect caught: scenario faults are attached after CommitService construction,
+// so CASE2 executes the ordinary stage path and is recorded as SUCCESS.
+test('CASE2 wires invalid-stage corruption into the repository used by commit operations', () => {
+  const baseStaging = {
+    readAll: () => [{ formulas: [['']], values: [['Header'], ['value']] }],
+    writeAll: () => ({ datasetCount: 5 }),
+  };
+  let stagingRepository = baseStaging;
+
+  const result = Cxp06UatHarness.execute({ scenario: 'CASE2_INVALID_STAGE' }, {
+    commitService: {
+      createOperations(services) {
+        stagingRepository = services.decorateStagingRepository(baseStaging);
+        return {
+          stage: () => stagingRepository.writeAll([]),
+          validateStage() {
+            const staged = stagingRepository.readAll();
+            if (staged[0].formulas[0][0]) {
+              const error = new Error('controlled invalid stage');
+              error.code = 'MIGRATION_STAGE_VALIDATION_FAILED';
+              error.failureState = 'FAILED_MIGRATION_CALCULATION';
+              throw error;
+            }
+          },
+          commit() {},
+          recalculate() {},
+          healthCheck() {},
+        };
+      },
+    },
+    inputOperations: {
+      validateFile() {},
+      parse() {},
+      validateSchema() {},
+      checkDuplicate() {},
+    },
+    runService: {
+      execute(request, operations) {
+        operations.stage({ operationResults: {} });
+        operations.validateStage({ operationResults: {} });
+        return { runRecord: { runId: 'false-success', status: 'SUCCESS' } };
+      },
+    },
+  });
+
+  assert.equal(result.error.code, 'MIGRATION_STAGE_VALIDATION_FAILED');
+  assert.equal(result.evidence.terminalState, 'FAILED_MIGRATION_CALCULATION');
+});
+
+// Defect caught: Case 05 labels are executable but never install the controlled
+// topology seed at the locked pre-reconciliation seam.
+test('CASE5 topology scenarios install one controlled pre-reconciliation seed', () => {
+  for (const scenario of [
+    'CASE5_INCOMPLETE_BACKUP',
+    'CASE5_COMPLETE_UNSUCCESSFUL_BACKUP',
+    'CASE5_SUCCESSFUL_LEFTOVER_BACKUP',
+    'CASE5_TWO_COMPLETE_UNSUCCESSFUL_BACKUPS',
+  ]) {
+    const events = [];
+    const backupRepository = { marker: 'backup' };
+    const ledgerRepository = { marker: 'ledger' };
+    const targetSpreadsheet = { marker: 'target' };
+    const result = Cxp06UatHarness.execute({ scenario }, {
+      commitService: {
+        createOperations(services) {
+          return {
+            stage() {},
+            validateStage() {},
+            commit() {
+              const context = Object.freeze({
+                backupRepository,
+                ledgerRepository,
+                targetSpreadsheet,
+              });
+              services.beforeReconcile(context);
+              services.beforeReconcile(context);
+            },
+            recalculate() {},
+            healthCheck() {},
+          };
+        },
+      },
+      inputOperations: {
+        validateFile() {},
+        parse() {},
+        validateSchema() {},
+        checkDuplicate() {},
+      },
+      properties: safeProperties(),
+      runService: {
+        execute(request, operations) {
+          operations.commit();
+          return { runRecord: { runId: 'topology-run', status: 'SUCCESS' } };
+        },
+      },
+      topologySeeder: {
+        create(services) {
+          events.push(['create', services]);
+          return {
+            seed(seedScenario) {
+              events.push(['seed', seedScenario]);
+              return {
+                groupCount: 1,
+                scenario: seedScenario,
+                sheetNames: ['_CXP06_BAK_HANDLED_safe-seed'],
+              };
+            },
+          };
+        },
+      },
+      topologyServices: {
+        now: () => new Date('2026-08-24T12:00:00.000Z'),
+        uniqueToken: () => 'controlled-token',
+      },
+    });
+
+    assert.equal(result.runRecord.status, 'SUCCESS');
+    assert.equal(result.evidence.backupSheetCount, 1);
+    assert.deepEqual(result.evidence.backupSheetNames, [
+      '_CXP06_BAK_HANDLED_safe-seed',
+    ]);
+    assert.equal(events.filter(([name]) => name === 'create').length, 1, scenario);
+    assert.deepEqual(events.filter(([name]) => name === 'seed'), [['seed', scenario]]);
+    assert.equal(events[0][1].backupRepository, backupRepository);
+    assert.equal(events[0][1].ledgerRepository, ledgerRepository);
+    assert.equal(events[0][1].targetSpreadsheet, targetSpreadsheet);
+    assert.equal(typeof events[0][1].now, 'function');
+    assert.equal(typeof events[0][1].uniqueToken, 'function');
+  }
+
+  assert.throws(
+    () => Cxp06UatHarness.execute({ scenario: 'CASE2_INVALID_STAG' }, {
+      properties: safeProperties(),
+    }),
+    /Unknown UAT scenario/,
+  );
+});
+
+// Defect caught: a seed refusal is swallowed or replaced by an ordinary
+// successful run and its bounded setup evidence is omitted.
+test('topology setup failures remain authoritative and sanitized', () => {
+  let createCalls = 0;
+  assert.throws(
+    () => Cxp06UatHarness.execute({ scenario: 'CASE5_INCOMPLETE_BACKUP' }, {
+      properties: safeProperties({ CXP_UAT_ENABLED: 'false' }),
+      topologySeeder: {
+        create() {
+          createCalls += 1;
+          return { seed() {} };
+        },
+      },
+    }),
+    /CXP_UAT_ENABLED=true/,
+  );
+  assert.equal(createCalls, 0);
+
+  const result = Cxp06UatHarness.execute({ scenario: 'CASE5_INCOMPLETE_BACKUP' }, {
+    commitService: {
+      createOperations(services) {
+        return {
+          stage() {},
+          validateStage() {},
+          commit() {
+            services.beforeReconcile({
+              backupRepository: {},
+              ledgerRepository: {},
+              targetSpreadsheet: {},
+            });
+          },
+          recalculate() {},
+          healthCheck() {},
+        };
+      },
+    },
+    inputOperations: {
+      validateFile() {}, parse() {}, validateSchema() {}, checkDuplicate() {},
+    },
+    properties: safeProperties(),
+    runService: {
+      execute(request, operations) {
+        operations.commit();
+        return { runRecord: { runId: 'false-success', status: 'SUCCESS' } };
+      },
+    },
+    topologySeeder: {
+      create() {
+        return {
+          seed() {
+            throw ErrorCodes.create('UAT_BACKUP_TOPOLOGY_SEED_FAILED', {
+              details: { reason: 'existing_backup_topology' },
+            });
+          },
+        };
+      },
+    },
+    topologyServices: { now: () => new Date(), uniqueToken: () => 'safe' },
+  });
+
+  assert.equal(result.error.code, 'UAT_BACKUP_TOPOLOGY_SEED_FAILED');
+  assert.equal(result.evidence.sanitizedErrorCode, 'UAT_BACKUP_TOPOLOGY_SEED_FAILED');
+  assert.equal(JSON.stringify(result.evidence).includes('existing_backup_topology'), false);
+});
+
+// Defect caught: production and non-topology UAT scenarios construct a seeder
+// even though they must not create backup topology.
+test('non-topology scenarios never construct the controlled topology seeder', () => {
+  let createCalls = 0;
+  const result = Cxp06UatHarness.execute({ scenario: 'CASE1_PEAK_SUCCESS' }, {
+    commitOperations: {
+      stage() {}, validateStage() {}, commit() {}, recalculate() {}, healthCheck() {},
+    },
+    inputOperations: {
+      validateFile() {}, parse() {}, validateSchema() {}, checkDuplicate() {},
+    },
+    properties: safeProperties(),
+    runService: {
+      execute() {
+        return { runRecord: { runId: 'ordinary-run', status: 'SUCCESS' } };
+      },
+    },
+    topologySeeder: {
+      create() {
+        createCalls += 1;
+        return { seed() {} };
+      },
+    },
+  });
+
+  assert.equal(result.runRecord.status, 'SUCCESS');
+  assert.equal(createCalls, 0);
+});
+
+// Defect caught: missing workbook services are swallowed, allowing Apps Script to
+// report a completed UAT execution even though no target-workbook operation ran.
+test('execute fails visibly when production operation construction fails', () => {
+  let orchestrationCalls = 0;
+
+  assert.throws(
+    () => Cxp06UatHarness.execute({ scenario: 'PEAK_SUCCESS' }, {
+      inputOperations: {
+        validateFile() {},
+        parse() {},
+        validateSchema() {},
+        checkDuplicate() {},
+      },
+      runService: {
+        execute() {
+          orchestrationCalls += 1;
+          return { runRecord: { runId: 'false-success', status: 'SUCCESS' } };
+        },
+      },
+    }),
+    (error) => error && error.code === 'INGESTION_INVALID_OPERATIONS',
+  );
+  assert.equal(orchestrationCalls, 0);
+});
+
+// Defect caught: parameterless hosted runs never open the configured target and
+// control workbooks, so production adapters have nothing to write to.
+test('hosted dependencies bind configured workbooks to input, commit, and run services', () => {
+  const openedIds = [];
+  const spreadsheets = {
+    'control-id': { role: 'control' },
+    'target-id': { role: 'target' },
+  };
+  const ledgerRepository = { role: 'ledger' };
+  const runRepository = { role: 'runs' };
+  const flush = () => {};
+
+  const dependencies = Cxp06UatHarness.createHostedDependencies(
+    safeProperties(),
+    {
+      driveApi: { role: 'drive-api' },
+      driveApp: { role: 'drive-app' },
+      flush,
+      lockService: { role: 'lock' },
+      session: { getActiveUser: () => ({ getEmail: () => 'uat@example.test' }) },
+      spreadsheetApp: {
+        openById(id) {
+          openedIds.push(id);
+          return spreadsheets[id];
+        },
+      },
+      utilities: { role: 'utilities' },
+    },
+    {
+      fileLedgerRepository: { create: () => ledgerRepository },
+      runRepository: { create: () => runRepository },
+    },
+  );
+
+  assert.deepEqual(openedIds, ['target-id', 'control-id']);
+  assert.equal(dependencies.commitServices.targetSpreadsheet, spreadsheets['target-id']);
+  assert.equal(dependencies.commitServices.ledgerRepository, ledgerRepository);
+  assert.equal(dependencies.inputServices.ledgerRepository, ledgerRepository);
+  assert.equal(dependencies.runServices.repository, runRepository);
+  assert.equal(dependencies.request.targetWorkbookId, 'target-id');
+  assert.equal(dependencies.adapterRequest.sources.length, 5);
+  assert.equal(dependencies.adapterRequest.sources[0].fileId, 'handled-id');
+  assert.equal(dependencies.adapterRequest.sources[4].datasetName, 'Staff');
+});
+
 function rawRepository() {
   const state = {
     reads: [{ datasetName: 'Handled', formulas: [['']], values: [['old']] }],
@@ -155,6 +458,7 @@ test('faults fire only at their intended raw, health, rollback, and cleanup seam
     .wrapRawRepository(healthBase.repository);
   health.replaceAll([]);
   assert.notDeepEqual(health.readAll(), healthBase.state.reads);
+  assert.deepEqual(health.readAll(), healthBase.state.reads);
 
   const write = Cxp06FaultInjector.create('ROLLBACK_WRITE_FAILURE');
   assert.throws(

@@ -236,6 +236,12 @@ var ErrorCodes = (function () {
     true,
   );
   define(
+    'UAT_BACKUP_TOPOLOGY_SEED_FAILED',
+    CATEGORIES.MIGRATION_CALCULATION,
+    'The controlled UAT backup topology could not be seeded safely.',
+    false,
+  );
+  define(
     'MIGRATION_ROLLBACK_FAILED',
     CATEGORIES.MIGRATION_CALCULATION,
     'Raw data could not be restored to a verified safe state.',

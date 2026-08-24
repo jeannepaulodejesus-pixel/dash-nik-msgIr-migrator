@@ -97,6 +97,101 @@ test('raw repository preflights formula-free sheets and replaces or restores all
   assert.equal(spreadsheet.events.length, eventCount);
 });
 
+// Defect caught: the UAT mid-commit hook fires before any raw write instead of
+// immediately after the second persisted dataset replacement.
+test('raw repository exposes replacement and restore observers at persisted write seams', () => {
+  const RawDataRepository = loadModule('../src/repository/RawDataRepository.js');
+  const owner = new FakeUser('owner@example.test');
+  const other = new FakeUser('rta@example.test');
+  const payloads = allNormalizedPayloads();
+  const spreadsheet = rawSpreadsheet(payloads, owner, other);
+  const observed = [];
+  const repository = RawDataRepository.create(spreadsheet, {
+    observer: {
+      afterReplacement(info) {
+        observed.push(['replace', info.index, info.datasetName]);
+        if (info.index === 1) {
+          throw new Error('controlled failure after second replacement');
+        }
+      },
+    },
+  });
+
+  assert.throws(
+    () => repository.replaceAll(payloads),
+    (error) => error?.code === 'MIGRATION_COMMIT_FAILED',
+  );
+  assert.deepEqual(observed, [
+    ['replace', 0, 'Handled'],
+    ['replace', 1, 'Offered'],
+  ]);
+  assert.equal(
+    spreadsheet.events.filter(([name]) => name === 'setValues').length,
+    2,
+  );
+});
+
+// Defect caught: rollback transfers every peak-sized backup matrix through the
+// Apps Script runtime and five setValues calls, exhausting the hosted limit
+// even when the incoming UAT bundle is small.
+test('raw rollback restores backup sheets with five server-side values-only copies', () => {
+  const RawDataRepository = loadModule('../src/repository/RawDataRepository.js');
+  const owner = new FakeUser('owner@example.test');
+  const payloads = allNormalizedPayloads();
+  const spreadsheet = rawSpreadsheet(payloads, owner, new FakeUser('other@example.test'));
+  const runId = 'server-copy-restore';
+  const tokenByDataset = {
+    'AHT - Raw': 'AHT',
+    'Auxes - Raw': 'AUXES',
+    Handled: 'HANDLED',
+    Offered: 'OFFERED',
+    Staff: 'STAFF',
+  };
+  const sheetsByDataset = {};
+
+  DatasetSheets.listBindings().forEach((binding) => {
+    const raw = spreadsheet.getSheetByName(binding.rawSheetName);
+    const backupName = `_CXP06_BAK_${tokenByDataset[binding.datasetName]}_${runId}`;
+    spreadsheet.addSheet(backupName, raw.values.map((row) => row.slice()));
+    sheetsByDataset[binding.datasetName] = { sheetName: backupName };
+    raw.values = [['changed']];
+    raw.formulas = [['']];
+  });
+
+  const observed = [];
+  const repository = RawDataRepository.create(spreadsheet, {
+    observer: {
+      afterRestoreWrite(info) {
+        observed.push(info);
+      },
+    },
+  });
+  const eventStart = spreadsheet.events.length;
+  const result = repository.restoreGroup({
+    complete: true,
+    runId,
+    sheetsByDataset,
+  });
+  const restoreEvents = spreadsheet.events.slice(eventStart);
+
+  assert.deepEqual(result, { datasetCount: 5 });
+  assert.equal(restoreEvents.filter(([name]) => name === 'rangeCopyTo').length, 5);
+  assert.equal(restoreEvents.some(([name]) => name === 'setValues'), false);
+  assert.equal(
+    restoreEvents
+      .filter(([name]) => name === 'rangeCopyTo')
+      .every((event) => event[3]?.contentsOnly === true),
+    true,
+  );
+  assert.deepEqual(
+    observed.map(({ datasetName, index }) => ({ datasetName, index })),
+    DatasetSheets.listBindings().map((binding, index) => ({
+      datasetName: binding.datasetName,
+      index,
+    })),
+  );
+});
+
 // Defect caught: backups rely on copied visibility/protection or are deleted before group verification.
 test('backup repository creates verified hidden protected groups and deletes only that group', () => {
   const BackupRepository = loadModule('../src/repository/BackupRepository.js');

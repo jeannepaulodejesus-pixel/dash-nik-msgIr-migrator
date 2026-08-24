@@ -2,7 +2,7 @@
 
 ## Status
 
-Not executed by the repository delivery. No authenticated non-production target workbook or authorization was supplied. Completion of this runbook is a promotion gate, not a local test claim.
+**PASSED — Hosted DEV/UAT completed on August 24, 2026.** All required success, fault, recovery-topology, cleanup-debt, and reader-visibility scenarios have hosted evidence. See `docs/cxp06-hosted-uat-results-2026-08-24.md` for the signed result matrix and evidence links.
 
 ## Preconditions
 
@@ -61,11 +61,15 @@ For every case, record:
 
 ## Case 5 — Interrupted-run reconciliation and cleanup debt
 
-1. Leave an incomplete backup group without raw mutation; confirm the next locked run deletes it without restore.
-2. Leave one complete group without SUCCESS; confirm the next locked run restores/verifies/deletes it before the new duplicate check and backup.
-3. Leave a complete group with a confirmed SUCCESS row; confirm the next locked run keeps current raw and deletes the leftover group.
-4. Create two complete groups without SUCCESS only in an isolated test copy; confirm recovery fails closed without choosing a restore order.
-5. Inject post-success backup deletion failure; confirm the successful raw result remains active, cleanup reports PENDING, and the next run removes the leftover group.
+Use an isolated non-production target with no `_CXP06_BAK_*` sheets before each controlled topology run. The seeder refuses dirty starting state and preserves existing recovery evidence. Use a fresh synthetic source fingerprint, or a separately initialized control ledger, for each scenario that must proceed past the duplicate checks.
+
+1. Run `CASE5_INCOMPLETE_BACKUP`. Confirm it seeds one incomplete group under the existing lock, production reconciliation deletes it without restore, and the run proceeds to SUCCESS with no backup left after ordinary cleanup.
+2. Start again from a clean target and run `CASE5_COMPLETE_UNSUCCESSFUL_BACKUP`. Confirm production reconciliation performs restore, verify, and delete for the complete unfinished group before the new duplicate check and backup. Confirm the new run reaches SUCCESS.
+3. Start again from a clean target and run `CASE5_SUCCESSFUL_LEFTOVER_BACKUP`. Confirm the seeder appends and read-confirms the bounded synthetic SUCCESS row; production reconciliation must keep current raw, delete the committed leftover, and allow the new run to reach SUCCESS.
+4. Separately inject post-success backup deletion failure with `CASE5_CLEANUP_FAILURE`. Confirm the successful raw result remains active, cleanup reports `PENDING`, and the next cleanly controlled run removes the leftover group.
+5. Run `CASE5_TWO_COMPLETE_UNSUCCESSFUL_BACKUPS` last in an isolated test copy. Confirm `RUN_LOG` and `ERROR_LOG` report `MIGRATION_RECOVERY_FAILED`, production reconciliation chooses no restore order, and all ten backup sheets remain. Preserve them for investigation. Do not allow another writer until an authorized operator records manual cleanup; if cleanup is performed, resolve and remove only the ten inspected seed sheets.
+
+For every topology scenario, capture `backupSheetNames`, `backupSheetCount`, terminal state, and sanitized error code from the harness evidence. `UAT_BACKUP_TOPOLOGY_SEED_FAILED` indicates setup refusal or failure rather than the production recovery outcome.
 
 ## Reader-visibility observation
 

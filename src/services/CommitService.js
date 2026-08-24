@@ -77,9 +77,16 @@ var CommitService = (function () {
     var stagingRepository = resolveStagingRepository().create(
       dependencies.targetSpreadsheet,
     );
+    if (typeof dependencies.decorateStagingRepository === 'function') {
+      stagingRepository = dependencies.decorateStagingRepository(stagingRepository);
+    }
     var rawRepository = resolveRawDataRepository().create(
       dependencies.targetSpreadsheet,
+      { observer: dependencies.rawObserver },
     );
+    if (typeof dependencies.decorateRawRepository === 'function') {
+      rawRepository = dependencies.decorateRawRepository(rawRepository);
+    }
     var backupRepository = resolveBackupRepository().create(
       dependencies.targetSpreadsheet,
       {
@@ -87,6 +94,9 @@ var CommitService = (function () {
         spreadsheetApp: dependencies.spreadsheetApp,
       },
     );
+    if (typeof dependencies.decorateBackupRepository === 'function') {
+      backupRepository = dependencies.decorateBackupRepository(backupRepository);
+    }
     var rollbackService = resolveRollbackService().create({
       backupRepository: backupRepository,
       flush: dependencies.flush,
@@ -225,6 +235,13 @@ var CommitService = (function () {
 
     function commit(context) {
       requireTransaction();
+      if (typeof dependencies.beforeReconcile === 'function') {
+        dependencies.beforeReconcile(Object.freeze({
+          backupRepository: backupRepository,
+          ledgerRepository: dependencies.ledgerRepository,
+          targetSpreadsheet: dependencies.targetSpreadsheet,
+        }));
+      }
       var recovery = rollbackService.reconcile();
       resolveDuplicateService().check(
         duplicateInput(context),
@@ -233,7 +250,10 @@ var CommitService = (function () {
       rawRepository.preflight();
       try {
         transaction.group = backupRepository.createGroup(context.runId);
-        var result = rawRepository.replaceAll(transaction.payloads);
+        var result = rawRepository.replaceAll(
+          transaction.payloads,
+          { preflightVerified: true },
+        );
         return Object.freeze({
           backupRunId: transaction.group.runId,
           datasetCount: result.datasetCount,

@@ -32,16 +32,8 @@ var Cxp06FaultInjector = (function () {
       }
 
       return Object.assign({}, rawRepo, {
-        replaceAll: function (payloads) {
-          if (faultKind === 'AFTER_SECOND_RAW_REPLACEMENT') {
-            rawObserver.afterReplacement({ index: 0 });
-            rawObserver.afterReplacement({ index: 1 });
-          }
-          if (faultKind === 'ROLLBACK_WRITE_FAILURE' || faultKind === 'ROLLBACK_VERIFY_FAILURE') {
-            rawRepo.replaceAll(payloads);
-            rawObserver.afterReplacement({ index: 1 });
-          }
-          var result = rawRepo.replaceAll(payloads);
+        replaceAll: function (payloads, options) {
+          var result = rawRepo.replaceAll(payloads, options);
           if (faultKind === 'HEALTH_MISMATCH') {
             healthCorrupted = true;
           }
@@ -53,10 +45,14 @@ var Cxp06FaultInjector = (function () {
           return result;
         },
         restoreAll: function (snapshots) {
-          if (faultKind === 'ROLLBACK_WRITE_FAILURE') {
-            rawObserver.afterRestoreWrite({ index: 0 });
-          }
           var result = rawRepo.restoreAll(snapshots);
+          if (faultKind === 'ROLLBACK_VERIFY_FAILURE') {
+            rollbackVerifyCorrupted = true;
+          }
+          return result;
+        },
+        restoreGroup: function (group) {
+          var result = rawRepo.restoreGroup(group);
           if (faultKind === 'ROLLBACK_VERIFY_FAILURE') {
             rollbackVerifyCorrupted = true;
           }
@@ -64,7 +60,11 @@ var Cxp06FaultInjector = (function () {
         },
         readAll: function () {
           var reads = rawRepo.readAll();
-          if (healthCorrupted || rollbackVerifyCorrupted) {
+          var corruptHealthRead = healthCorrupted;
+          if (corruptHealthRead) {
+            healthCorrupted = false;
+          }
+          if (corruptHealthRead || rollbackVerifyCorrupted) {
             return reads.map(function (read, index) {
               if (index === 0) {
                 var newValues = read.values.map(function (row) { return row.slice(); });

@@ -43,7 +43,7 @@ var RollbackService = (function () {
       typeof dependencies.backupRepository.readGroup !== 'function' ||
       typeof dependencies.backupRepository.deleteGroup !== 'function' ||
       !dependencies.rawRepository ||
-      typeof dependencies.rawRepository.restoreAll !== 'function' ||
+      typeof dependencies.rawRepository.restoreGroup !== 'function' ||
       typeof dependencies.rawRepository.readAll !== 'function' ||
       !dependencies.ledgerRepository ||
       typeof dependencies.ledgerRepository.findSuccessfulByRunId !== 'function' ||
@@ -61,12 +61,12 @@ var RollbackService = (function () {
         if (!group || group.complete !== true) {
           throw new Error('A complete backup group is required.');
         }
+        dependencies.rawRepository.restoreGroup(group);
+        dependencies.flush();
         var backups = dependencies.backupRepository.readGroup(group);
         if (backups.length !== 5) {
           throw new Error('The backup group does not contain five datasets.');
         }
-        dependencies.rawRepository.restoreAll(backups);
-        dependencies.flush();
         var restored = dependencies.rawRepository.readAll();
         if (!snapshotsEqual(backups, restored)) {
           throw new Error('Restored raw data does not match the backup group.');

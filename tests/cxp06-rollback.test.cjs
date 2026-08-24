@@ -139,6 +139,13 @@ function serviceHarness(groups, options = {}) {
       }
       rawValues = restored;
     },
+    restoreGroup(group) {
+      events.push(['restoreGroup', group.runId]);
+      if (options.restoreFailure) {
+        throw new Error('sensitive restore failure');
+      }
+      rawValues = backupValues;
+    },
   };
   const successfulRuns = new Set(options.successfulRuns || []);
   const ledgerRepository = {
@@ -195,9 +202,9 @@ test('rollback restores, flushes, verifies every dataset, and only then deletes 
     },
   );
   assert.deepEqual(harness.events, [
-    ['readBackup', 'run-unfinished'],
-    ['restore', 5],
+    ['restoreGroup', 'run-unfinished'],
     ['flush'],
+    ['readBackup', 'run-unfinished'],
     ['readRaw'],
     ['delete', 'run-unfinished'],
   ]);
@@ -222,21 +229,21 @@ test('recovery keeps committed raw, restores one unfinished group, and discards 
   assert.deepEqual(committedHarness.service.reconcile().actions, [
     { action: 'DELETE_COMMITTED_BACKUP', runId: 'run-committed' },
   ]);
-  assert.equal(committedHarness.events.some(([name]) => name === 'restore'), false);
+  assert.equal(committedHarness.events.some(([name]) => name === 'restoreGroup'), false);
 
   const unfinished = completeGroup('run-unfinished');
   const unfinishedHarness = serviceHarness([unfinished]);
   assert.deepEqual(unfinishedHarness.service.reconcile().actions, [
     { action: 'RESTORE_UNFINISHED_BACKUP', runId: 'run-unfinished' },
   ]);
-  assert.equal(unfinishedHarness.events.some(([name]) => name === 'restore'), true);
+  assert.equal(unfinishedHarness.events.some(([name]) => name === 'restoreGroup'), true);
 
   const partial = incompleteGroup('run-partial');
   const partialHarness = serviceHarness([partial]);
   assert.deepEqual(partialHarness.service.reconcile().actions, [
     { action: 'DELETE_INCOMPLETE_BACKUP', runId: 'run-partial' },
   ]);
-  assert.equal(partialHarness.events.some(([name]) => name === 'restore'), false);
+  assert.equal(partialHarness.events.some(([name]) => name === 'restoreGroup'), false);
 });
 
 // Defect caught: ambiguous or failed recovery guesses a restore order or leaks dependency messages.
@@ -251,7 +258,7 @@ test('recovery fails closed for multiple unfinished groups and sanitizes depende
       error?.code === 'MIGRATION_RECOVERY_FAILED' &&
       error.details.reason === 'multiple_unfinished_groups',
   );
-  assert.equal(ambiguous.events.some(([name]) => name === 'restore'), false);
+  assert.equal(ambiguous.events.some(([name]) => name === 'restoreGroup'), false);
 
   const failed = serviceHarness([], { discoveryFailure: true });
   assert.throws(

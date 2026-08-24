@@ -219,6 +219,8 @@ test('successful runs execute every phase, enter COMMITTING under lock, and pers
     ),
   );
   const services = servicesWith();
+  const telemetry = [];
+  services.telemetry = (event) => telemetry.push(event);
 
   const result = RunService.execute(validRequest(), operations, services);
 
@@ -233,6 +235,10 @@ test('successful runs execute every phase, enter COMMITTING under lock, and pers
     'recalculate',
     'healthCheck',
   ]);
+  assert.deepEqual(telemetry, operationEvents.flatMap((operationName) => [
+    { operationName, status: 'STARTED' },
+    { operationName, status: 'COMPLETED' },
+  ]));
   assert.deepEqual(services.lockService.events, [
     ['getScriptLock'],
     ['tryLock', 5000],

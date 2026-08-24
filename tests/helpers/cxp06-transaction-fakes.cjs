@@ -94,12 +94,36 @@ class FakeRange {
     return this;
   }
 
+  copyTo(destination, options) {
+    if (this.sheet.spreadsheet.failWriteSheet === destination.sheet.name) {
+      throw new Error(`synthetic write failure: ${destination.sheet.name}`);
+    }
+    this.sheet.spreadsheet.events.push([
+      'rangeCopyTo',
+      this.sheet.name,
+      destination.sheet.name,
+      options,
+    ]);
+    const values = this.getValues();
+    destination.sheet.values = values.map((row) => row.slice());
+    destination.sheet.formulas = values.map((row) => row.map(() => ''));
+    return this;
+  }
+
   getFormulas() {
     return Array.from({ length: this.rowCount }, (_, rowOffset) =>
       Array.from({ length: this.columnCount }, (_, columnOffset) =>
         this.sheet.formulas[this.row - 1 + rowOffset]?.[this.column - 1 + columnOffset] || '',
       ),
     );
+  }
+
+  getNumColumns() {
+    return this.columnCount;
+  }
+
+  getNumRows() {
+    return this.rowCount;
   }
 
   getValues() {
