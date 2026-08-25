@@ -32,16 +32,30 @@ var RawDataRepository = (function () {
 
   function create(spreadsheet, options) {
     var observer = options && options.observer ? options.observer : {};
-    function rawEntries() {
+    function bindingForDataset(datasetName) {
+      var binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
+        return candidate.datasetName === datasetName;
+      })[0];
+      if (!binding) {
+        throw new Error('A registered raw dataset is required.');
+      }
+      return binding;
+    }
+
+    function rawEntry(binding) {
       if (!spreadsheet || typeof spreadsheet.getSheetByName !== 'function') {
         throw new Error('Target spreadsheet is unavailable.');
       }
+      var sheet = spreadsheet.getSheetByName(binding.rawSheetName);
+      if (!sheet) {
+        throw new Error('A required raw sheet is unavailable.');
+      }
+      return { binding: binding, sheet: sheet };
+    }
+
+    function rawEntries() {
       return resolveDatasetSheets().listBindings().map(function (binding) {
-        var sheet = spreadsheet.getSheetByName(binding.rawSheetName);
-        if (!sheet) {
-          throw new Error('A required raw sheet is unavailable.');
-        }
-        return { binding: binding, sheet: sheet };
+        return rawEntry(binding);
       });
     }
 
@@ -127,6 +141,23 @@ var RawDataRepository = (function () {
       }
     }
 
+    function preflightOne(datasetName) {
+      try {
+        var entry = rawEntry(bindingForDataset(datasetName));
+        if (containsFormula(entry.sheet.getDataRange().getFormulas())) {
+          throw resolveErrorCodes().create('MIGRATION_COMMIT_FAILED', {
+            details: {
+              datasetName: datasetName,
+              reason: 'raw_formulas_not_allowed',
+            },
+          });
+        }
+        return Object.freeze({ datasetName: datasetName, valuesOnly: true });
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_COMMIT_FAILED');
+      }
+    }
+
     function replaceAll(payloads, options) {
       try {
         if (!options || options.preflightVerified !== true) {
@@ -147,6 +178,65 @@ var RawDataRepository = (function () {
           rowCounts[entry.binding.datasetName] = entry.payload.rowCount;
         });
         return Object.freeze({ datasetCount: entries.length, rowCounts: Object.freeze(rowCounts) });
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_COMMIT_FAILED');
+      }
+    }
+
+    function replaceOne(payloads, datasetIndex, options) {
+      try {
+        if (!Number.isInteger(datasetIndex) || datasetIndex < 0) {
+          throw new Error('A non-negative raw dataset index is required.');
+        }
+        if (!options || options.preflightVerified !== true) {
+          preflight();
+        }
+        var entries = payloadEntries(payloads);
+        if (datasetIndex >= entries.length) {
+          throw new Error('The raw dataset index is outside the registered transaction.');
+        }
+        var entry = entries[datasetIndex];
+        var matrix = resolveCodec().encodePayload(entry.payload);
+        entry.sheet.getDataRange().clearContent();
+        entry.sheet.getRange(1, 1, matrix.length, matrix[0].length).setValues(matrix);
+        if (typeof observer.afterReplacement === 'function') {
+          observer.afterReplacement({
+            datasetName: entry.binding.datasetName,
+            index: datasetIndex,
+          });
+        }
+        return Object.freeze({
+          datasetName: entry.binding.datasetName,
+          rowCount: entry.payload.rowCount,
+        });
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_COMMIT_FAILED');
+      }
+    }
+
+    function replacePayload(payload, options) {
+      try {
+        if (!payload || typeof payload.datasetName !== 'string') {
+          throw new Error('A normalized raw payload is required.');
+        }
+        if (!options || options.preflightVerified !== true) {
+          preflightOne(payload.datasetName);
+        }
+        var binding = bindingForDataset(payload.datasetName);
+        var entry = rawEntry(binding);
+        var matrix = resolveCodec().encodePayload(payload);
+        entry.sheet.getDataRange().clearContent();
+        entry.sheet.getRange(1, 1, matrix.length, matrix[0].length).setValues(matrix);
+        if (typeof observer.afterReplacement === 'function') {
+          observer.afterReplacement({
+            datasetName: payload.datasetName,
+            index: resolveDatasetSheets().listBindings().indexOf(binding),
+          });
+        }
+        return Object.freeze({
+          datasetName: payload.datasetName,
+          rowCount: payload.rowCount,
+        });
       } catch (error) {
         throw resolveErrorCodes().normalize(error, 'MIGRATION_COMMIT_FAILED');
       }
@@ -207,10 +297,29 @@ var RawDataRepository = (function () {
       }));
     }
 
+    function readOne(datasetName) {
+      try {
+        var entry = rawEntry(bindingForDataset(datasetName));
+        var range = entry.sheet.getDataRange();
+        return Object.freeze({
+          datasetName: entry.binding.datasetName,
+          formulas: range.getFormulas(),
+          sheetName: entry.binding.rawSheetName,
+          values: range.getValues(),
+        });
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_COMMIT_FAILED');
+      }
+    }
+
     return Object.freeze({
       preflight: preflight,
+      preflightOne: preflightOne,
       readAll: readAll,
+      readOne: readOne,
       replaceAll: replaceAll,
+      replaceOne: replaceOne,
+      replacePayload: replacePayload,
       restoreAll: restoreAll,
       restoreGroup: restoreGroup,
     });

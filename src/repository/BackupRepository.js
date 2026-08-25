@@ -92,24 +92,28 @@ var BackupRepository = (function () {
         throw new Error('Target spreadsheet is unavailable.');
       }
       return resolveDatasetSheets().listBindings().map(function (binding) {
-        var sheet = spreadsheet.getSheetByName(binding.rawSheetName);
-        if (!sheet) {
-          throw new Error('A required raw sheet is unavailable for backup.');
-        }
-        var range = sheet.getDataRange();
-        var formulas = range.getFormulas();
-        if (formulas.some(function (row) {
-          return row.some(function (formula) { return Boolean(formula); });
-        })) {
-          throw new Error('Raw formulas are not eligible for backup.');
-        }
-        return {
-          binding: binding,
-          formulas: formulas,
-          sheet: sheet,
-          values: range.getValues(),
-        };
+        return rawEntry(binding);
       });
+    }
+
+    function rawEntry(binding) {
+      var sheet = spreadsheet.getSheetByName(binding.rawSheetName);
+      if (!sheet) {
+        throw new Error('A required raw sheet is unavailable for backup.');
+      }
+      var range = sheet.getDataRange();
+      var formulas = range.getFormulas();
+      if (formulas.some(function (row) {
+        return row.some(function (formula) { return Boolean(formula); });
+      })) {
+        throw new Error('Raw formulas are not eligible for backup.');
+      }
+      return {
+        binding: binding,
+        formulas: formulas,
+        sheet: sheet,
+        values: range.getValues(),
+      };
     }
 
     function normalizeProtection(sheet) {
@@ -224,6 +228,59 @@ var BackupRepository = (function () {
       }));
     }
 
+    function readDataset(group, datasetName) {
+      try {
+        if (!group || !group.sheetsByDataset) {
+          throw new Error('A backup group is required.');
+        }
+        var binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
+          return candidate.datasetName === datasetName;
+        })[0];
+        var reference = binding && group.sheetsByDataset[datasetName];
+        var sheet = reference && spreadsheet.getSheetByName(reference.sheetName);
+        if (!binding || !sheet) {
+          throw new Error('A registered backup dataset is unavailable.');
+        }
+        var range = sheet.getDataRange();
+        return Object.freeze({
+          datasetName: datasetName,
+          formulas: range.getFormulas(),
+          sheetName: reference.sheetName,
+          values: range.getValues(),
+        });
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_BACKUP_FAILED');
+      }
+    }
+
+    function verifyDataset(group, datasetName) {
+      try {
+        if (!group || group.complete !== true) {
+          throw new Error('A complete backup group is required.');
+        }
+        var binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
+          return candidate.datasetName === datasetName;
+        })[0];
+        if (!binding) {
+          throw new Error('A registered backup dataset is required.');
+        }
+        var entry = rawEntry(binding);
+        var snapshot = readDataset(group, datasetName);
+        if (
+          !resolveCodec().matricesEqual(entry.values, snapshot.values) ||
+          !resolveCodec().matricesEqual(entry.formulas, snapshot.formulas)
+        ) {
+          throw new Error('A copied backup does not match its raw source.');
+        }
+        return Object.freeze({
+          datasetName: datasetName,
+          sheetName: snapshot.sheetName,
+        });
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_BACKUP_FAILED');
+      }
+    }
+
     function deleteGroup(group) {
       if (!group || !group.sheetsByDataset || typeof spreadsheet.deleteSheet !== 'function') {
         throw resolveErrorCodes().create('MIGRATION_RECOVERY_FAILED', {
@@ -243,27 +300,53 @@ var BackupRepository = (function () {
       return Object.freeze({ deletedCount: Object.keys(group.sheetsByDataset).length });
     }
 
-    function createGroup(runId) {
-      try {
-        requireRunId(runId);
-        if (discoverGroups().some(function (group) { return group.runId === runId; })) {
-          throw new Error('A backup group already exists for this run.');
-        }
-        var entries = rawEntries();
-        entries.forEach(function (entry) {
-          var copy = entry.sheet.copyTo(spreadsheet);
-          copy.setName(backupName(entry.binding.datasetName, runId));
-          copy.hideSheet();
-          normalizeProtection(copy);
+    function namesToCompare(options) {
+      var registered = resolveDatasetSheets().listBindings();
+      if (!options || options.compareDatasetNames === undefined) {
+        return registered.map(function (binding) {
+          return binding.datasetName;
         });
-        var group = discoverGroups().filter(function (candidate) {
-          return candidate.runId === runId;
-        })[0];
-        if (!group || !group.complete) {
-          throw new Error('The backup group is incomplete.');
+      }
+      if (!Array.isArray(options.compareDatasetNames)) {
+        throw resolveErrorCodes().create('MIGRATION_BACKUP_FAILED', {
+          details: { reason: 'invalid_compare_dataset_names' },
+        });
+      }
+      var allowed = Object.create(null);
+      registered.forEach(function (binding) {
+        allowed[binding.datasetName] = true;
+      });
+      options.compareDatasetNames.forEach(function (datasetName) {
+        if (!allowed[datasetName]) {
+          throw resolveErrorCodes().create('MIGRATION_BACKUP_FAILED', {
+            details: { datasetName: datasetName, reason: 'unknown_compare_dataset' },
+          });
         }
+      });
+      return options.compareDatasetNames;
+    }
+
+    function verifyGroup(group, options) {
+      if (!group || group.complete !== true) {
+        throw resolveErrorCodes().create('MIGRATION_BACKUP_FAILED', {
+          details: { reason: 'backup_group_incomplete' },
+        });
+      }
+      try {
+        var compareNames = namesToCompare(options);
+        var compareSet = Object.create(null);
+        compareNames.forEach(function (datasetName) {
+          compareSet[datasetName] = true;
+        });
+        var entries = rawEntries();
         var snapshots = readGroup(group);
+        if (snapshots.length !== entries.length) {
+          throw new Error('A copied backup does not match its raw source.');
+        }
         entries.forEach(function (entry, index) {
+          if (!compareSet[entry.binding.datasetName]) {
+            return;
+          }
           if (
             !resolveCodec().matricesEqual(entry.values, snapshots[index].values) ||
             !resolveCodec().matricesEqual(entry.formulas, snapshots[index].formulas)
@@ -277,11 +360,74 @@ var BackupRepository = (function () {
       }
     }
 
+    function createGroupStep(runId) {
+      try {
+        requireRunId(runId);
+        var group = discoverGroups().filter(function (candidate) {
+          return candidate.runId === runId;
+        })[0] || null;
+        if (group && group.complete) {
+          return Object.freeze({
+            complete: true,
+            createdDatasetName: null,
+            group: verifyGroup(group),
+          });
+        }
+        var binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
+          return !group || !group.sheetsByDataset[candidate.datasetName];
+        })[0];
+        var entry = rawEntry(binding);
+        var copy = entry.sheet.copyTo(spreadsheet);
+        copy.setName(backupName(binding.datasetName, runId));
+        copy.hideSheet();
+        normalizeProtection(copy);
+
+        group = discoverGroups().filter(function (candidate) {
+          return candidate.runId === runId;
+        })[0];
+        var snapshot = readGroup(group).filter(function (candidate) {
+          return candidate.datasetName === binding.datasetName;
+        })[0];
+        if (
+          !snapshot ||
+          !resolveCodec().matricesEqual(entry.values, snapshot.values) ||
+          !resolveCodec().matricesEqual(entry.formulas, snapshot.formulas)
+        ) {
+          throw new Error('A copied backup does not match its raw source.');
+        }
+        return Object.freeze({
+          complete: group.complete,
+          createdDatasetName: binding.datasetName,
+          group: group,
+        });
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_BACKUP_FAILED');
+      }
+    }
+
+    function createGroup(runId) {
+      requireRunId(runId);
+      if (discoverGroups().some(function (group) { return group.runId === runId; })) {
+        throw resolveErrorCodes().create('MIGRATION_BACKUP_FAILED', {
+          details: { reason: 'backup_group_exists' },
+        });
+      }
+      var result;
+      resolveDatasetSheets().listBindings().forEach(function () {
+        result = createGroupStep(runId);
+      });
+      return verifyGroup(result.group);
+    }
+
     return Object.freeze({
       createGroup: createGroup,
+      createGroupStep: createGroupStep,
       deleteGroup: deleteGroup,
       discoverGroups: discoverGroups,
+      readDataset: readDataset,
       readGroup: readGroup,
+      verifyDataset: verifyDataset,
+      verifyGroup: verifyGroup,
     });
   }
 

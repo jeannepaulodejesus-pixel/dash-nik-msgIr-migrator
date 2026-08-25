@@ -89,11 +89,58 @@ var RunStateMachine = (function () {
     });
   }
 
+  function restore(clock, history) {
+    if (!clock || typeof clock.now !== 'function' || !Array.isArray(history)) {
+      throw resolveErrorCodes().create('INGESTION_INVALID_RUN_METADATA', {
+        details: { field: 'stateHistory' },
+      });
+    }
+    if (
+      history.length === 0 ||
+      history.length >= SUCCESS_PATH.length ||
+      history.some(function (event, index) {
+        return !event || event.state !== SUCCESS_PATH[index] ||
+          toIso(event.atUtc) !== event.atUtc;
+      })
+    ) {
+      throw resolveErrorCodes().create('INGESTION_INVALID_RUN_METADATA', {
+        details: { field: 'stateHistory' },
+      });
+    }
+
+    var current = history[history.length - 1].state;
+    var events = history.map(function (event) {
+      return Object.freeze({ atUtc: event.atUtc, state: event.state });
+    });
+
+    function transition(nextState) {
+      if (
+        nextSuccessState[current] !== nextState &&
+        FAILURE_STATES.indexOf(nextState) === -1
+      ) {
+        throw resolveErrorCodes().create('INGESTION_ILLEGAL_STATE_TRANSITION', {
+          details: { attemptedState: nextState, currentState: current },
+        });
+      }
+      current = nextState;
+      var event = Object.freeze({ atUtc: toIso(clock.now()), state: current });
+      events.push(event);
+      return event;
+    }
+
+    return Object.freeze({
+      currentState: function () { return current; },
+      history: function () { return events.slice(); },
+      transition: transition,
+    });
+  }
+
   return Object.freeze({
     FAILURE_STATES: FAILURE_STATES,
     SUCCESS_PATH: SUCCESS_PATH,
     TERMINAL_STATES: TERMINAL_STATES,
     create: create,
+    restore: restore,
   });
 })();
 

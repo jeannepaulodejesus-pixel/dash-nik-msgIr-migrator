@@ -44,6 +44,20 @@ var Cxp06FaultInjector = (function () {
           }
           return result;
         },
+        replaceOne: function (payloads, datasetIndex, options) {
+          var result = rawRepo.replaceOne(payloads, datasetIndex, options);
+          var isFinalDataset = Array.isArray(payloads) &&
+            datasetIndex === payloads.length - 1;
+          if (faultKind === 'HEALTH_MISMATCH' && isFinalDataset) {
+            healthCorrupted = true;
+          }
+          if (faultKind === 'READER_VISIBILITY' && isFinalDataset) {
+            if (typeof Utilities !== 'undefined' && typeof Utilities.sleep === 'function') {
+              Utilities.sleep(1000);
+            }
+          }
+          return result;
+        },
         restoreAll: function (snapshots) {
           var result = rawRepo.restoreAll(snapshots);
           if (faultKind === 'ROLLBACK_VERIFY_FAILURE') {

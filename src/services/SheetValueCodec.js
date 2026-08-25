@@ -46,10 +46,30 @@ var SheetValueCodec = (function () {
     });
   }
 
+  function normalizePersistedValue(column, value) {
+    if (
+      column.type === 'text' &&
+      typeof value === 'number' &&
+      Number.isFinite(value)
+    ) {
+      return String(value);
+    }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      if (column.type === 'date') {
+        return value.toISOString().slice(0, 10);
+      }
+      if (column.type === 'date_time') {
+        return value.toISOString();
+      }
+    }
+    return value;
+  }
+
   return Object.freeze({
     decodeMatrix: decodeMatrix,
     encodePayload: encodePayload,
     matricesEqual: matricesEqual,
+    normalizePersistedValue: normalizePersistedValue,
   });
 })();
 

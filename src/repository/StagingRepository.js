@@ -22,6 +22,13 @@ var StagingRepository = (function () {
     return require('../services/SheetValueCodec.js');
   }
 
+  function resolveRegistry() {
+    if (typeof SchemaRegistry !== 'undefined') {
+      return SchemaRegistry;
+    }
+    return require('../ingestion/SchemaRegistry.js');
+  }
+
   function rowCountSummary(entries) {
     var counts = {};
     entries.forEach(function (entry) {
@@ -31,6 +38,83 @@ var StagingRepository = (function () {
   }
 
   function create(spreadsheet) {
+    function requireRunMetadata(runMetadata) {
+      if (
+        !runMetadata ||
+        typeof runMetadata.runId !== 'string' || !runMetadata.runId ||
+        typeof runMetadata.schemaVersion !== 'string' || !runMetadata.schemaVersion
+      ) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_RUN_METADATA', {
+          details: { boundary: 'StagingRepository.readCheckpoint' },
+        });
+      }
+    }
+
+    function bindingForDataset(datasetName) {
+      var binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
+        return candidate.datasetName === datasetName;
+      })[0];
+      if (!binding) {
+        throw new Error('A registered staging dataset is required.');
+      }
+      return binding;
+    }
+
+    function snapshotForBinding(binding) {
+      var sheet = spreadsheet && spreadsheet.getSheetByName(binding.stagingSheetName);
+      if (!sheet) {
+        throw new Error('A required staging sheet is unavailable.');
+      }
+      var range = sheet.getDataRange();
+      return Object.freeze({
+        datasetName: binding.datasetName,
+        formulas: range.getFormulas(),
+        sheetName: binding.stagingSheetName,
+        values: range.getValues(),
+      });
+    }
+
+    function payloadForSnapshot(snapshot, runMetadata) {
+      var decoded = resolveCodec().decodeMatrix(
+        snapshot.datasetName,
+        snapshot.values,
+      );
+      var schema = resolveRegistry().getSchema(
+        snapshot.datasetName,
+        runMetadata.schemaVersion,
+      );
+      if (!schema) {
+        throw resolveErrorCodes().create('MIGRATION_STAGE_VALIDATION_FAILED', {
+          details: {
+            datasetName: snapshot.datasetName,
+            reason: 'schema_version_mismatch',
+          },
+        });
+      }
+      decoded.records.forEach(function (record) {
+        schema.columns.forEach(function (column) {
+          record[column.name] = resolveCodec().normalizePersistedValue(
+            column,
+            record[column.name],
+          );
+        });
+      });
+      return Object.freeze({
+        contract: 'DatasetPayload',
+        contractVersion: '1.0.0',
+        datasetName: decoded.datasetName,
+        headers: Object.freeze(decoded.headers.slice()),
+        records: Object.freeze(decoded.records.slice()),
+        rowCount: decoded.records.length,
+        runMetadata: Object.freeze({
+          runId: runMetadata.runId,
+          schemaVersion: runMetadata.schemaVersion,
+        }),
+        schemaVersion: runMetadata.schemaVersion,
+        source: Object.freeze({ kind: 'staging_checkpoint' }),
+      });
+    }
+
     function requireEntries(payloads) {
       if (!spreadsheet || typeof spreadsheet.getSheetByName !== 'function') {
         throw new Error('Target spreadsheet is unavailable.');
@@ -86,28 +170,47 @@ var StagingRepository = (function () {
     function readAll() {
       try {
         var bindings = resolveDatasetSheets().listBindings();
-        var sheets = bindings.map(function (binding) {
-          var sheet = spreadsheet && spreadsheet.getSheetByName(binding.stagingSheetName);
-          if (!sheet) {
-            throw new Error('A required staging sheet is unavailable.');
-          }
-          return { binding: binding, sheet: sheet };
-        });
-        return Object.freeze(sheets.map(function (entry) {
-          var range = entry.sheet.getDataRange();
-          return Object.freeze({
-            datasetName: entry.binding.datasetName,
-            formulas: range.getFormulas(),
-            sheetName: entry.binding.stagingSheetName,
-            values: range.getValues(),
-          });
-        }));
+        return Object.freeze(bindings.map(snapshotForBinding));
       } catch (error) {
         throw resolveErrorCodes().normalize(error, 'MIGRATION_STAGE_WRITE_FAILED');
       }
     }
 
-    return Object.freeze({ readAll: readAll, writeAll: writeAll });
+    function readCheckpoint(runMetadata) {
+      requireRunMetadata(runMetadata);
+      var snapshots = readAll();
+      var payloads = snapshots.map(function (snapshot) {
+        return payloadForSnapshot(snapshot, runMetadata);
+      });
+      return Object.freeze({
+        payloads: Object.freeze(payloads),
+        snapshots: snapshots,
+      });
+    }
+
+    function readDatasetCheckpoint(runMetadata, datasetName) {
+      try {
+        requireRunMetadata(runMetadata);
+        var snapshot = snapshotForBinding(bindingForDataset(datasetName));
+        return Object.freeze({
+          payload: payloadForSnapshot(snapshot, runMetadata),
+          snapshot: snapshot,
+        });
+      } catch (error) {
+        if (error && (error.code === 'INGESTION_INVALID_RUN_METADATA' ||
+            error.code === 'MIGRATION_STAGE_VALIDATION_FAILED')) {
+          throw error;
+        }
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_STAGE_WRITE_FAILED');
+      }
+    }
+
+    return Object.freeze({
+      readAll: readAll,
+      readCheckpoint: readCheckpoint,
+      readDatasetCheckpoint: readDatasetCheckpoint,
+      writeAll: writeAll,
+    });
   }
 
   return Object.freeze({ create: create });

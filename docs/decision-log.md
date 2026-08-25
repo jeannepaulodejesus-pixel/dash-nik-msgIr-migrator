@@ -322,3 +322,130 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 - **Decision:** Describe flush, backup, health readback, and rollback as an application recovery protocol. Do not claim atomic multi-sheet reader visibility, a platform transaction, or durability beyond documented Google Sheets behavior.
 - **Rationale:** Official Apps Script references document copying, values/formula access, protection, deletion, and applying pending changes, but not multi-sheet transaction isolation or rollback.
 - **Consequences:** Local peak tests prove constant bulk-call shape only. Hosted DEV/UAT peak execution, fault injection, quota timing, abrupt-run recovery, and reader observation remain a promotion gate.
+
+### DEC-037 — Start CXP-06 commit in a fresh resumable invocation
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-06
+- **Status:** Accepted
+- **Decision:** Preserve synchronous `RunService.execute()` for bounded callers, but route hosted CXP-06 scenarios through preparation and continuation phases. Persist only request/state/fingerprint/source metadata; keep normalized records in protected staging. Reconstruct and revalidate staging before the continuation enters the existing transaction lock.
+- **Rationale:** A declared-volume hosted run reached `commit` after 111.6 seconds and exhausted the six-minute limit before commit completed. Starting the locked tail in a fresh invocation gives recovery, backup, raw replacement, flush, and health verification their own runtime allowance without weakening transaction boundaries.
+- **Consequences:** Hosted entrypoints return `COMMIT_PENDING`, then `continueCxp06UatPipeline()` completes the logical run. Script Properties, deduplicated one-shot triggers, and a delayed watchdog preserve progress. The design intentionally does not checkpoint mid-replacement; an individual commit invocation that still exceeds the platform limit remains a hosted blocker requiring a durable per-dataset journal.
+
+### DEC-038 — Journal CXP-06 backups one dataset per invocation
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-06
+- **Status:** Accepted; supersedes DEC-037's monolithic hosted backup boundary
+- **Decision:** Preserve the synchronous five-backup transaction for bounded callers, but make hosted CXP-06 create and verify at most one missing run-scoped backup dataset per locked continuation. Treat the named backup sheets as the durable journal. Schedule final raw replacement only after all five copies are complete, then adopt and revalidate that exact group instead of copying it again.
+- **Rationale:** The fresh hosted commit still reached Apps Script's six-minute limit after entering `commit` with about 323 seconds remaining. Five full-sheet copy/protection/verification operations remained coupled to raw replacement and finalization, so merely moving commit to a fresh invocation did not bound runtime.
+- **Consequences:** Hosted status progresses through `BACKUP_PENDING`, `BACKING_UP`, `COMMIT_PENDING`, `COMMITTING`, and `COMPLETE`. A timeout during backup discovery resumes from run-scoped sheets without raw mutation or SUCCESS. Final raw replacement remains one recoverable logical tail and must still pass hosted timing evidence.
+
+### DEC-039 — Flush validated staging before checkpoint publication
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-06
+- **Status:** Accepted
+- **Decision:** Require resumable `RunService.prepare()` callers to supply a flush service. After `validateStage` succeeds, apply pending spreadsheet writes and emit `flushStage` completion telemetry before constructing or publishing the cross-invocation checkpoint.
+- **Rationale:** Hosted preparation could validate staging from the current execution context while the next backup invocation reread a header-only dataset and failed with `row_count_mismatch`. A checkpoint cannot claim a durable stage boundary until pending writes are explicitly applied.
+- **Consequences:** Flush failure is audited from `VALIDATING_STAGE` and no checkpoint is returned. Hosted operators must see `flushStage COMPLETED` before treating `BACKUP_PENDING` as resumable evidence.
+
+### DEC-040 — Schedule CXP-06 safety continuation at 4 minutes 30 seconds
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-06
+- **Status:** Accepted; authoritative owner decision
+- **Decision:** Before every hosted preparation, backup, and commit phase, create a one-time `continueCxp06UatPipeline()` trigger with a 270,000 ms delay. Remove or replace it when the phase reaches a durable checkpoint or terminal state. If the safety invocation observes that the original phase is still within its known six-minute execution window, defer re-entry until 6 minutes 15 seconds after the phase began.
+- **Rationale:** The previous seven-minute watchdog could only run after Apps Script had already terminated a six-minute invocation. The 4-minute-30-second boundary guarantees that continuation recovery is queued before the hard timeout, while the settle guard prevents the earlier trigger from executing the same phase concurrently.
+- **Consequences:** A hard timeout leaves durable state and a queued one-time recovery path. The pipeline still does not raise or disable the Apps Script quota, and hosted evidence must confirm trigger authorization, continuation delivery, and idempotent recovery.
+
+### DEC-041 — Self-resume CXP-06 raw replacement from a durable dataset cursor
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-06
+- **Status:** Accepted; authoritative owner decision
+- **Decision:** Extend DEC-040 with cooperative yielding. Process raw replacements in registered dataset order, one bulk dataset write per cursor step. Persist `commitProgress` after every successful step. Once the current invocation reaches 270,000 ms, deduplicate `continueCxp06UatPipeline` triggers, create one time-driven continuation for 60,000 ms later, and return normally. Run recalculation, health validation, SUCCESS confirmation, and cleanup in a fresh invocation only after all five raw steps are durable.
+- **Rationale:** A pre-scheduled watchdog provides recovery after termination but does not stop a monolithic commit from consuming the six-minute quota. A durable cursor and elapsed-time gate let the running invocation exit before the limit and retry only the last unconfirmed dataset after an abrupt interruption.
+- **Consequences:** Script Properties contain bounded metadata only; row data remains in protected staging and backup sheets. Trigger cleanup keeps at most one CXP-06 continuation installed. Each dataset still uses bulk range operations, and rollback retains the complete pre-commit backup group across invocations. Hosted UAT must prove multi-invocation completion and rollback from an interrupted cursor.
+
+### DEC-042 — Preserve successor-trigger continuity at every nonterminal handoff
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-06
+- **Status:** Accepted; authoritative owner decision
+- **Decision:** Replace a CXP-06 continuation trigger by creating the successor first, identifying it by `getUniqueId()`, and only then deleting older `continueCxp06UatPipeline` triggers. Never delete the last recovery path before its replacement exists. When the same main scenario is rerun against an active nonterminal checkpoint with no actual trigger, install one 60-second recovery trigger and retain the existing checkpoint.
+- **Rationale:** Hosted evidence showed `BACKUP_PENDING` and a durable completed Handled backup with `continuationScheduled:false`. The prior delete-then-create ordering exposed a zero-trigger interruption window after checkpoint publication, while the active-state main entrypoint reported a continuation without verifying one existed.
+- **Consequences:** Every nonterminal phase normally leaves exactly one successor trigger; an interruption during cleanup may temporarily leave more than one, which the next idempotent invocation deduplicates. Operators can repair a stranded state by rerunning the same main scenario once after deploying the revision.
+
+### DEC-043 — Log every continuation result and restart commit safely after rollback failure
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-06
+- **Status:** Accepted
+- **Decision:** Emit a bounded `CXP06_PIPELINE_START` or `CXP06_PIPELINE_CONTINUE` record from every hosted entrypoint invocation. Persist an allowlisted `lastErrorDetails` object with failed continuation state. When retrying `MIGRATION_ROLLBACK_FAILED`, retain the complete backup group but clear `commitProgress` and restart raw replacement from dataset index 0.
+- **Rationale:** Hosted start/continue functions returned after approximately two seconds without logging their returned state, and rollback failure status discarded the original bounded diagnostic fields. Resuming at the prior cursor after a failed rollback is unsafe because one or more earlier datasets may already have been restored.
+- **Consequences:** Execution logs now distinguish scheduling, progress, and completion without exposing rows or cell values. A rollback-failure retry deterministically rewrites all staged datasets while the original backup group remains available for another rollback attempt.
+
+### DEC-044 — Reserve measured step time and keep the CXP-06 watchdog outside the execution window
+
+- **Date:** 2026-08-26
+- **Packet:** CXP-06
+- **Status:** Accepted; authoritative owner decision. Supersedes DEC-040's 270,000 ms watchdog delay and DEC-041's elapsed-time yield gate; DEC-042 and DEC-043 remain unchanged.
+- **Decision:**
+  1. Arm every hosted preparation, backup, and commit watchdog at 420,000 ms so it cannot fire inside the six-minute window of the invocation it guards.
+  2. Keep `COMMITTING` as the persisted status for the entire commit loop and anchor `updatedAtUtc` at phase entry. Publish per-dataset progress through `commitProgress`, `lastCompletedCommitDataset`, `maxCommitStepMs`, and a separate `heartbeatAtUtc` that does not move the settle window.
+  3. Before entering another dataset step, require elapsed time plus the largest measured step duration plus a 45,000 ms margin to remain within a 330,000 ms commit budget. Always perform at least one step per invocation so progress is guaranteed.
+  4. Treat `INGESTION_LOCK_TIMEOUT` as contention rather than failure: retain the resumable pending status and bounded details, and schedule one continuation 90,000 ms later instead of deleting triggers and recording `FAILED`.
+- **Evidence:** A hosted `CASE1_PEAK_SUCCESS` run reported `status: FAILED`, `lastErrorCode: INGESTION_LOCK_TIMEOUT`, `lastErrorDetails: {"timeoutMs":30000}`, `continuationScheduled: false`, `lastCompletedBackupDataset: Staff`, and `lastCompletedCommitDataset: Handled` at 2026-08-25T16:12:23Z. The 270,000 ms watchdog fired while the commit loop was inside its second dataset; because the loop published `COMMIT_PENDING` between datasets, the settle guard did not defer, the watchdog competed for the production lock, timed out after 30,000 ms, and terminated a healthy run with one of five raw datasets replaced.
+- **Rationale:** DEC-040 treated a post-termination watchdog as a defect, but the trigger is created at phase entry, so recovery is queued before the hard timeout regardless of its delay. Firing inside the window only adds a competing writer. DEC-041's gate was evaluated after a dataset finished, so a step beginning just under 270,000 ms still ran past the platform cutoff; reserving the measured step duration bounds the invocation before the work starts.
+- **Consequences:** A hard timeout mid-loop is recovered by the 420,000 ms watchdog roughly one minute after termination instead of at the 6-minute-15-second settle boundary; that latency is accepted in exchange for removing the concurrent-writer path. Commit invocations complete as many datasets as their measured step cost allows rather than a fixed count. Contention is now observable as a nonterminal status carrying `lastErrorCode`, so operators must read `status`, not the presence of an error code, to judge whether a run stopped. Hosted UAT must still prove multi-invocation completion, interrupted-cursor rollback, and that no invocation exceeds the platform limit.
+
+### DEC-045 — Verify only unreplaced datasets during incremental commit
+
+- **Date:** 2026-08-26
+- **Packet:** CXP-06
+- **Status:** Accepted
+- **Decision:** `BackupRepository.verifyGroup(group, { compareDatasetNames })` still requires a complete readable five-sheet group. Incremental `commitStep` compares only datasets at or after `nextDatasetIndex` against current raw. After all five replacements, final `commit` confirms group completeness without comparing any backup to current raw. A FAILED retry whose `lastErrorDetails.rollbackStatus` is `VERIFIED` clears `backupRunId` and `commitProgress` and recreates backups, because verified rollback deletes the group after restoring pre-run raw.
+- **Evidence:** Hosted `CASE1_PEAK_SUCCESS` at 2026-08-25T17:29:16Z reported `MIGRATION_COMMIT_FAILED` wrapping `MIGRATION_BACKUP_FAILED` with `rollbackStatus: VERIFIED` after `lastCompletedCommitDataset: Handled`. `commitStep` had called full `verifyGroup`, so the Handled backup no longer matched the newly written raw Handled sheet.
+- **Rationale:** Local cursor tests seeded raw with the same payload being committed, so a full compare still passed after the first replacement. Hosted previous-cycle data diverges on the first write. Backups must remain a pre-run snapshot for rollback, not a mirror of in-progress raw.
+- **Consequences:** Partial raw replacement is a valid in-flight state. Operators judging FAILED + VERIFIED must expect last-known-good raw and no `_CXP06_BAK_*` sheets. After deploying this revision, rerun the same Case 1 entrypoint once; it recreates backups from restored raw and commits all five datasets.
+
+### DEC-046 — One commit dataset per hosted invocation at a 4:45 budget
+
+- **Date:** 2026-08-26
+- **Packet:** CXP-06
+- **Status:** Accepted; authoritative owner decision. Supersedes DEC-044's 330,000 ms packing loop and DEC-041's elapsed-time gate for hosted commit.
+- **Decision:** Each hosted commit invocation performs at most one `commitStep` (or the final health/SUCCESS tail), persists the cursor, and schedules `continueCxp06UatPipeline()` 60,000 ms later. The intended wall-clock budget per invocation is 285,000 ms (4 minutes 45 seconds), leaving more than a minute before Apps Script's six-minute limit. If a timeout still writes a dataset without persisting the cursor, the next `commitStep` adopts that dataset when current raw already matches the staged payload and only backup-compares datasets that have not yet been replaced.
+- **Evidence:** A hosted continuation at 2026-08-25T17:59:47Z ran 360.304 seconds and timed out. A overlapping continuation at 2026-08-25T18:03:56Z then failed with `MIGRATION_COMMIT_FAILED` wrapping `MIGRATION_BACKUP_FAILED` after `lastCompletedCommitDataset: Offered`. Completed sibling invocations of 243s, 80s, and 29s show dataset writes are not uniform; packing a later peak-sized write after faster datasets exhausts the six-minute limit. The 4:09 overlap matches a 270-second watchdog firing into a still-running commit.
+- **Rationale:** Peak declared volumes take about four minutes per raw replacement. A 4:45 packing loop that uses the previous step's duration as the next-step estimate will start AHT after faster Handled/Offered writes and then hit the platform cutoff. One dataset per invocation keeps each run inside 4:45 for the observed peak cost and releases the production lock before the next continuation.
+- **Consequences:** Case 1 commit takes five continuations plus one finalization. Operators should see `lastCompletedCommitDataset` advance by one name per `CXP06_PIPELINE_CONTINUE`. A FAILED + VERIFIED record after this revision still means raw was restored and backups were deleted; rerun the same Case 1 entrypoint once after clasp push.
+
+### DEC-047 — Dataset-scoped adaptive CXP-06 workers
+
+- **Date:** 2026-08-26
+- **Packet:** CXP-06
+- **Status:** Accepted. Supersedes DEC-046's fixed one-dataset-per-invocation rule and DEC-044's 330,000 ms packing budget; their recovery and rollback findings remain applicable.
+- **Decision:** Preparation records the registered dataset order once. Backup resume reconstructs only backup metadata; each backup cursor step reads and verifies one named raw/backup pair. Each commit cursor step reconstructs and validates one named staged dataset, verifies its named backup, replaces and rereads only its mapped raw sheet, and persists progress. Backup and commit may pack another step only when elapsed time plus the larger of the measured maximum step and a 60,000 ms cold-start reserve, plus a 15,000 ms handoff margin, remains within a 270,000 ms cooperative budget. Otherwise they schedule one continuation and exit normally. Final full health/audit/SUCCESS processing remains a separate `RunService.resume()` tail after all dataset writes are durable.
+- **Evidence:** The prior hosted execution set contained two 360-second timeouts and a later 212-second failed continuation. The observed run window totaled approximately 38 minutes 33 seconds, of which about 13 minutes 49 seconds was scheduler wait. Code review found that each commit continuation rebuilt and validated all five staging datasets and that the fixed one-dataset rule imposed a one-minute wait even when substantial execution budget remained.
+- **Rationale:** A continuation mechanism prevents total loss of progress but does not itself provide acceptable hourly latency. Removing unrelated workbook reads lowers each step's service-call cost; measured packing consumes safe headroom without assuming that different dataset sizes have equal duration. The 4-minute-30-second cooperative boundary leaves 90 seconds for checkpointing, trigger handoff, and platform variance.
+- **Consequences:** Hosted continuation count is workload-dependent rather than fixed at eleven or more invocations. Operators use bounded `CXP06_WORKER_STEP` records to distinguish `PACK_NEXT`, `HANDOFF`, and `PHASE_COMPLETE`. The 420,000 ms trigger remains recovery-only and is not an execution deadline. Existing rollback semantics are preserved. Local tests prove access scope and scheduling decisions, but DEV/UAT must still prove that no invocation reaches 360 seconds and that scheduler wait and end-to-end latency improve at peak volume.
+
+## CXP-07 decisions
+
+### DEC-035 — Install bounded native spill tables instead of transforming rows in Apps Script
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-07
+- **Status:** Accepted
+- **Decision:** Build `_CALC_HANDLED` and `_CALC_OFFERED` as bounded Google Sheets formula tables with one spill anchor per calculated column and one spill anchor for each copied raw block. Install through a target-only, Script-Properties-resolved entrypoint. Validate exact CXP-03 raw headers before clearing either calculation sheet.
+- **Rationale:** CXP-07 requires Sheets-native vectorization and prohibits reproducing Excel `#This Row` formulas as cell-by-cell fill-down. Query aggregation plus vector lookup removes thousands of independent SUMIFS formulas while keeping the CXP-01 rules explicit and testable.
+- **Consequences:** The installed model uses 20 anchors and four formula-write calls at any supported row count. CXP-06 raw replacement triggers normal dependency recalculation and already flushes pending spreadsheet work; installation is required only after CXP-02 or an approved schema/model revision. Hosted formula parsing and approximately 5k+5k timing remain a promotion gate. CXP-08 may add a separate packet-owned installer without changing this public contract.
+
+### DEC-036 — Resume CXP-07 installation across bounded Apps Script executions
+
+- **Date:** 2026-08-25
+- **Packet:** CXP-07
+- **Status:** Accepted
+- **Decision:** Keep the synchronous service API for local and composed callers, but make the hosted entrypoint execute a 27-step idempotent plan. Persist the cursor after each successful step, stop normal work after four minutes, resume through a time-driven trigger, create a delayed safety trigger before mutations, and serialize invocations with a script lock.
+- **Rationale:** Apps Script enforces a six-minute execution limit. The observed hosted run ended at exactly six minutes, while the prior installer had no cursor or continuation boundary. The platform limit cannot be disabled; checkpointing and retry-safe continuation remove the monolithic execution dependency.
+- **Consequences:** A hosted install can span multiple executions and reports progress through `getCxp07HandledOfferedTransformationStatus()`. Formula anchors are written individually on the hosted path, increasing constant formula-write calls from four to 20 while preserving the same bounded model. Trigger timing and an individual service call that itself exceeds the platform limit remain hosted constraints.

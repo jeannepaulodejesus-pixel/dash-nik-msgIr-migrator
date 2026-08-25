@@ -1,0 +1,114 @@
+{
+  "inputs": {
+    "handledRows": [
+      {
+        "Case: Case Number": "C-100",
+        "Messaging Session Name": "SESSION-100",
+        "Initial Athlete CS Owner": "NA",
+        "Speed to Answer": 42,
+        "Initial Athlete Site": "PH",
+        "Language": "English"
+      },
+      {
+        "Case: Case Number": "C-200",
+        "Messaging Session Name": "SESSION-200",
+        "Initial Athlete CS Owner": "NA",
+        "Speed to Answer": 95,
+        "Initial Athlete Site": "LAS",
+        "Language": "Spanish"
+      }
+    ],
+    "offeredRows": [
+      {
+        "Case: Case Number": "C-100",
+        "Messaging Session Name": "SESSION-100",
+        "Language": "English",
+        "Initial Athlete CS Owner": "NA",
+        "Contact Fragment Count": null
+      },
+      {
+        "Case: Case Number": "C-200",
+        "Messaging Session Name": "SESSION-200",
+        "Language": "English",
+        "Initial Athlete CS Owner": "NA",
+        "Contact Fragment Count": 2
+      }
+    ],
+    "ahtRows": [
+      {
+        "Work Item: Name": "SESSION-100",
+        "Accept Date": "2026-08-18T07:45:00.000Z",
+        "Handle Time": 120,
+        "Active Time": 100,
+        "Speed To Answer": 50,
+        "Time To First Response": 20
+      },
+      {
+        "Work Item: Name": "SESSION-100",
+        "Accept Date": "2026-08-18T07:50:00.000Z",
+        "Handle Time": 180,
+        "Active Time": 140,
+        "Speed To Answer": 55,
+        "Time To First Response": 25
+      },
+      {
+        "Work Item: Name": "SESSION-200",
+        "Accept Date": "2026-08-18T08:05:00.000Z",
+        "Handle Time": 90,
+        "Active Time": 60,
+        "Speed To Answer": 100,
+        "Time To First Response": 5
+      }
+    ]
+  },
+  "expected": {
+    "handled": [
+      {
+        "Accept Date": "2026-08-17",
+        "Interval": "23:30",
+        "AHT": 300
+      },
+      {
+        "Accept Date": "2026-08-18",
+        "Interval": "00:00",
+        "AHT": 90
+      }
+    ],
+    "offered": [
+      {
+        "Accept Date": "2026-08-17",
+        "Interval View": "23:30",
+        "Athlete Site": "PH",
+        "SL": 1,
+        "ASA": 50,
+        "Handled SL": 1,
+        "Handled ASA": 42,
+        "Count": 1,
+        "Handled": 1,
+        "Handled Fragments": 1,
+        "Response": 20,
+        "SL Total": 1,
+        "SL Total (Session)": 1,
+        "AHT Session": 300,
+        "Active Time": 240
+      },
+      {
+        "Accept Date": "2026-08-18",
+        "Interval View": "00:00",
+        "Athlete Site": "LAS",
+        "SL": 0,
+        "ASA": 100,
+        "Handled SL": 0,
+        "Handled ASA": 95,
+        "Count": 1,
+        "Handled": 0,
+        "Handled Fragments": 2,
+        "Response": 5,
+        "SL Total": 0,
+        "SL Total (Session)": 0,
+        "AHT Session": 90,
+        "Active Time": 60
+      }
+    ]
+  }
+}

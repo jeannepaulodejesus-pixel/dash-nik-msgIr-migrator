@@ -20,6 +20,7 @@
     "test:cxp05": "node --test tests/cxp05-input-adapters.test.cjs",
     "test:cxp06": "node --test tests/cxp06-transactional-raw-replacement.test.cjs tests/cxp06-staging.test.cjs tests/cxp06-raw-backup.test.cjs tests/cxp06-backup-failure.test.cjs tests/cxp06-rollback.test.cjs tests/cxp06-commit.test.cjs tests/cxp06-failures.test.cjs tests/cxp06-peak.test.cjs tests/cxp06-packet-status.test.cjs",
     "test:cxp06:uat": "node --test tests/cxp06-uat-harness.test.cjs",
+    "test:cxp07": "node --test tests/cxp07-native-transformations.test.cjs",
     "verify": "npm run lint && npm test && npm run guardrails"
   },
   "devDependencies": {

@@ -277,6 +277,114 @@ test('successful runs execute every phase, enter COMMITTING under lock, and pers
   });
 });
 
+// Defect caught: a long preparation phase consumes the commit runtime because the run cannot checkpoint before the lock.
+test('prepared runs checkpoint after validated staging and resume commit without replaying input phases', () => {
+  const RunService = loadModule('../src/ingestion/RunService.js');
+  assert.equal(typeof RunService?.prepare, 'function');
+  assert.equal(typeof RunService?.resume, 'function');
+
+  const operationEvents = [];
+  const operations = operationsWith(
+    Object.fromEntries(
+      [
+        'validateFile',
+        'parse',
+        'validateSchema',
+        'checkDuplicate',
+        'stage',
+        'validateStage',
+        'commit',
+        'recalculate',
+        'healthCheck',
+      ].map((name) => [name, () => operationEvents.push(name)]),
+    ),
+  );
+  operations.resume = (_context, data) => operationEvents.push(`resume:${data.token}`);
+  const handoffEvents = [];
+  const services = servicesWith({
+    createCheckpoint() {
+      handoffEvents.push('checkpoint');
+      return { token: 'validated-stage-0001' };
+    },
+    flush() {
+      handoffEvents.push('flush');
+    },
+  });
+
+  const prepared = RunService.prepare(validRequest(), operations, services);
+
+  assert.deepEqual(operationEvents, [
+    'validateFile',
+    'parse',
+    'validateSchema',
+    'checkDuplicate',
+    'stage',
+    'validateStage',
+  ]);
+  assert.deepEqual(handoffEvents, ['flush', 'checkpoint']);
+  assert.equal(services.repository.calls.length, 0);
+  assert.equal(
+    services.lockService.events.some(([name]) => name === 'getScriptLock' || name === 'tryLock'),
+    false,
+  );
+  assert.equal(prepared.status, 'PREPARED');
+  assert.equal(prepared.checkpoint.runId, 'run-0001');
+  assert.equal(prepared.checkpoint.stateHistory.at(-1).state, 'VALIDATING_STAGE');
+  assert.deepEqual(prepared.checkpoint.data, { token: 'validated-stage-0001' });
+
+  const completed = RunService.resume(prepared.checkpoint, operations, services);
+
+  assert.deepEqual(operationEvents.slice(6), [
+    'resume:validated-stage-0001',
+    'commit',
+    'recalculate',
+    'healthCheck',
+  ]);
+  assert.equal(completed.runRecord.status, 'SUCCESS');
+  assert.equal(services.repository.calls.length, 1);
+  assert.deepEqual(
+    completed.runRecord.stateHistory.map((event) => event.state),
+    [
+      'RECEIVED',
+      'VALIDATING_FILE',
+      'PARSING',
+      'VALIDATING_SCHEMA',
+      'CHECKING_DUPLICATE',
+      'STAGING',
+      'VALIDATING_STAGE',
+      'COMMITTING',
+      'RECALCULATING',
+      'HEALTH_CHECK',
+      'SUCCESS',
+    ],
+  );
+});
+
+// Defect caught: a corrupted persisted stage masks its real failure behind an illegal restored-state transition.
+test('resumed stage failures are audited from VALIDATING_STAGE without entering the lock', () => {
+  const RunService = loadModule('../src/ingestion/RunService.js');
+  const operations = operationsWith();
+  operations.resume = () => {
+    throw new Error('Synthetic resumed-stage corruption.');
+  };
+  const services = servicesWith({ createCheckpoint: () => ({ token: 'stage' }) });
+  const prepared = RunService.prepare(validRequest(), operations, services);
+
+  assert.throws(
+    () => RunService.resume(prepared.checkpoint, operations, services),
+    (error) => error.code === 'MIGRATION_STAGE_VALIDATION_FAILED',
+  );
+  assert.equal(
+    services.lockService.events.some(([name]) => name === 'getScriptLock' || name === 'tryLock'),
+    false,
+  );
+  assert.equal(services.repository.calls.length, 1);
+  assert.equal(
+    services.repository.calls[0].runRecords[0].status,
+    'FAILED_MIGRATION_CALCULATION',
+  );
+});
+
 // Defect caught: an operation failure escapes without a terminal run row and categorized error row.
 test('failed attempts are audited with terminal failure state and safe error metadata', () => {
   const ErrorCodes = loadModule('../src/monitoring/ErrorCodes.js');

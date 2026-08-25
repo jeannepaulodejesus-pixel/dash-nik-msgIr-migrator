@@ -98,25 +98,6 @@ var StageValidator = (function () {
     return false;
   }
 
-  function normalizePersistedValue(column, value) {
-    if (
-      column.type === 'text' &&
-      typeof value === 'number' &&
-      Number.isFinite(value)
-    ) {
-      return String(value);
-    }
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      if (column.type === 'date') {
-        return value.toISOString().slice(0, 10);
-      }
-      if (column.type === 'date_time') {
-        return value.toISOString();
-      }
-    }
-    return value;
-  }
-
   function requireDatasetSet(items, label) {
     var bindings = resolveDatasetSheets().listBindings();
     if (!Array.isArray(items) || items.length !== bindings.length) {
@@ -177,7 +158,10 @@ var StageValidator = (function () {
     var seenKeys = Object.create(null);
     decoded.records.forEach(function (record, rowIndex) {
       schema.columns.forEach(function (column) {
-        record[column.name] = normalizePersistedValue(column, record[column.name]);
+        record[column.name] = resolveCodec().normalizePersistedValue(
+          column,
+          record[column.name],
+        );
         if (!validValue(column, record[column.name])) {
           fail('invalid_type', payload.datasetName, {
             column: column.name,
@@ -244,7 +228,47 @@ var StageValidator = (function () {
     return Object.freeze({ datasetCount: 5, rowCounts: Object.freeze(rowCounts) });
   }
 
-  return Object.freeze({ validate: validate });
+  function snapshotMatchesPayload(snapshot, payload) {
+    if (!snapshot || !payload || snapshot.datasetName !== payload.datasetName) {
+      return false;
+    }
+    try {
+      var schema = resolveRegistry().getSchema(
+        payload.datasetName,
+        resolveRegistry().ACTIVE_SCHEMA_VERSION,
+      );
+      if (!schema) {
+        return false;
+      }
+      validateDataset(payload, snapshot, schema);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function validateDatasetCheckpoint(payload, snapshot) {
+    if (!payload || !snapshot || payload.datasetName !== snapshot.datasetName) {
+      fail('datasets_mismatch', payload && payload.datasetName ? payload.datasetName : null);
+    }
+    var schema = resolveRegistry().getSchema(
+      payload.datasetName,
+      resolveRegistry().ACTIVE_SCHEMA_VERSION,
+    );
+    if (!schema) {
+      fail('schema_version_mismatch', payload.datasetName);
+    }
+    return Object.freeze({
+      datasetName: payload.datasetName,
+      rowCount: validateDataset(payload, snapshot, schema),
+    });
+  }
+
+  return Object.freeze({
+    snapshotMatchesPayload: snapshotMatchesPayload,
+    validate: validate,
+    validateDatasetCheckpoint: validateDatasetCheckpoint,
+  });
 })();
 
 if (typeof module !== 'undefined' && module.exports) {

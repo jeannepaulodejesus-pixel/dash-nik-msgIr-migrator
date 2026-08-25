@@ -15,6 +15,61 @@ function properties(values) {
   };
 }
 
+function mutableProperties(initialValues) {
+  const values = new Map(Object.entries(initialValues));
+  return {
+    getProperty(name) {
+      return values.has(name) ? values.get(name) : null;
+    },
+    setProperty(name, value) {
+      values.set(name, String(value));
+      return this;
+    },
+  };
+}
+
+function triggerService() {
+  const events = [];
+  const triggers = [];
+  let nextId = 1;
+  return {
+    deleteTrigger(trigger) {
+      const index = triggers.indexOf(trigger);
+      if (index >= 0) {
+        triggers.splice(index, 1);
+        events.push(['delete', trigger.delayMs]);
+      }
+    },
+    events,
+    getProjectTriggers: () => triggers.slice(),
+    newTrigger(handler) {
+      const draft = { delayMs: null, handler };
+      const builder = {
+        after(delayMs) {
+          draft.delayMs = delayMs;
+          return builder;
+        },
+        create() {
+          const uniqueId = `trigger-${nextId++}`;
+          const trigger = {
+            delayMs: draft.delayMs,
+            getHandlerFunction: () => draft.handler,
+            getUniqueId: () => uniqueId,
+          };
+          triggers.push(trigger);
+          events.push(['create', draft.delayMs]);
+          return trigger;
+        },
+        timeBased() {
+          return builder;
+        },
+      };
+      return builder;
+    },
+    triggers,
+  };
+}
+
 function safeProperties(overrides = {}) {
   return properties({
     CXP_ENV: 'DEV',
@@ -125,6 +180,1120 @@ test('execute delegates the composed operations exactly once to RunService.execu
   assert.equal(observed[0].request.marker, 'production-request');
   assert.equal(observed[0].services.marker, 'production-services');
   assert.equal(result.runRecord.status, 'SUCCESS');
+});
+
+// Defect caught: hosted CXP-06 starts commit in the exhausted preparation invocation instead of a fresh process.
+test('hosted CXP-06 checkpoints preparation and completes commit through fresh continuations', () => {
+  let Cxp06UatContinuation;
+  try {
+    Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  } catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+  }
+  assert.equal(typeof Cxp06UatContinuation?.start, 'function');
+  assert.equal(typeof Cxp06UatContinuation?.continueConfigured, 'function');
+
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+  });
+  const scriptApp = triggerService();
+  const calls = [];
+  const executor = {
+    backup(state) {
+      calls.push([
+        'backup',
+        state.checkpoint.runId,
+        scriptApp.triggers.map((item) => item.delayMs),
+      ]);
+      return { complete: true, createdDatasetName: 'Staff' };
+    },
+    commit(state) {
+      calls.push([
+        'commit',
+        state.checkpoint.runId,
+        scriptApp.triggers.map((item) => item.delayMs),
+      ]);
+      return { runRecord: { runId: state.checkpoint.runId, status: 'SUCCESS' } };
+    },
+    prepare(scenario) {
+      calls.push(['prepare', scenario, scriptApp.triggers.map((item) => item.delayMs)]);
+      return {
+        checkpoint: {
+          data: { fingerprint: 'sha256:bounded', sourceFiles: [] },
+          request: { targetWorkbookId: 'target-id' },
+          runId: 'run-cxp06-continuation',
+          startedAtUtc: '2026-08-25T10:20:49.000Z',
+          stateHistory: [{ atUtc: '2026-08-25T10:22:41.000Z', state: 'VALIDATING_STAGE' }],
+          version: 1,
+        },
+      };
+    },
+  };
+  const services = {
+    clock: { now: () => new Date('2026-08-25T10:22:42.000Z') },
+    executor,
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  const first = Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+
+  assert.equal(first.status, 'BACKUP_PENDING');
+  assert.equal(first.continuationScheduled, true);
+  assert.deepEqual(calls[0], ['prepare', 'CASE1_PEAK_SUCCESS', [420000]]);
+  assert.equal(scriptApp.triggers.length, 1);
+  assert.equal(scriptApp.triggers[0].delayMs, 1000);
+
+  const repeated = Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+  assert.equal(repeated.status, 'BACKUP_PENDING');
+  assert.equal(calls.length, 1);
+  assert.throws(
+    () => Cxp06UatContinuation.start('CASE3_MID_COMMIT_FAILURE', services),
+    /another scenario/,
+  );
+
+  const second = Cxp06UatContinuation.continueConfigured(services);
+
+  assert.equal(second.status, 'COMMIT_PENDING');
+  assert.equal(second.continuationScheduled, true);
+  const third = Cxp06UatContinuation.continueConfigured(services);
+  assert.equal(third.status, 'COMPLETE');
+  assert.equal(third.continuationScheduled, false);
+  assert.deepEqual(calls.slice(1), [
+    ['backup', 'run-cxp06-continuation', [420000]],
+    ['commit', 'run-cxp06-continuation', [420000]],
+  ]);
+  assert.equal(scriptApp.triggers.length, 0);
+});
+
+// Defect caught: firing the 4:30 safety trigger immediately re-enters a phase
+// that can still be running under Apps Script's six-minute execution window.
+test('hosted CXP-06 defers an in-progress phase until the timed-out invocation has settled', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const phaseStartedAtMs = Date.parse('2026-08-25T12:00:00.000Z');
+  let nowMs = phaseStartedAtMs + 270000;
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { backupRunId: 'run-settle' },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-settle',
+        startedAtUtc: '2026-08-25T12:00:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastErrorCode: null,
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T12:00:00.000Z',
+      status: 'COMMITTING',
+      updatedAtUtc: '2026-08-25T12:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  let commitCalls = 0;
+  const services = {
+    clock: { now: () => new Date(nowMs) },
+    executor: {
+      commit() {
+        commitCalls += 1;
+        return { runRecord: { runId: 'run-settle', status: 'SUCCESS' } };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  const deferred = Cxp06UatContinuation.continueConfigured(services);
+
+  assert.equal(deferred.status, 'COMMITTING');
+  assert.equal(deferred.continuationScheduled, true);
+  assert.equal(commitCalls, 0);
+  assert.equal(scriptApp.triggers.length, 1);
+  assert.equal(scriptApp.triggers[0].delayMs, 105000);
+
+  nowMs = phaseStartedAtMs + 375000;
+  const resumed = Cxp06UatContinuation.continueConfigured(services);
+
+  assert.equal(resumed.status, 'COMPLETE');
+  assert.equal(commitCalls, 1);
+  assert.equal(scriptApp.triggers.length, 0);
+});
+
+// Defect caught: hosted final commit packs every remaining dataset into one
+// invocation, so a later peak-sized write consumes the six-minute Apps Script
+// limit after earlier faster datasets have already finished.
+test('hosted CXP-06 commits one dataset per invocation and self-resumes after 4:45-budget writes', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  let nowMs = Date.parse('2026-08-25T14:00:00.000Z');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { backupRunId: 'run-self-resume' },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-self-resume',
+        startedAtUtc: '2026-08-25T14:00:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastErrorCode: null,
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T14:00:00.000Z',
+      status: 'COMMIT_PENDING',
+      updatedAtUtc: '2026-08-25T14:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  const datasets = ['Handled', 'Offered', 'AHT - Raw', 'Auxes - Raw', 'Staff'];
+  let commitCalls = 0;
+  const services = {
+    clock: { now: () => new Date(nowMs) },
+    executor: {
+      commit(state) {
+        commitCalls += 1;
+        const previous = state.checkpoint.data.commitProgress?.nextDatasetIndex || 0;
+        const next = previous + 1;
+        nowMs += 140000;
+        return {
+          commitProgress: {
+            complete: next === datasets.length,
+            lastCompletedDatasetName: datasets[next - 1],
+            nextDatasetIndex: next,
+          },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  const yielded = Cxp06UatContinuation.continueConfigured(services);
+  const persisted = JSON.parse(propertiesStore.getProperty('CXP06_UAT_PIPELINE_STATE'));
+
+  assert.equal(yielded.status, 'COMMIT_PENDING');
+  assert.equal(yielded.continuationScheduled, true);
+  assert.equal(yielded.lastCompletedCommitDataset, 'Handled');
+  assert.equal(commitCalls, 1);
+  assert.deepEqual(persisted.checkpoint.data.commitProgress, {
+    complete: false,
+    lastCompletedDatasetName: 'Handled',
+    nextDatasetIndex: 1,
+  });
+  assert.equal(scriptApp.triggers.length, 1);
+  assert.equal(scriptApp.triggers[0].delayMs, 60000);
+});
+
+// Defect caught: the hosted production executor reconstructs every staged
+// dataset and uses the compatibility commitStep instead of the cursor dataset.
+test('hosted CXP-06 production executor uses dataset-scoped commit before final resume', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const originalHarness = global.Cxp06UatHarness;
+  const originalRunService = global.RunService;
+  let nowMs = Date.parse('2026-08-25T15:00:00.000Z');
+  let finalResumeCalls = 0;
+  let stepCalls = 0;
+  const resumedDatasets = [];
+  try {
+    global.RunService = {
+      resume() {
+        finalResumeCalls += 1;
+        return { runRecord: { runId: 'run-production-step', status: 'SUCCESS' } };
+      },
+    };
+    global.Cxp06UatHarness = {
+      createHostedDependencies() {
+        return {};
+      },
+      hostedRuntimeServices() {
+        return {};
+      },
+      execute(options, dependencies) {
+        return dependencies.runService.execute(
+          { targetWorkbookId: 'target-id' },
+          {
+            commitDatasetStep(context, progress) {
+              stepCalls += 1;
+              nowMs += 300000;
+              return {
+                complete: false,
+                lastCompletedDatasetName: 'Handled',
+                nextDatasetIndex: progress.nextDatasetIndex + 1,
+              };
+            },
+            resumeDataset(context, checkpointData, datasetName) {
+              resumedDatasets.push(datasetName);
+            },
+          },
+          {},
+        );
+      },
+    };
+    const propertiesStore = mutableProperties({
+      CXP_ENV: 'DEV',
+      CXP_UAT_ENABLED: 'true',
+      CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+        checkpoint: {
+          data: { backupRunId: 'run-production-step' },
+          request: { targetWorkbookId: 'target-id' },
+          runId: 'run-production-step',
+          startedAtUtc: '2026-08-25T15:00:00.000Z',
+          stateHistory: [],
+          version: 1,
+        },
+        environment: 'DEV',
+        lastErrorCode: null,
+        scenario: 'CASE1_PEAK_SUCCESS',
+        startedAtUtc: '2026-08-25T15:00:00.000Z',
+        status: 'COMMIT_PENDING',
+        updatedAtUtc: '2026-08-25T15:00:00.000Z',
+        version: 1,
+      }),
+    });
+    const scriptApp = triggerService();
+
+    const result = Cxp06UatContinuation.continueConfigured({
+      clock: { now: () => new Date(nowMs) },
+      properties: propertiesStore,
+      scriptApp,
+    });
+
+    assert.equal(result.status, 'COMMIT_PENDING');
+    assert.equal(result.lastCompletedCommitDataset, 'Handled');
+    assert.equal(stepCalls, 1);
+    assert.deepEqual(resumedDatasets, ['Handled']);
+    assert.equal(finalResumeCalls, 0);
+    assert.equal(scriptApp.triggers[0].delayMs, 60000);
+  } finally {
+    if (originalHarness === undefined) delete global.Cxp06UatHarness;
+    else global.Cxp06UatHarness = originalHarness;
+    if (originalRunService === undefined) delete global.RunService;
+    else global.RunService = originalRunService;
+  }
+});
+
+// Defect caught: a resume-time staged row-count failure preserves a stale
+// checkpoint, so every manual retry revalidates the same unusable staging data.
+test('hosted CXP-06 re-prepares after a resume-time stage validation failure', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+  });
+  const scriptApp = triggerService();
+  let prepareCalls = 0;
+  const services = {
+    clock: { now: () => new Date('2026-08-25T12:20:40.000Z') },
+    executor: {
+      backup() {
+        return { complete: true, createdDatasetName: 'Staff' };
+      },
+      commit() {
+        const error = new Error('Staged data validation failed.');
+        error.code = 'MIGRATION_STAGE_VALIDATION_FAILED';
+        throw error;
+      },
+      prepare() {
+        prepareCalls += 1;
+        return {
+          checkpoint: {
+            data: { fingerprint: 'sha256:fresh', sourceFiles: [] },
+            request: { targetWorkbookId: 'target-id' },
+            runId: `run-${prepareCalls}`,
+            startedAtUtc: '2026-08-25T12:20:40.000Z',
+            stateHistory: [{ atUtc: '2026-08-25T12:20:40.000Z', state: 'VALIDATING_STAGE' }],
+            version: 1,
+          },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+  Cxp06UatContinuation.continueConfigured(services);
+  assert.throws(
+    () => Cxp06UatContinuation.continueConfigured(services),
+    { code: 'MIGRATION_STAGE_VALIDATION_FAILED' },
+  );
+
+  const retry = Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+
+  assert.equal(retry.status, 'BACKUP_PENDING');
+  assert.equal(retry.runId, 'run-2');
+  assert.equal(prepareCalls, 2);
+});
+
+// Defect caught: the backup controller yields after every short sheet copy,
+// paying another trigger delay even when the remaining copies fit safely.
+test('hosted CXP-06 packs short durable backup steps before commit', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  let nowMs = Date.parse('2026-08-25T12:49:30.000Z');
+  const propertiesStore = mutableProperties({ CXP_ENV: 'DEV', CXP_UAT_ENABLED: 'true' });
+  const scriptApp = triggerService();
+  const calls = [];
+  const workerLogs = [];
+  let backupCount = 0;
+  const services = {
+    clock: { now: () => new Date(nowMs) },
+    executor: {
+      backup(state) {
+        backupCount += 1;
+        calls.push(['backup', backupCount, state.status]);
+        nowMs += 40000;
+        return { complete: backupCount === 5, createdDatasetName: `dataset-${backupCount}` };
+      },
+      commit(state) {
+        calls.push(['commit', state.checkpoint.data.backupRunId]);
+        return { runRecord: { runId: state.checkpoint.runId, status: 'SUCCESS' } };
+      },
+      prepare() {
+        calls.push(['prepare']);
+        return {
+          checkpoint: {
+            data: { fingerprint: 'sha256:incremental', sourceFiles: [] },
+            request: { targetWorkbookId: 'target-id' },
+            runId: 'run-incremental-hosted',
+            startedAtUtc: '2026-08-25T12:49:30.000Z',
+            stateHistory: [{ atUtc: '2026-08-25T12:49:30.000Z', state: 'VALIDATING_STAGE' }],
+            version: 1,
+          },
+        };
+      },
+    },
+    logger: { log(message) { workerLogs.push(message); } },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  assert.equal(Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services).status, 'BACKUP_PENDING');
+  const ready = Cxp06UatContinuation.continueConfigured(services);
+  assert.equal(ready.status, 'COMMIT_PENDING');
+  assert.equal(ready.continuationScheduled, true);
+  assert.equal(calls.filter(([name]) => name === 'backup').length, 5);
+  const persisted = JSON.parse(propertiesStore.getProperty('CXP06_UAT_PIPELINE_STATE'));
+  assert.equal(persisted.maxBackupStepMs, 40000);
+  assert.deepEqual(
+    workerLogs.map((message) => {
+      const event = JSON.parse(message.slice('CXP06_WORKER_STEP '.length));
+      return [event.phase, event.datasetName, event.decision];
+    }),
+    [
+      ['BACKUP', 'dataset-1', 'PACK_NEXT'],
+      ['BACKUP', 'dataset-2', 'PACK_NEXT'],
+      ['BACKUP', 'dataset-3', 'PACK_NEXT'],
+      ['BACKUP', 'dataset-4', 'PACK_NEXT'],
+      ['BACKUP', 'dataset-5', 'PHASE_COMPLETE'],
+    ],
+  );
+
+  const complete = Cxp06UatContinuation.continueConfigured(services);
+  assert.equal(complete.status, 'COMPLETE');
+  assert.deepEqual(calls.at(-1), ['commit', 'run-incremental-hosted']);
+});
+
+// Defect caught: a normal backup-step failure leaves a checkpoint, and manual
+// retry jumps to final commit before the backup group is complete.
+test('hosted CXP-06 retries backup discovery after a backup-step failure', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({ CXP_ENV: 'DEV', CXP_UAT_ENABLED: 'true' });
+  const scriptApp = triggerService();
+  let backupCalls = 0;
+  let commitCalls = 0;
+  const services = {
+    clock: { now: () => new Date('2026-08-25T13:00:00.000Z') },
+    executor: {
+      backup() {
+        backupCalls += 1;
+        if (backupCalls === 1) {
+          const error = new Error('Synthetic backup interruption.');
+          error.code = 'MIGRATION_BACKUP_FAILED';
+          throw error;
+        }
+        return { complete: false, createdDatasetName: 'Handled' };
+      },
+      commit() {
+        commitCalls += 1;
+      },
+      prepare() {
+        return {
+          checkpoint: {
+            data: { fingerprint: 'sha256:backup-retry', sourceFiles: [] },
+            request: { targetWorkbookId: 'target-id' },
+            runId: 'run-backup-retry',
+            startedAtUtc: '2026-08-25T13:00:00.000Z',
+            stateHistory: [{ atUtc: '2026-08-25T13:00:00.000Z', state: 'VALIDATING_STAGE' }],
+            version: 1,
+          },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+  assert.throws(
+    () => Cxp06UatContinuation.continueConfigured(services),
+    { code: 'MIGRATION_BACKUP_FAILED' },
+  );
+
+  const retry = Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+  assert.equal(retry.status, 'BACKUP_PENDING');
+  assert.equal(backupCalls, 2);
+  assert.equal(commitCalls, 0);
+});
+
+// Defect caught: the public status endpoint hardcodes continuationScheduled to
+// false and hides bounded per-dataset progress while a backup trigger exists.
+test('hosted CXP-06 status reports the actual trigger and last completed backup dataset', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({ CXP_ENV: 'DEV', CXP_UAT_ENABLED: 'true' });
+  const scriptApp = triggerService();
+  const services = {
+    clock: { now: () => new Date('2026-08-25T13:24:41.000Z') },
+    executor: {
+      backup() {
+        return { complete: false, createdDatasetName: 'Handled' };
+      },
+      prepare() {
+        return {
+          checkpoint: {
+            data: { fingerprint: 'sha256:status', sourceFiles: [] },
+            request: { targetWorkbookId: 'target-id' },
+            runId: 'run-status',
+            startedAtUtc: '2026-08-25T13:24:41.000Z',
+            stateHistory: [{ atUtc: '2026-08-25T13:24:41.000Z', state: 'VALIDATING_STAGE' }],
+            version: 1,
+          },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+  assert.equal(Cxp06UatContinuation.getStatus(services).continuationScheduled, true);
+
+  Cxp06UatContinuation.continueConfigured(services);
+  const status = Cxp06UatContinuation.getStatus(services);
+  assert.equal(status.continuationScheduled, true);
+  assert.equal(status.lastCompletedBackupDataset, 'Handled');
+});
+
+// Defect caught: a nonterminal checkpoint deletes its safety trigger before
+// creating the successor, so an abrupt stop can strand BACKUP_PENDING forever.
+test('hosted CXP-06 creates the successor before deleting the prior safety trigger', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { fingerprint: 'sha256:trigger-order', sourceFiles: [] },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-trigger-order',
+        startedAtUtc: '2026-08-25T16:00:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastErrorCode: null,
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T16:00:00.000Z',
+      status: 'BACKUP_PENDING',
+      updatedAtUtc: '2026-08-25T16:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  const services = {
+    clock: { now: () => new Date('2026-08-25T16:00:10.000Z') },
+    executor: {
+      backup() {
+        scriptApp.events.length = 0;
+        return { complete: false, createdDatasetName: 'Handled' };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  const result = Cxp06UatContinuation.continueConfigured(services);
+
+  assert.equal(result.status, 'BACKUP_PENDING');
+  assert.deepEqual(scriptApp.events, [
+    ['create', 1000],
+    ['delete', 420000],
+  ]);
+  assert.equal(scriptApp.triggers.length, 1);
+  assert.equal(scriptApp.triggers[0].delayMs, 1000);
+});
+
+// Contract: consuming each one-time trigger must leave one successor at every
+// nonterminal checkpoint until the complete logical pipeline removes it.
+test('hosted CXP-06 perpetuates one-time continuations until the whole pipeline completes', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  let nowMs = Date.parse('2026-08-25T17:00:00.000Z');
+  let backupCalls = 0;
+  let commitCalls = 0;
+  const propertiesStore = mutableProperties({ CXP_ENV: 'DEV', CXP_UAT_ENABLED: 'true' });
+  const scriptApp = triggerService();
+  const services = {
+    clock: { now: () => new Date(nowMs) },
+    executor: {
+      backup() {
+        backupCalls += 1;
+        return {
+          complete: backupCalls === 5,
+          createdDatasetName: `backup-${backupCalls}`,
+        };
+      },
+      commit(state) {
+        commitCalls += 1;
+        const progress = state.checkpoint.data.commitProgress;
+        if (progress?.complete) {
+          return { runRecord: { runId: state.checkpoint.runId, status: 'SUCCESS' } };
+        }
+        const nextDatasetIndex = (progress?.nextDatasetIndex || 0) + 1;
+        nowMs += 280000;
+        return {
+          commitProgress: {
+            complete: nextDatasetIndex === 5,
+            lastCompletedDatasetName: `commit-${nextDatasetIndex}`,
+            nextDatasetIndex,
+          },
+        };
+      },
+      prepare() {
+        return {
+          checkpoint: {
+            data: { fingerprint: 'sha256:perpetual', sourceFiles: [] },
+            request: { targetWorkbookId: 'target-id' },
+            runId: 'run-perpetual',
+            startedAtUtc: '2026-08-25T17:00:00.000Z',
+            stateHistory: [],
+            version: 1,
+          },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  let result = Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+  let continuationExecutions = 0;
+  while (result.status !== 'COMPLETE' && continuationExecutions < 20) {
+    assert.equal(result.continuationScheduled, true);
+    assert.equal(scriptApp.triggers.length, 1);
+    scriptApp.deleteTrigger(scriptApp.triggers[0]);
+    assert.equal(scriptApp.triggers.length, 0);
+    result = Cxp06UatContinuation.continueConfigured(services);
+    continuationExecutions += 1;
+  }
+
+  assert.equal(result.status, 'COMPLETE');
+  assert.equal(result.continuationScheduled, false);
+  assert.equal(scriptApp.triggers.length, 0);
+  assert.equal(backupCalls, 5);
+  assert.equal(commitCalls, 6);
+  assert.equal(continuationExecutions, 11);
+});
+
+// Defect caught: rerunning the main scenario against BACKUP_PENDING reports a
+// continuation but does not recreate the missing trigger that stranded it.
+test('hosted CXP-06 main entrypoint repairs a nonterminal state with no trigger', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { fingerprint: 'sha256:stranded', sourceFiles: [] },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-stranded',
+        startedAtUtc: '2026-08-25T18:00:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastCompletedBackupDataset: 'Handled',
+      lastErrorCode: null,
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T18:00:00.000Z',
+      status: 'BACKUP_PENDING',
+      updatedAtUtc: '2026-08-25T18:04:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+
+  const repaired = Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', {
+    clock: { now: () => new Date('2026-08-25T18:10:00.000Z') },
+    executor: {},
+    properties: propertiesStore,
+    scriptApp,
+  });
+
+  assert.equal(repaired.status, 'BACKUP_PENDING');
+  assert.equal(repaired.continuationScheduled, true);
+  assert.equal(scriptApp.triggers.length, 1);
+  assert.equal(scriptApp.triggers[0].delayMs, 60000);
+});
+
+// Defect caught: the continuation collapses rollback failure diagnostics to a
+// single code, hiding the bounded original error and rollback reason.
+test('hosted CXP-06 failed status retains bounded rollback diagnostics', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { backupRunId: 'run-rollback-details' },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-rollback-details',
+        startedAtUtc: '2026-08-25T19:00:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastErrorCode: null,
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T19:00:00.000Z',
+      status: 'COMMIT_PENDING',
+      updatedAtUtc: '2026-08-25T19:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  const error = new Error('Rollback failed.');
+  error.code = 'MIGRATION_ROLLBACK_FAILED';
+  error.details = {
+    backupRunId: 'run-rollback-details',
+    originalErrorCode: 'MIGRATION_COMMIT_FAILED',
+    rollbackStatus: 'FAILED',
+    secretCellValue: 'do-not-persist',
+  };
+  const services = {
+    clock: { now: () => new Date('2026-08-25T19:01:00.000Z') },
+    executor: { commit: () => { throw error; } },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  assert.throws(
+    () => Cxp06UatContinuation.continueConfigured(services),
+    { code: 'MIGRATION_ROLLBACK_FAILED' },
+  );
+  const status = Cxp06UatContinuation.getStatus(services);
+
+  assert.deepEqual(status.lastErrorDetails, {
+    backupRunId: 'run-rollback-details',
+    originalErrorCode: 'MIGRATION_COMMIT_FAILED',
+    rollbackStatus: 'FAILED',
+  });
+  assert.equal(JSON.stringify(status).includes('do-not-persist'), false);
+});
+
+// Defect caught: retrying MIGRATION_ROLLBACK_FAILED resumes after Handled even
+// though the failed rollback may already have restored it to pre-run data.
+test('hosted CXP-06 restarts the raw commit cursor after rollback failure', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  let nowMs = Date.parse('2026-08-25T20:00:00.000Z');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: {
+          backupRunId: 'run-restart-cursor',
+          commitProgress: {
+            complete: false,
+            lastCompletedDatasetName: 'Handled',
+            nextDatasetIndex: 1,
+          },
+        },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-restart-cursor',
+        startedAtUtc: '2026-08-25T20:00:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastCompletedCommitDataset: 'Handled',
+      lastErrorCode: 'MIGRATION_ROLLBACK_FAILED',
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T20:00:00.000Z',
+      status: 'FAILED',
+      updatedAtUtc: '2026-08-25T20:05:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  let observedProgress;
+  const result = Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', {
+    clock: { now: () => new Date(nowMs) },
+    executor: {
+      commit(state) {
+        observedProgress = state.checkpoint.data.commitProgress;
+        nowMs += 280000;
+        return {
+          commitProgress: {
+            complete: false,
+            lastCompletedDatasetName: 'Handled',
+            nextDatasetIndex: 1,
+          },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  });
+
+  assert.equal(observedProgress, undefined);
+  assert.equal(result.status, 'COMMIT_PENDING');
+  assert.equal(result.lastCompletedCommitDataset, 'Handled');
+  assert.equal(scriptApp.triggers.length, 1);
+});
+
+// Defect caught: a verified rollback deletes the backup group, but FAILED retry
+// still has backupRunId so it jumps to commit instead of recreating backups.
+test('hosted CXP-06 recreates backups after a verified commit rollback', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: {
+          backupRunId: '0b30e5c9-fa06-4e46-af37-41723d718ef3',
+          commitProgress: {
+            complete: false,
+            lastCompletedDatasetName: 'Handled',
+            nextDatasetIndex: 1,
+          },
+          fingerprint: 'sha256:verified-rollback',
+          sourceFiles: [],
+        },
+        request: { targetWorkbookId: 'target-id' },
+        runId: '0b30e5c9-fa06-4e46-af37-41723d718ef3',
+        startedAtUtc: '2026-08-25T17:25:49.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastCompletedBackupDataset: 'Staff',
+      lastCompletedCommitDataset: 'Handled',
+      lastErrorCode: 'MIGRATION_COMMIT_FAILED',
+      lastErrorDetails: {
+        backupRunId: '0b30e5c9-fa06-4e46-af37-41723d718ef3',
+        originalErrorCode: 'MIGRATION_BACKUP_FAILED',
+        rollbackStatus: 'VERIFIED',
+      },
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T17:20:00.000Z',
+      status: 'FAILED',
+      updatedAtUtc: '2026-08-25T17:29:16.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  const calls = [];
+  const result = Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', {
+    clock: { now: () => new Date('2026-08-25T17:32:00.000Z') },
+    executor: {
+      backup() {
+        calls.push('backup');
+        return { complete: false, createdDatasetName: 'Handled' };
+      },
+      commit() {
+        calls.push('commit');
+        throw new Error('commit must not resume against deleted backups');
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  });
+  const persisted = JSON.parse(propertiesStore.getProperty('CXP06_UAT_PIPELINE_STATE'));
+
+  assert.deepEqual(calls, ['backup']);
+  assert.equal(result.status, 'BACKUP_PENDING');
+  assert.equal(persisted.checkpoint.data.backupRunId, undefined);
+  assert.equal(persisted.checkpoint.data.commitProgress, undefined);
+  assert.equal(result.lastCompletedCommitDataset, null);
+});
+
+// Defect caught: the phase watchdog is armed inside Apps Script's own six-minute
+// execution window, so it fires while the invocation it guards is still healthy.
+test('hosted CXP-06 arms every phase watchdog beyond the six-minute execution limit', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({ CXP_ENV: 'DEV', CXP_UAT_ENABLED: 'true' });
+  const scriptApp = triggerService();
+  const armed = [];
+  const services = {
+    clock: { now: () => new Date('2026-08-25T22:00:00.000Z') },
+    executor: {
+      backup() {
+        armed.push(scriptApp.triggers.map((item) => item.delayMs));
+        return { complete: true, createdDatasetName: 'Staff' };
+      },
+      commit(state) {
+        armed.push(scriptApp.triggers.map((item) => item.delayMs));
+        return { runRecord: { runId: state.checkpoint.runId, status: 'SUCCESS' } };
+      },
+      prepare() {
+        armed.push(scriptApp.triggers.map((item) => item.delayMs));
+        return {
+          checkpoint: {
+            data: { fingerprint: 'sha256:watchdog', sourceFiles: [] },
+            request: { targetWorkbookId: 'target-id' },
+            runId: 'run-watchdog-margin',
+            startedAtUtc: '2026-08-25T22:00:00.000Z',
+            stateHistory: [],
+            version: 1,
+          },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  Cxp06UatContinuation.start('CASE1_PEAK_SUCCESS', services);
+  Cxp06UatContinuation.continueConfigured(services);
+  Cxp06UatContinuation.continueConfigured(services);
+
+  assert.equal(armed.length, 3);
+  armed.forEach((delays) => {
+    assert.equal(delays.length, 1);
+    assert.ok(
+      delays[0] > 360000,
+      `a ${delays[0]}ms watchdog can fire while its own invocation is still running`,
+    );
+  });
+});
+
+// Defect caught: the commit loop publishes COMMIT_PENDING between datasets, so a
+// watchdog firing mid-loop re-enters commit and competes for the production lock.
+test('hosted CXP-06 defers a watchdog invocation that fires during an active commit loop', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const phaseStartedAtMs = Date.parse('2026-08-25T21:00:00.000Z');
+  let nowMs = phaseStartedAtMs;
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { backupRunId: 'run-watchdog-race' },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-watchdog-race',
+        startedAtUtc: '2026-08-25T21:00:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastErrorCode: null,
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T21:00:00.000Z',
+      status: 'COMMIT_PENDING',
+      updatedAtUtc: '2026-08-25T21:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  const datasets = ['Handled', 'Offered', 'AHT - Raw', 'Auxes - Raw', 'Staff'];
+  const enteredIndexes = [];
+  let watchdogStarted = false;
+  let watchdog;
+  const services = {
+    clock: { now: () => new Date(nowMs) },
+    executor: {
+      commit(state) {
+        const previous = state.checkpoint.data.commitProgress
+          ? state.checkpoint.data.commitProgress.nextDatasetIndex
+          : 0;
+        enteredIndexes.push(previous);
+        if (previous === 0 && !watchdogStarted) {
+          watchdogStarted = true;
+          watchdog = Cxp06UatContinuation.continueConfigured(services);
+        }
+        nowMs += 100000;
+        const next = previous + 1;
+        return {
+          commitProgress: {
+            complete: next === datasets.length,
+            lastCompletedDatasetName: datasets[next - 1],
+            nextDatasetIndex: next,
+          },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  Cxp06UatContinuation.continueConfigured(services);
+
+  assert.equal(watchdog.status, 'COMMITTING');
+  assert.equal(watchdog.continuationScheduled, true);
+  assert.equal(watchdog.lastErrorCode, null);
+  assert.deepEqual(enteredIndexes, [0, 1]);
+});
+
+// Defect caught: a retryable lock-contention timeout is recorded as a terminal
+// failure and deletes the continuation trigger, stranding raw mid-replacement.
+test('hosted CXP-06 reschedules a lock-contention timeout instead of failing the run', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: {
+          backupRunId: 'run-contention',
+          commitProgress: {
+            complete: false,
+            lastCompletedDatasetName: 'Handled',
+            nextDatasetIndex: 1,
+          },
+        },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-contention',
+        startedAtUtc: '2026-08-25T16:05:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastCompletedCommitDataset: 'Handled',
+      lastErrorCode: null,
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T16:05:00.000Z',
+      status: 'COMMIT_PENDING',
+      updatedAtUtc: '2026-08-25T16:05:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  const services = {
+    clock: { now: () => new Date('2026-08-25T16:12:23.000Z') },
+    executor: {
+      commit() {
+        throw ErrorCodes.create('INGESTION_LOCK_TIMEOUT', {
+          details: { timeoutMs: 30000 },
+        });
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  const result = Cxp06UatContinuation.continueConfigured(services);
+  const persisted = JSON.parse(propertiesStore.getProperty('CXP06_UAT_PIPELINE_STATE'));
+
+  assert.equal(result.status, 'COMMIT_PENDING');
+  assert.equal(result.lastErrorCode, 'INGESTION_LOCK_TIMEOUT');
+  assert.deepEqual(result.lastErrorDetails, { timeoutMs: 30000 });
+  assert.equal(result.continuationScheduled, true);
+  assert.equal(result.lastCompletedCommitDataset, 'Handled');
+  assert.equal(persisted.status, 'COMMIT_PENDING');
+  assert.deepEqual(persisted.checkpoint.data.commitProgress, {
+    complete: false,
+    lastCompletedDatasetName: 'Handled',
+    nextDatasetIndex: 1,
+  });
+  assert.equal(scriptApp.triggers.length, 1);
+});
+
+// Defect caught: the hosted controller always yields after one dataset, adding
+// trigger wait even when another measured step safely fits in the invocation.
+test('hosted CXP-06 packs safe steps and yields before the next measured step crosses its budget', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  let nowMs = Date.parse('2026-08-25T23:00:00.000Z');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { backupRunId: 'run-reserve' },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-reserve',
+        startedAtUtc: '2026-08-25T23:00:00.000Z',
+        stateHistory: [],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastErrorCode: null,
+      scenario: 'CASE1_PEAK_SUCCESS',
+      startedAtUtc: '2026-08-25T23:00:00.000Z',
+      status: 'COMMIT_PENDING',
+      updatedAtUtc: '2026-08-25T23:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  const datasets = ['Handled', 'Offered', 'AHT - Raw', 'Auxes - Raw', 'Staff'];
+  let commitCalls = 0;
+  const workerLogs = [];
+  const services = {
+    clock: { now: () => new Date(nowMs) },
+    executor: {
+      commit(state) {
+        commitCalls += 1;
+        const previous = state.checkpoint.data.commitProgress
+          ? state.checkpoint.data.commitProgress.nextDatasetIndex
+          : 0;
+        nowMs += 100000;
+        const next = previous + 1;
+        return {
+          commitProgress: {
+            complete: next === datasets.length,
+            lastCompletedDatasetName: datasets[next - 1],
+            nextDatasetIndex: next,
+          },
+        };
+      },
+    },
+    logger: { log(message) { workerLogs.push(message); } },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  const yielded = Cxp06UatContinuation.continueConfigured(services);
+
+  assert.equal(commitCalls, 2);
+  assert.equal(yielded.status, 'COMMIT_PENDING');
+  assert.equal(yielded.lastCompletedCommitDataset, 'Offered');
+  assert.equal(yielded.continuationScheduled, true);
+  assert.equal(scriptApp.triggers.length, 1);
+  assert.equal(scriptApp.triggers[0].delayMs, 60000);
+  const persisted = JSON.parse(propertiesStore.getProperty('CXP06_UAT_PIPELINE_STATE'));
+  assert.equal(persisted.maxCommitStepMs, 100000);
+  assert.equal(persisted.checkpoint.data.commitProgress.nextDatasetIndex, 2);
+  assert.equal(workerLogs.length, 2);
+  assert.deepEqual(
+    workerLogs.map((message) => {
+      assert.equal(message.startsWith('CXP06_WORKER_STEP '), true);
+      assert.equal(message.includes('records'), false);
+      assert.equal(message.includes('values'), false);
+      const event = JSON.parse(message.slice('CXP06_WORKER_STEP '.length));
+      return [event.datasetName, event.decision, event.durationMs, event.elapsedMs];
+    }),
+    [
+      ['Handled', 'PACK_NEXT', 100000, 100000],
+      ['Offered', 'HANDOFF', 100000, 200000],
+    ],
+  );
 });
 
 // Defect caught: scenario faults are attached after CommitService construction,
@@ -439,6 +1608,7 @@ function rawRepository() {
       preflight: () => ({ datasetCount: 5 }),
       readAll: () => state.reads,
       replaceAll: () => ({ datasetCount: 5 }),
+      replaceOne: () => ({ datasetName: 'Handled', rowCount: 1 }),
       restoreAll: () => ({ datasetCount: 5 }),
     },
   };
@@ -459,6 +1629,13 @@ test('faults fire only at their intended raw, health, rollback, and cleanup seam
   health.replaceAll([]);
   assert.notDeepEqual(health.readAll(), healthBase.state.reads);
   assert.deepEqual(health.readAll(), healthBase.state.reads);
+
+  const steppedHealthBase = rawRepository();
+  const steppedHealth = Cxp06FaultInjector.create('HEALTH_MISMATCH')
+    .wrapRawRepository(steppedHealthBase.repository);
+  steppedHealth.replaceOne(new Array(5), 4, { preflightVerified: true });
+  assert.notDeepEqual(steppedHealth.readAll(), steppedHealthBase.state.reads);
+  assert.deepEqual(steppedHealth.readAll(), steppedHealthBase.state.reads);
 
   const write = Cxp06FaultInjector.create('ROLLBACK_WRITE_FAILURE');
   assert.throws(
@@ -537,6 +1714,8 @@ test('every entrypoint is parameterless and delegates to Cxp06UatHarness with sa
     'cxp06UatCase5TwoCompleteUnsuccessfulBackups',
     'cxp06UatCase5CleanupFailure',
     'cxp06UatReaderVisibility',
+    'continueCxp06UatPipeline',
+    'getCxp06UatPipelineStatus',
   ];
 
   entrypoints.forEach((name) => {
@@ -548,4 +1727,68 @@ test('every entrypoint is parameterless and delegates to Cxp06UatHarness with sa
   assert.equal(preflight.runRecord.status, 'PREFLIGHT_PASS');
   assert.equal(preflight.evidence.scenario, 'PREFLIGHT');
   assert.equal(preflight.evidence.environment, 'DEV');
+});
+
+// Defect caught: hosted start and continuation entrypoints return after a few
+// seconds without emitting their status object to the Apps Script execution log.
+test('hosted pipeline entrypoints log every returned start and continuation status', () => {
+  const modulePath = require.resolve('../src/main/Cxp06UatEntrypoints.js');
+  const originalContinuation = global.Cxp06UatContinuation;
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  const originalSpreadsheetApp = global.SpreadsheetApp;
+  const originalConsole = global.console;
+  const logs = [];
+  const status = {
+    continuationScheduled: true,
+    environment: 'DEV',
+    scenario: 'CASE1_PEAK_SUCCESS',
+    status: 'BACKUP_PENDING',
+  };
+  try {
+    global.Cxp06UatContinuation = {
+      continueConfigured: () => status,
+      start: () => status,
+    };
+    global.PropertiesService = {};
+    global.ScriptApp = {};
+    global.SpreadsheetApp = {};
+    global.console = { log: (message) => logs.push(message) };
+    delete require.cache[modulePath];
+    const hostedEntrypoints = require(modulePath);
+
+    assert.equal(hostedEntrypoints.cxp06UatCase1PeakSuccess(), status);
+    assert.equal(hostedEntrypoints.continueCxp06UatPipeline(), status);
+    const failedStatus = {
+      continuationScheduled: false,
+      environment: 'DEV',
+      lastErrorCode: 'MIGRATION_ROLLBACK_FAILED',
+      status: 'FAILED',
+    };
+    const failure = new Error('Synthetic continuation failure.');
+    failure.code = 'MIGRATION_ROLLBACK_FAILED';
+    global.Cxp06UatContinuation.continueConfigured = () => { throw failure; };
+    global.Cxp06UatContinuation.getStatus = () => failedStatus;
+    assert.throws(
+      () => hostedEntrypoints.continueCxp06UatPipeline(),
+      { code: 'MIGRATION_ROLLBACK_FAILED' },
+    );
+  } finally {
+    delete require.cache[modulePath];
+    if (originalContinuation === undefined) delete global.Cxp06UatContinuation;
+    else global.Cxp06UatContinuation = originalContinuation;
+    if (originalPropertiesService === undefined) delete global.PropertiesService;
+    else global.PropertiesService = originalPropertiesService;
+    if (originalScriptApp === undefined) delete global.ScriptApp;
+    else global.ScriptApp = originalScriptApp;
+    if (originalSpreadsheetApp === undefined) delete global.SpreadsheetApp;
+    else global.SpreadsheetApp = originalSpreadsheetApp;
+    global.console = originalConsole;
+  }
+
+  assert.deepEqual(logs, [
+    'CXP06_PIPELINE_START {"continuationScheduled":true,"environment":"DEV","scenario":"CASE1_PEAK_SUCCESS","status":"BACKUP_PENDING"}',
+    'CXP06_PIPELINE_CONTINUE {"continuationScheduled":true,"environment":"DEV","scenario":"CASE1_PEAK_SUCCESS","status":"BACKUP_PENDING"}',
+    'CXP06_PIPELINE_CONTINUE_FAILED {"continuationScheduled":false,"environment":"DEV","lastErrorCode":"MIGRATION_ROLLBACK_FAILED","status":"FAILED"}',
+  ]);
 });

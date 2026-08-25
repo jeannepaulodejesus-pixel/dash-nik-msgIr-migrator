@@ -34,6 +34,8 @@ This is an application-level recovery protocol. Google Sheets does not provide o
 - `commit`
 - `recalculate`
 - `healthCheck`
+- `resume` for reconstructing a validated transaction from protected staging in a fresh invocation
+- `backupStep` for creating and verifying at most one missing run-scoped dataset backup under the script lock
 
 The two objects are merged and passed to `RunService.execute`. CXP-06 never acquires a second lock and never changes the CXP-04 state machine.
 
@@ -50,13 +52,21 @@ The two objects are merged and passed to `RunService.execute`. CXP-06 never acqu
 1. Reconcile stale CXP-06 backup groups.
 2. Recheck the bundle fingerprint in `FILE_LEDGER` to close the pre-lock duplicate race.
 3. Preflight all raw sheets and reject formulas.
-4. Copy, name, hide, protect, and verify all five raw backups.
+4. For synchronous callers, copy, name, hide, protect, and verify all five raw backups. Hosted callers complete the same contract across five locked `backupStep` invocations before entering `COMMITTING`.
 5. Replace all five raw matrices in fixed dataset order.
 6. Flush pending spreadsheet changes during `recalculate`.
 7. Reread and health-validate every raw matrix.
 8. Append one SUCCESS ledger row and read-confirm it by run ID; if that lookup fails or is empty, perform one bounded fingerprint lookup and accept it only when both run ID and fingerprint match the current run.
 9. Delete the backup group. Cleanup failure returns `backupCleanupStatus: PENDING` without rolling healthy raw data back.
 10. CXP-04 flushes once more and releases the lock in `finally`.
+
+### Apps Script execution boundary
+
+The synchronous `RunService.execute()` API remains available for local tests and callers with a bounded workload. Hosted CXP-06 UAT uses `RunService.prepare()` through `VALIDATING_STAGE`, flushes pending spreadsheet writes, then persists a bounded checkpoint and schedules a fresh invocation. Checkpoint publication is forbidden without a supplied flush service. Each backup continuation reconstructs all five canonical payloads from protected staging, revalidates them, and calls `backupStep` under the script lock. Backup-sheet discovery is the durable journal: one invocation creates at most one missing dataset copy, and a timeout resumes from the sheets already named for the run ID. Only after the group is complete does the checkpoint store `backupRunId` and schedule a separate `RunService.resume()` final commit.
+
+The commit continuation adopts the exact complete group, verifies unreplaced datasets against current raw under the production lock, and never creates a sixth backup. Already-replaced datasets are expected to differ from their pre-run backups. After all five replacements, completeness is confirmed without comparing backups to current raw. Raw replacement is journaled by a bounded `commitProgress` cursor in Script Properties. Each step reconstructs validated staging, reacquires the group, replaces one registered raw dataset with one bulk write, flushes before releasing the lock, and then advances the cursor. The controller reserves runtime before each step instead of measuring only after one finishes: hosted commit performs at most one dataset replacement per invocation, which is the 4:45 (285,000 ms) budget for peak declared volumes, then saves the latest cursor, deduplicates the handler triggers, schedules one continuation for 60,000 ms later, and returns. If a timeout writes a dataset without persisting the cursor, the next step adopts that dataset when current raw already matches the staged payload.
+
+After all five replacements are checkpointed, a fresh final invocation skips raw replay and performs recalculation, exact health readback, ledger confirmation, and backup cleanup. Every long hosted phase also pre-schedules a one-time safety continuation for 420,000 ms, beyond the platform execution window, so the watchdog cannot run while the invocation it guards is alive. The commit loop holds a `COMMITTING` status whose `updatedAtUtc` stays anchored at phase entry, and any wake-up that observes an in-progress phase inside the known hard-timeout window defers until that invocation has settled, preventing concurrent entry into the same transaction phase; a normal checkpoint or terminal completion removes the safety trigger. Failure to acquire the production lock is treated as contention: the run keeps its resumable pending status and schedules one continuation 90,000 ms later rather than terminating with raw partially replaced. An abrupt commit invocation remains governed by the backup reconciliation and rollback protocol below. Time-driven triggers change the execution boundary; they do not make the multi-sheet replacement atomic or raise the Apps Script quota.
 
 ## Stage and health validation
 

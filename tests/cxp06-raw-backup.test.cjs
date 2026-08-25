@@ -249,6 +249,92 @@ test('backup repository creates verified hidden protected groups and deletes onl
   );
 });
 
+// Defect caught: one hosted commit dataset rereads every raw and backup sheet
+// before writing, turning each continuation into another whole-workbook pass.
+test('raw and backup repositories scope resume verification and replacement to one dataset', () => {
+  const BackupRepository = loadModule('../src/repository/BackupRepository.js');
+  const RawDataRepository = loadModule('../src/repository/RawDataRepository.js');
+  const owner = new FakeUser('owner@example.test');
+  const payloads = allNormalizedPayloads();
+  const spreadsheet = rawSpreadsheet(payloads, owner, new FakeUser('other@example.test'));
+  const backup = BackupRepository.create(spreadsheet, {
+    session: { getEffectiveUser: () => owner },
+    spreadsheetApp: { ProtectionType: { SHEET: 'SHEET' } },
+  });
+  const raw = RawDataRepository.create(spreadsheet);
+  const group = backup.createGroup('run-dataset-scope');
+  const reads = [];
+
+  spreadsheet.getSheets().forEach((sheet) => {
+    const originalGetDataRange = sheet.getDataRange.bind(sheet);
+    sheet.getDataRange = () => {
+      reads.push(sheet.getName());
+      return originalGetDataRange();
+    };
+  });
+
+  assert.equal(typeof raw.readOne, 'function');
+  assert.equal(typeof raw.preflightOne, 'function');
+  assert.equal(typeof raw.replacePayload, 'function');
+  assert.equal(typeof backup.readDataset, 'function');
+  assert.equal(typeof backup.verifyDataset, 'function');
+  assert.equal(raw.readOne('AHT - Raw').datasetName, 'AHT - Raw');
+  assert.equal(backup.verifyDataset(group, 'AHT - Raw').datasetName, 'AHT - Raw');
+  assert.deepEqual(reads, ['_RAW_AHT', '_RAW_AHT', '_CXP06_BAK_AHT_run-dataset-scope']);
+
+  const sourcePayload = payloads.find((payload) => payload.datasetName === 'AHT - Raw');
+  const changed = {
+    ...sourcePayload,
+    records: sourcePayload.records.map(
+      (record) => ({ ...record, 'Total Resolution Time': 123.45 }),
+    ),
+  };
+  const eventStart = spreadsheet.events.length;
+  const result = raw.replacePayload(changed);
+  const writeEvents = spreadsheet.events.slice(eventStart);
+
+  assert.deepEqual(result, { datasetName: 'AHT - Raw', rowCount: 1 });
+  assert.deepEqual(
+    writeEvents.filter(([name]) => name === 'setValues').map((event) => event[1]),
+    ['_RAW_AHT'],
+  );
+  assert.throws(
+    () => raw.readOne('Unknown'),
+    (error) => error?.code === 'MIGRATION_COMMIT_FAILED',
+  );
+});
+
+// Defect caught: hosted commit creates all five full-sheet backups in one
+// invocation, exhausting Apps Script's runtime before raw replacement begins.
+test('backup repository creates and verifies at most one missing dataset per durable step', () => {
+  const BackupRepository = loadModule('../src/repository/BackupRepository.js');
+  const owner = new FakeUser('owner@example.test');
+  const other = new FakeUser('rta@example.test');
+  const spreadsheet = rawSpreadsheet(allNormalizedPayloads(), owner, other);
+  const repository = BackupRepository.create(spreadsheet, {
+    session: { getEffectiveUser: () => owner },
+    spreadsheetApp: { ProtectionType: { SHEET: 'SHEET' } },
+  });
+  assert.equal(typeof repository.createGroupStep, 'function');
+
+  const expectedDatasets = ['Handled', 'Offered', 'AHT - Raw', 'Auxes - Raw', 'Staff'];
+  expectedDatasets.forEach((datasetName, index) => {
+    const copyCountBefore = spreadsheet.events.filter(([name]) => name === 'copyTo').length;
+    const result = repository.createGroupStep('run-incremental');
+    const copyCountAfter = spreadsheet.events.filter(([name]) => name === 'copyTo').length;
+
+    assert.equal(copyCountAfter - copyCountBefore, 1);
+    assert.equal(result.createdDatasetName, datasetName);
+    assert.equal(result.complete, index === expectedDatasets.length - 1);
+    assert.equal(Object.keys(result.group.sheetsByDataset).length, index + 1);
+  });
+
+  const completed = repository.createGroupStep('run-incremental');
+  assert.equal(completed.complete, true);
+  assert.equal(completed.createdDatasetName, null);
+  assert.equal(spreadsheet.events.filter(([name]) => name === 'copyTo').length, 5);
+});
+
 // Defect caught: recovery discovery treats a partial prior copy set as a complete rollback source.
 test('backup repository reports incomplete run-scoped groups without exposing cell values', () => {
   const BackupRepository = loadModule('../src/repository/BackupRepository.js');

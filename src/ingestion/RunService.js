@@ -194,7 +194,6 @@
           message: 'A run repository with persist is required.'
         });
       }
-
       runOperation(machine, operations, context, 'VALIDATING_FILE', 'validateFile', dependencies.telemetry);
       runOperation(machine, operations, context, 'PARSING', 'parse', dependencies.telemetry);
       runOperation(machine, operations, context, 'VALIDATING_SCHEMA', 'validateSchema', dependencies.telemetry);
@@ -285,9 +284,182 @@
     }
   }
 
+  function cloneCheckpointRequest(request) {
+    try {
+      return JSON.parse(JSON.stringify(request));
+    } catch (error) {
+      throw ErrorCodes.create('INGESTION_INVALID_RUN_METADATA', {
+        details: { field: 'checkpoint.request' }
+      });
+    }
+  }
+
+  function persistFailure(error, machine, context, request, dependencies, clock) {
+    var failedAtState = machine.currentState();
+    var normalized = ErrorCodes.normalize(error, fallbackCodeFor(failedAtState));
+    var failureState = ErrorCodes.failureStateFor(normalized.code);
+    machine.transition(failureState);
+    var failedAtUtc = toIso(clock.now());
+    var failedRunRecord = buildRunRecord(
+      context,
+      request,
+      machine,
+      failureState,
+      normalized.code,
+      failedAtUtc
+    );
+    var errorRecord = ErrorLogger.createRecord({
+      atUtc: failedAtUtc,
+      category: normalized.category,
+      errorCode: normalized.code,
+      details: normalized.details,
+      failureState: failureState,
+      message: normalized.message,
+      runId: context.runId,
+      state: failedAtState
+    });
+    normalized.runRecord = failedRunRecord;
+    normalized.errorRecord = errorRecord;
+    if (dependencies.repository && typeof dependencies.repository.persist === 'function') {
+      dependencies.repository.persist([failedRunRecord], [errorRecord]);
+    }
+    throw normalized;
+  }
+
+  function prepare(request, operations, services) {
+    resolveRuntimeDependencies();
+    var dependencies = services || {};
+    var clock = dependencies.clock && typeof dependencies.clock.now === 'function'
+      ? dependencies.clock
+      : defaultClock();
+    var runId = typeof dependencies.uuid === 'function'
+      ? dependencies.uuid()
+      : fallbackRunId(clock);
+    var startedAtUtc = toIso(clock.now());
+    var machine = RunStateMachine.create(clock);
+    var safeRequest = request && typeof request === 'object' ? request : {};
+    var context = {
+      operationResults: {},
+      request: safeRequest,
+      runId: runId,
+      startedAtUtc: startedAtUtc
+    };
+
+    try {
+      requireMetadata(request);
+      requireOperations(operations);
+      if (!dependencies.repository || typeof dependencies.repository.persist !== 'function') {
+        throw ErrorCodes.create('REPORTING_LOG_WRITE_FAILED', {
+          message: 'A run repository with persist is required.'
+        });
+      }
+      if (typeof dependencies.flush !== 'function') {
+        throw ErrorCodes.create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'RunService.prepare.flush' }
+        });
+      }
+      runOperation(machine, operations, context, 'VALIDATING_FILE', 'validateFile', dependencies.telemetry);
+      runOperation(machine, operations, context, 'PARSING', 'parse', dependencies.telemetry);
+      runOperation(machine, operations, context, 'VALIDATING_SCHEMA', 'validateSchema', dependencies.telemetry);
+      runOperation(machine, operations, context, 'CHECKING_DUPLICATE', 'checkDuplicate', dependencies.telemetry);
+      runOperation(machine, operations, context, 'STAGING', 'stage', dependencies.telemetry);
+      runOperation(machine, operations, context, 'VALIDATING_STAGE', 'validateStage', dependencies.telemetry);
+      notifyTelemetry(dependencies.telemetry, 'flushStage', 'STARTED');
+      dependencies.flush();
+      notifyTelemetry(dependencies.telemetry, 'flushStage', 'COMPLETED');
+      var checkpointData = typeof dependencies.createCheckpoint === 'function'
+        ? dependencies.createCheckpoint(context)
+        : {};
+      return Object.freeze({
+        checkpoint: Object.freeze({
+          data: checkpointData,
+          request: cloneCheckpointRequest(safeRequest),
+          runId: runId,
+          startedAtUtc: startedAtUtc,
+          stateHistory: machine.history(),
+          version: 1
+        }),
+        operationResults: Object.freeze(context.operationResults),
+        status: 'PREPARED'
+      });
+    } catch (error) {
+      return persistFailure(error, machine, context, safeRequest, dependencies, clock);
+    }
+  }
+
+  function resume(checkpoint, operations, services) {
+    resolveRuntimeDependencies();
+    var dependencies = services || {};
+    var clock = dependencies.clock && typeof dependencies.clock.now === 'function'
+      ? dependencies.clock
+      : defaultClock();
+    if (
+      !checkpoint || checkpoint.version !== 1 ||
+      !checkpoint.request || !checkpoint.runId || !checkpoint.startedAtUtc ||
+      typeof operations.resume !== 'function'
+    ) {
+      throw ErrorCodes.create('INGESTION_INVALID_RUN_METADATA', {
+        details: { field: 'checkpoint' }
+      });
+    }
+    requireMetadata(checkpoint.request);
+    requireOperations(operations);
+    if (!dependencies.repository || typeof dependencies.repository.persist !== 'function') {
+      throw ErrorCodes.create('REPORTING_LOG_WRITE_FAILED', {
+        message: 'A run repository with persist is required.'
+      });
+    }
+    var machine = RunStateMachine.restore(clock, checkpoint.stateHistory);
+    var context = {
+      operationResults: {},
+      request: checkpoint.request,
+      runId: checkpoint.runId,
+      startedAtUtc: checkpoint.startedAtUtc
+    };
+
+    try {
+      operations.resume(context, checkpoint.data || {});
+      ScriptLock.withLock(
+        dependencies.lockService,
+        dependencies.lockTimeoutMs === undefined ? DEFAULT_LOCK_TIMEOUT_MS : dependencies.lockTimeoutMs,
+        typeof dependencies.flush === 'function' ? dependencies.flush : function () {},
+        function () {
+          runOperation(machine, operations, context, 'COMMITTING', 'commit', dependencies.telemetry);
+          runOperation(machine, operations, context, 'RECALCULATING', 'recalculate', dependencies.telemetry);
+          runOperation(machine, operations, context, 'HEALTH_CHECK', 'healthCheck', dependencies.telemetry);
+        }
+      );
+      machine.transition('SUCCESS');
+      var successRecord = buildRunRecord(
+        context,
+        checkpoint.request,
+        machine,
+        'SUCCESS',
+        null,
+        lastHistoryTimestamp(machine)
+      );
+      dependencies.repository.persist([successRecord], []);
+      return Object.freeze({
+        operationResults: Object.freeze(context.operationResults),
+        runRecord: successRecord
+      });
+    } catch (error) {
+      return persistFailure(
+        error,
+        machine,
+        context,
+        checkpoint.request,
+        dependencies,
+        clock
+      );
+    }
+  }
+
   return Object.freeze({
     DEFAULT_LOCK_TIMEOUT_MS: DEFAULT_LOCK_TIMEOUT_MS,
     REQUIRED_OPERATIONS: REQUIRED_OPERATIONS,
-    execute: execute
+    execute: execute,
+    prepare: prepare,
+    resume: resume
   });
 });

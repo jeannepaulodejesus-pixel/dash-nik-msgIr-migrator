@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const SchemaRegistry = require('../src/ingestion/SchemaRegistry.js');
+const DatasetSheets = require('../src/config/DatasetSheets.js');
 
 const {
   TransactionSpreadsheet,
@@ -58,6 +59,116 @@ test('staging repository preflights all sheets and performs one bulk write per d
     (error) => error?.code === 'MIGRATION_STAGE_WRITE_FAILED',
   );
   assert.deepEqual(missing.events, []);
+});
+
+// Defect caught: a continuation cannot reconstruct canonical payloads from protected staging sheets.
+test('staging repository reconstructs a bounded checkpoint payload set for a fresh invocation', () => {
+  const StageValidator = loadModule('../src/validation/StageValidator.js');
+  const StagingRepository = loadModule('../src/repository/StagingRepository.js');
+  const spreadsheet = stagingSpreadsheet();
+  const originalPayloads = allNormalizedPayloads();
+  const repository = StagingRepository.create(spreadsheet);
+  repository.writeAll(originalPayloads);
+
+  assert.equal(typeof repository.readCheckpoint, 'function');
+  const restored = repository.readCheckpoint({
+    runId: 'run-cxp06-resumed',
+    schemaVersion: '1.0.0',
+  });
+
+  assert.equal(restored.payloads.length, 5);
+  assert.equal(restored.snapshots.length, 5);
+  assert.deepEqual(
+    restored.payloads.map((payload) => [payload.datasetName, payload.rowCount]),
+    originalPayloads.map((payload) => [payload.datasetName, payload.rowCount]),
+  );
+  assert.deepEqual(
+    StageValidator.validate(restored.payloads, restored.snapshots).rowCounts,
+    {
+      'AHT - Raw': 1,
+      'Auxes - Raw': 1,
+      Handled: 1,
+      Offered: 1,
+      Staff: 1,
+    },
+  );
+});
+
+// Defect caught: Apps Script getValues rehydrates staged date cells as Date
+// objects, but readCheckpoint retains them in the payload and validation then
+// compares Date objects with its canonical ISO-string snapshot.
+test('checkpoint reconstruction canonicalizes Apps Script Date values before validation', () => {
+  const StageValidator = loadModule('../src/validation/StageValidator.js');
+  const StagingRepository = loadModule('../src/repository/StagingRepository.js');
+  const spreadsheet = stagingSpreadsheet();
+  const repository = StagingRepository.create(spreadsheet);
+  repository.writeAll(allNormalizedPayloads());
+
+  DatasetSheets.listBindings().forEach((binding) => {
+    const schema = SchemaRegistry.getSchema(binding.datasetName);
+    const sheet = spreadsheet.getSheetByName(binding.stagingSheetName);
+    schema.columns.forEach((column, columnIndex) => {
+      if (column.type === 'date') {
+        sheet.values[1][columnIndex] = new Date(`${sheet.values[1][columnIndex]}T00:00:00.000Z`);
+      } else if (column.type === 'date_time') {
+        sheet.values[1][columnIndex] = new Date(sheet.values[1][columnIndex]);
+      }
+    });
+  });
+
+  const restored = repository.readCheckpoint({
+    runId: 'run-cxp06-date-resume',
+    schemaVersion: '1.0.0',
+  });
+
+  assert.equal(
+    restored.payloads.find((payload) => payload.datasetName === 'Handled')
+      .records[0]['Start Time'],
+    '2026-08-21T04:00:00.000Z',
+  );
+  assert.equal(StageValidator.validate(restored.payloads, restored.snapshots).datasetCount, 5);
+});
+
+// Defect caught: a hosted commit continuation reconstructs and validates all
+// five staged datasets even though its cursor can advance only one dataset.
+test('staging checkpoint resume reads and validates only the requested dataset', () => {
+  const StageValidator = loadModule('../src/validation/StageValidator.js');
+  const StagingRepository = loadModule('../src/repository/StagingRepository.js');
+  const spreadsheet = stagingSpreadsheet();
+  const repository = StagingRepository.create(spreadsheet);
+  repository.writeAll(allNormalizedPayloads());
+  const reads = [];
+
+  DatasetSheets.listBindings().forEach((binding) => {
+    const sheet = spreadsheet.getSheetByName(binding.stagingSheetName);
+    const originalGetDataRange = sheet.getDataRange.bind(sheet);
+    sheet.getDataRange = () => {
+      reads.push(binding.stagingSheetName);
+      return originalGetDataRange();
+    };
+  });
+
+  assert.equal(typeof repository.readDatasetCheckpoint, 'function');
+  assert.equal(typeof StageValidator.validateDatasetCheckpoint, 'function');
+  const restored = repository.readDatasetCheckpoint({
+    runId: 'run-cxp06-dataset-resume',
+    schemaVersion: '1.0.0',
+  }, 'AHT - Raw');
+
+  assert.deepEqual(reads, ['_STG_AHT']);
+  assert.equal(restored.payload.datasetName, 'AHT - Raw');
+  assert.equal(restored.snapshot.datasetName, 'AHT - Raw');
+  assert.deepEqual(
+    StageValidator.validateDatasetCheckpoint(restored.payload, restored.snapshot),
+    { datasetName: 'AHT - Raw', rowCount: 1 },
+  );
+  assert.throws(
+    () => repository.readDatasetCheckpoint({
+      runId: 'run-cxp06-dataset-resume',
+      schemaVersion: '1.0.0',
+    }, 'Unknown'),
+    (error) => error?.code === 'MIGRATION_STAGE_WRITE_FAILED',
+  );
 });
 
 // Defect caught: a persisted stage can diverge from the normalized payload without stopping commit.

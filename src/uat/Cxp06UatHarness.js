@@ -101,7 +101,7 @@ var Cxp06UatHarness = (function () {
   function composeOperations(inputOperations, commitOperations) {
     var input = inputOperations || {};
     var commit = commitOperations || {};
-    return Object.freeze({
+    var operations = {
       validateFile: input.validateFile,
       parse: input.parse,
       validateSchema: input.validateSchema,
@@ -111,7 +111,26 @@ var Cxp06UatHarness = (function () {
       commit: commit.commit,
       recalculate: commit.recalculate,
       healthCheck: commit.healthCheck,
-    });
+    };
+    if (typeof commit.resume === 'function') {
+      operations.resume = commit.resume;
+    }
+    if (typeof commit.resumeBackup === 'function') {
+      operations.resumeBackup = commit.resumeBackup;
+    }
+    if (typeof commit.resumeDataset === 'function') {
+      operations.resumeDataset = commit.resumeDataset;
+    }
+    if (typeof commit.backupStep === 'function') {
+      operations.backupStep = commit.backupStep;
+    }
+    if (typeof commit.commitStep === 'function') {
+      operations.commitStep = commit.commitStep;
+    }
+    if (typeof commit.commitDatasetStep === 'function') {
+      operations.commitDatasetStep = commit.commitDatasetStep;
+    }
+    return Object.freeze(operations);
   }
 
   function readSyntheticFileIds(properties) {
@@ -210,6 +229,7 @@ var Cxp06UatHarness = (function () {
       commitServices: Object.freeze({
         flush: flush,
         ledgerRepository: ledgerRepository,
+        lockService: runtime.lockService,
         session: runtime.session,
         spreadsheetApp: spreadsheetApp,
         targetSpreadsheet: targetSpreadsheet,
@@ -522,6 +542,7 @@ var Cxp06UatHarness = (function () {
     composeOperations: composeOperations,
     createHostedDependencies: createHostedDependencies,
     execute: execute,
+    hostedRuntimeServices: hostedRuntimeServices,
     readSyntheticFileIds: readSyntheticFileIds,
     requireSafetyGate: requireSafetyGate,
   });
