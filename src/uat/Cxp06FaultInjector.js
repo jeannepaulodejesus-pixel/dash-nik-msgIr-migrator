@@ -6,6 +6,7 @@ var Cxp06FaultInjector = (function () {
     var restoreWriteCount = 0;
     var healthCorrupted = false;
     var rollbackVerifyCorrupted = false;
+    var rollbackWriteArmed = false;
     var invalidStageCorrupted = false;
 
     var rawObserver = Object.freeze({
@@ -15,12 +16,15 @@ var Cxp06FaultInjector = (function () {
           throw new Error('UAT_AFTER_SECOND_RAW_REPLACEMENT: synthetic failure after second raw replacement');
         }
         if ((faultKind === 'ROLLBACK_WRITE_FAILURE' || faultKind === 'ROLLBACK_VERIFY_FAILURE') && index === 1) {
+          if (faultKind === 'ROLLBACK_WRITE_FAILURE') {
+            rollbackWriteArmed = true;
+          }
           throw new Error('UAT_ROLLBACK_TRIGGER: synthetic commit failure to trigger rollback');
         }
       },
       afterRestoreWrite: function (info) {
         var index = (info && info.index !== undefined) ? info.index : restoreWriteCount++;
-        if (faultKind === 'ROLLBACK_WRITE_FAILURE') {
+        if (faultKind === 'ROLLBACK_WRITE_FAILURE' && rollbackWriteArmed) {
           throw new Error('UAT_ROLLBACK_WRITE_FAILURE: synthetic failure during restore write');
         }
       },
@@ -34,9 +38,6 @@ var Cxp06FaultInjector = (function () {
       return Object.assign({}, rawRepo, {
         replaceAll: function (payloads, options) {
           var result = rawRepo.replaceAll(payloads, options);
-          if (faultKind === 'HEALTH_MISMATCH') {
-            healthCorrupted = true;
-          }
           if (faultKind === 'READER_VISIBILITY') {
             if (typeof Utilities !== 'undefined' && typeof Utilities.sleep === 'function') {
               Utilities.sleep(1000);
@@ -48,9 +49,6 @@ var Cxp06FaultInjector = (function () {
           var result = rawRepo.replaceOne(payloads, datasetIndex, options);
           var isFinalDataset = Array.isArray(payloads) &&
             datasetIndex === payloads.length - 1;
-          if (faultKind === 'HEALTH_MISMATCH' && isFinalDataset) {
-            healthCorrupted = true;
-          }
           if (faultKind === 'READER_VISIBILITY' && isFinalDataset) {
             if (typeof Utilities !== 'undefined' && typeof Utilities.sleep === 'function') {
               Utilities.sleep(1000);
@@ -91,6 +89,19 @@ var Cxp06FaultInjector = (function () {
             });
           }
           return reads;
+        },
+      });
+    }
+
+    function wrapOperations(operations) {
+      if (faultKind !== 'HEALTH_MISMATCH' || !operations ||
+          typeof operations.healthCheck !== 'function') {
+        return operations;
+      }
+      return Object.assign({}, operations, {
+        healthCheck: function () {
+          healthCorrupted = true;
+          return operations.healthCheck.apply(this, arguments);
         },
       });
     }
@@ -146,6 +157,7 @@ var Cxp06FaultInjector = (function () {
       faultKind: faultKind,
       rawObserver: rawObserver,
       wrapBackupRepository: wrapBackupRepository,
+      wrapOperations: wrapOperations,
       wrapRawRepository: wrapRawRepository,
       wrapStagingRepository: wrapStagingRepository,
     });

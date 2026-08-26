@@ -1856,6 +1856,66 @@ function rawRepository() {
 }
 
 // Defect caught: a fault fires before its documented production seam.
+// Defect caught: a health mismatch armed during replacement disappears when final health runs in a fresh trigger invocation.
+test('phase-scoped health mismatch corrupts one health read without depending on replacement state', () => {
+  const base = rawRepository();
+  const injector = Cxp06FaultInjector.create('HEALTH_MISMATCH');
+  const decoratedRaw = injector.wrapRawRepository(base.repository);
+  decoratedRaw.replaceAll([]);
+  assert.deepEqual(decoratedRaw.readAll(), base.state.reads);
+
+  const operations = injector.wrapOperations({
+    healthCheck() {
+      return decoratedRaw.readAll();
+    },
+  });
+
+  assert.notDeepEqual(operations.healthCheck(), base.state.reads);
+  assert.deepEqual(decoratedRaw.readAll(), base.state.reads);
+});
+
+// Defect caught: the harness creates a phase decorator but never applies it to the operations delegated to RunService.
+test('CASE04 harness execution applies the phase-scoped health mismatch', () => {
+  const base = rawRepository();
+  const result = Cxp06UatHarness.execute({ scenario: 'CASE4_HEALTH_MISMATCH' }, {
+    commitService: {
+      createOperations(services) {
+        const decoratedRaw = services.decorateRawRepository(base.repository);
+        return {
+          commit() {},
+          healthCheck() {
+            if (decoratedRaw.readAll()[0].values[0][0] !== 'old') {
+              throw ErrorCodes.create('CALCULATION_HEALTH_CHECK_FAILED', {
+                details: { rollbackStatus: 'VERIFIED' },
+              });
+            }
+          },
+          recalculate() {},
+          stage() {},
+          validateStage() {},
+        };
+      },
+    },
+    inputOperations: {
+      checkDuplicate() {},
+      parse() {},
+      validateFile() {},
+      validateSchema() {},
+    },
+    properties: safeProperties(),
+    runService: {
+      execute(_request, operations) {
+        operations.healthCheck();
+        return { runRecord: { runId: 'case04-false-success', status: 'SUCCESS' } };
+      },
+    },
+  });
+
+  assert.equal(result.error.code, 'CALCULATION_HEALTH_CHECK_FAILED');
+  assert.equal(result.error.details.rollbackStatus, 'VERIFIED');
+  assert.equal(result.runRecord, null);
+});
+
 test('faults fire only at their intended raw, health, rollback, and cleanup seams', () => {
   const mid = Cxp06FaultInjector.create('AFTER_SECOND_RAW_REPLACEMENT');
   assert.doesNotThrow(() => mid.rawObserver.afterReplacement({ index: 0 }));
@@ -1864,21 +1924,10 @@ test('faults fire only at their intended raw, health, rollback, and cleanup seam
     /UAT_AFTER_SECOND_RAW_REPLACEMENT/,
   );
 
-  const healthBase = rawRepository();
-  const health = Cxp06FaultInjector.create('HEALTH_MISMATCH')
-    .wrapRawRepository(healthBase.repository);
-  health.replaceAll([]);
-  assert.notDeepEqual(health.readAll(), healthBase.state.reads);
-  assert.deepEqual(health.readAll(), healthBase.state.reads);
-
-  const steppedHealthBase = rawRepository();
-  const steppedHealth = Cxp06FaultInjector.create('HEALTH_MISMATCH')
-    .wrapRawRepository(steppedHealthBase.repository);
-  steppedHealth.replaceOne(new Array(5), 4, { preflightVerified: true });
-  assert.notDeepEqual(steppedHealth.readAll(), steppedHealthBase.state.reads);
-  assert.deepEqual(steppedHealth.readAll(), steppedHealthBase.state.reads);
-
   const write = Cxp06FaultInjector.create('ROLLBACK_WRITE_FAILURE');
+  assert.doesNotThrow(
+    () => write.rawObserver.afterRestoreWrite({ index: 0 }),
+  );
   assert.throws(
     () => write.rawObserver.afterReplacement({ index: 1 }),
     /UAT_ROLLBACK_TRIGGER/,

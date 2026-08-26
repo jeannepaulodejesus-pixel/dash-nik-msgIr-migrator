@@ -472,6 +472,9 @@ var Cxp06UatHarness = (function () {
     var commitOperations = buildCommitOperations(commitService, deps);
 
     var composedOperations = composeOperations(inputOperations, commitOperations);
+    if (faultInjector && typeof faultInjector.wrapOperations === 'function') {
+      composedOperations = faultInjector.wrapOperations(composedOperations);
+    }
 
     var runResult = null;
     var executionError = null;
