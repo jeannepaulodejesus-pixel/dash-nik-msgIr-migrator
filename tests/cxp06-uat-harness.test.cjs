@@ -796,6 +796,65 @@ test('hosted CXP-06 status reports the actual trigger and last completed backup 
   assert.equal(status.lastCompletedBackupDataset, 'Handled');
 });
 
+// Defect caught: successful cleanup debt is returned by CommitService but disappears from continuation state and status.
+test('hosted CXP-06 persists backupCleanupStatus from final health results', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: {
+          backupRunId: 'run-cleanup-debt',
+          commitProgress: {
+            complete: true,
+            lastCompletedDatasetName: 'Staff',
+            nextDatasetIndex: 5,
+          },
+        },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-cleanup-debt',
+        startedAtUtc: '2026-08-27T04:00:00.000Z',
+        stateHistory: [{ atUtc: '2026-08-27T04:00:00.000Z', state: 'VALIDATING_STAGE' }],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastCompletedBackupDataset: 'Staff',
+      lastCompletedCommitDataset: 'Staff',
+      lastErrorCode: null,
+      scenario: 'CASE5_CLEANUP_FAILURE',
+      startedAtUtc: '2026-08-27T04:00:00.000Z',
+      status: 'COMMIT_PENDING',
+      updatedAtUtc: '2026-08-27T04:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  const services = {
+    clock: { now: () => new Date('2026-08-27T04:01:00.000Z') },
+    executor: {
+      commit() {
+        return {
+          operationResults: {
+            healthCheck: { backupCleanupStatus: 'PENDING' },
+          },
+          runRecord: { runId: 'run-cleanup-debt', status: 'SUCCESS' },
+        };
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  const completed = Cxp06UatContinuation.continueConfigured(services);
+  const saved = Cxp06UatContinuation.getStatus(services);
+
+  assert.equal(completed.status, 'COMPLETE');
+  assert.equal(completed.backupCleanupStatus, 'PENDING');
+  assert.equal(saved.backupCleanupStatus, 'PENDING');
+  assert.equal(saved.continuationScheduled, false);
+});
+
 // Defect caught: a nonterminal checkpoint deletes its safety trigger before
 // creating the successor, so an abrupt stop can strand BACKUP_PENDING forever.
 test('hosted CXP-06 creates the successor before deleting the prior safety trigger', () => {

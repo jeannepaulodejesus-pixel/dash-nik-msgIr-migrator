@@ -167,6 +167,10 @@ var Cxp06UatContinuation = (function () {
 
   function publicResult(state, continuationScheduled) {
     return Object.freeze({
+      backupCleanupStatus: state.backupCleanupStatus === 'DELETED' ||
+        state.backupCleanupStatus === 'PENDING'
+        ? state.backupCleanupStatus
+        : null,
       continuationScheduled: continuationScheduled === true,
       environment: state.environment,
       failureAuditStatus: state.failureAuditStatus || null,
@@ -623,6 +627,12 @@ var Cxp06UatContinuation = (function () {
         var stepStartedAtMs = new Date(dependencies.clock.now()).getTime();
         var result = executor.commit(state);
         if (result && result.runRecord && result.runRecord.status === 'SUCCESS') {
+          var cleanupStatus = result.operationResults && result.operationResults.healthCheck
+            ? result.operationResults.healthCheck.backupCleanupStatus
+            : null;
+          state.backupCleanupStatus = cleanupStatus === 'DELETED' || cleanupStatus === 'PENDING'
+            ? cleanupStatus
+            : null;
           removeTriggers(dependencies.scriptApp);
           state.lastErrorCode = null;
           state.lastErrorDetails = null;
@@ -746,6 +756,7 @@ var Cxp06UatContinuation = (function () {
       }
       state.lastErrorCode = null;
       state.lastErrorDetails = null;
+      state.backupCleanupStatus = null;
       state.failureAuditStatus = null;
       state.lastAuditErrorCode = null;
       if (state.checkpoint.data && state.checkpoint.data.backupRunId) {
@@ -754,6 +765,7 @@ var Cxp06UatContinuation = (function () {
       return backupState(state, dependencies);
     }
     state = {
+      backupCleanupStatus: null,
       checkpoint: null,
       environment: environment,
       failureAuditStatus: null,
@@ -776,6 +788,7 @@ var Cxp06UatContinuation = (function () {
     var state = loadState(dependencies.properties);
     if (!state) {
       return Object.freeze({
+        backupCleanupStatus: null,
         continuationScheduled: false,
         environment: environment,
         failureAuditStatus: null,
@@ -821,6 +834,7 @@ var Cxp06UatContinuation = (function () {
     var state = loadState(dependencies.properties);
     if (!state) {
       return Object.freeze({
+        backupCleanupStatus: null,
         continuationScheduled: false,
         environment: environment,
         failureAuditStatus: null,
