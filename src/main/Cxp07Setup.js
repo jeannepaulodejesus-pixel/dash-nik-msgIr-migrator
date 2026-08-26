@@ -115,7 +115,18 @@ var Cxp07Setup = (function () {
       nextStep: state.nextStep,
       status: state.status,
       stepCount: state.stepCount,
+      targetSpreadsheetId: state.targetSpreadsheetId || null,
     });
+  }
+
+  function emitLog(tag, payload) {
+    var line = tag + ' ' + JSON.stringify(payload || {});
+    if (typeof console !== 'undefined' && typeof console.log === 'function') {
+      console.log(line);
+    }
+    if (typeof Logger !== 'undefined' && typeof Logger.log === 'function') {
+      Logger.log(line);
+    }
   }
 
   function requireLock(dependencies) {
@@ -158,8 +169,41 @@ var Cxp07Setup = (function () {
       state.targetSpreadsheetId !== targetId
     ) {
       throw new Error(
-        'The active CXP-07 installation targets a different environment or spreadsheet.',
+        'The active CXP-07 installation targets a different environment or spreadsheet. ' +
+          'activeTarget=' + (state.targetSpreadsheetId || 'null') +
+          ' configuredTarget=' + targetId +
+          ' activeEnv=' + (state.environment || 'null') +
+          ' configuredEnv=' + configuration.environment +
+          '. If no install is RUNNING, delete Script Property ' + STATE_KEY +
+          ' or run resetCxp07HandledOfferedInstallationState().',
       );
+    }
+  }
+
+  function clearState(properties) {
+    var resolved = resolveProperties(properties);
+    if (typeof resolved.deleteProperty === 'function') {
+      resolved.deleteProperty(STATE_KEY);
+      return;
+    }
+    if (typeof resolved.setProperty === 'function') {
+      resolved.setProperty(STATE_KEY, '');
+    }
+  }
+
+  function resetConfigured(properties, services) {
+    var dependencies = resolveServices(services);
+    var lock = requireLock(dependencies);
+    try {
+      removeContinuationTriggers(dependencies.scriptApp);
+      clearState(resolveProperties(properties));
+      return Object.freeze({
+        cleared: true,
+        stateKey: STATE_KEY,
+        status: 'IDLE',
+      });
+    } finally {
+      lock.releaseLock();
     }
   }
 
@@ -194,8 +238,23 @@ var Cxp07Setup = (function () {
         );
         saveState(properties, state);
       } else {
-        validateStateTarget(state, configuration, targetId);
-        if (!continueOnly && state.status === 'COMPLETE') {
+        var targetMismatch =
+          state.environment !== configuration.environment ||
+          state.targetSpreadsheetId !== targetId;
+        if (targetMismatch) {
+          // Allow a clean reinstall when prior work finished or failed on another
+          // target. Refuse to retarget a RUNNING install (operator must reset).
+          if (continueOnly || state.status === 'RUNNING') {
+            validateStateTarget(state, configuration, targetId);
+          }
+          state = newState(
+            configuration,
+            targetId,
+            transformationService.getInstallStepCount(),
+            now(dependencies),
+          );
+          saveState(properties, state);
+        } else if (!continueOnly && state.status === 'COMPLETE') {
           state = newState(
             configuration,
             targetId,
@@ -216,6 +275,14 @@ var Cxp07Setup = (function () {
       }
 
       scheduleContinuation(dependencies.scriptApp, WATCHDOG_DELAY_MS);
+      emitLog('CXP07_INSTALL', {
+        event: continueOnly ? 'CONTINUE' : 'INITIALIZE',
+        environment: configuration.environment,
+        targetSpreadsheetId: targetId,
+        nextStep: state.nextStep,
+        stepCount: state.stepCount,
+        status: state.status,
+      });
       var spreadsheet = dependencies.spreadsheetApp.openById(targetId);
       var invocationStartedMs = now(dependencies).getTime();
       var maxRuntimeMs = Number.isFinite(dependencies.maxRuntimeMs)
@@ -223,18 +290,33 @@ var Cxp07Setup = (function () {
         : DEFAULT_MAX_RUNTIME_MS;
       try {
         while (state.nextStep < state.stepCount) {
+          var stepIndex = state.nextStep;
           var stepResult = transformationService.installStep(
             spreadsheet,
-            state.nextStep,
+            stepIndex,
           );
           state.lastCompletedStep = stepResult.label;
           state.nextStep += 1;
           state.updatedAtUtc = now(dependencies).toISOString();
           saveState(properties, state);
+          emitLog('CXP07_STEP', {
+            stepIndex: stepIndex,
+            label: stepResult.label,
+            nextStep: state.nextStep,
+            stepCount: state.stepCount,
+            elapsedMs: now(dependencies).getTime() - invocationStartedMs,
+          });
           if (
             state.nextStep < state.stepCount &&
             now(dependencies).getTime() - invocationStartedMs >= maxRuntimeMs
           ) {
+            emitLog('CXP07_INSTALL', {
+              event: 'CHECKPOINT',
+              nextStep: state.nextStep,
+              stepCount: state.stepCount,
+              lastCompletedStep: state.lastCompletedStep,
+              elapsedMs: now(dependencies).getTime() - invocationStartedMs,
+            });
             break;
           }
         }
@@ -244,6 +326,13 @@ var Cxp07Setup = (function () {
         state.lastError = error && error.message ? String(error.message) : 'CXP-07 step failed.';
         state.updatedAtUtc = now(dependencies).toISOString();
         saveState(properties, state);
+        emitLog('CXP07_INSTALL', {
+          event: 'FAILED',
+          nextStep: state.nextStep,
+          stepCount: state.stepCount,
+          lastCompletedStep: state.lastCompletedStep,
+          lastError: state.lastError,
+        });
         throw error;
       }
 
@@ -253,7 +342,17 @@ var Cxp07Setup = (function () {
         state.completedAtUtc = now(dependencies).toISOString();
         state.updatedAtUtc = state.completedAtUtc;
         saveState(properties, state);
-        return publicResult(state, false);
+        var completeResult = publicResult(state, false);
+        emitLog('CXP07_INSTALL', {
+          event: 'COMPLETE',
+          status: completeResult.status,
+          nextStep: completeResult.nextStep,
+          stepCount: completeResult.stepCount,
+          lastCompletedStep: completeResult.lastCompletedStep,
+          targetSpreadsheetId: completeResult.targetSpreadsheetId,
+          continuationScheduled: false,
+        });
+        return completeResult;
       }
 
       state.status = 'RUNNING';
@@ -261,7 +360,17 @@ var Cxp07Setup = (function () {
       scheduleContinuation(dependencies.scriptApp, CONTINUATION_DELAY_MS);
       state.updatedAtUtc = now(dependencies).toISOString();
       saveState(properties, state);
-      return publicResult(state, true);
+      var runningResult = publicResult(state, true);
+      emitLog('CXP07_INSTALL', {
+        event: 'RUNNING',
+        status: runningResult.status,
+        nextStep: runningResult.nextStep,
+        stepCount: runningResult.stepCount,
+        lastCompletedStep: runningResult.lastCompletedStep,
+        targetSpreadsheetId: runningResult.targetSpreadsheetId,
+        continuationScheduled: true,
+      });
+      return runningResult;
     } finally {
       lock.releaseLock();
     }
@@ -349,6 +458,7 @@ var Cxp07Setup = (function () {
         startedAtUtc: null,
         status: 'IDLE',
         stepCount: resolveTransformationService().getInstallStepCount(),
+        targetSpreadsheetId: null,
         updatedAtUtc: null,
       });
     }
@@ -361,6 +471,7 @@ var Cxp07Setup = (function () {
       startedAtUtc: state.startedAtUtc,
       status: state.status,
       stepCount: state.stepCount,
+      targetSpreadsheetId: state.targetSpreadsheetId || null,
       updatedAtUtc: state.updatedAtUtc,
     });
   }
@@ -369,25 +480,246 @@ var Cxp07Setup = (function () {
     CONTINUATION_HANDLER: CONTINUATION_HANDLER,
     STATE_KEY: STATE_KEY,
     continueConfigured: continueConfigured,
+    emitLog: emitLog,
     getStatus: getStatus,
     initializeConfigured: initializeConfigured,
+    resetConfigured: resetConfigured,
   });
 })();
 
+function logCxp07Public(tag, payload) {
+  if (typeof Cxp07Setup !== 'undefined' && typeof Cxp07Setup.emitLog === 'function') {
+    Cxp07Setup.emitLog(tag, payload);
+    return;
+  }
+  var line = tag + ' ' + JSON.stringify(payload || {});
+  if (typeof console !== 'undefined' && typeof console.log === 'function') {
+    console.log(line);
+  }
+  if (typeof Logger !== 'undefined' && typeof Logger.log === 'function') {
+    Logger.log(line);
+  }
+}
+
 function initializeCxp07HandledOfferedTransformations() {
-  return Cxp07Setup.initializeConfigured();
+  logCxp07Public('CXP07_INSTALL', { event: 'START', mode: 'initialize' });
+  try {
+    var result = Cxp07Setup.initializeConfigured();
+    logCxp07Public('CXP07_INSTALL', {
+      event: 'RETURN',
+      mode: 'initialize',
+      status: result.status,
+      nextStep: result.nextStep,
+      stepCount: result.stepCount,
+      lastCompletedStep: result.lastCompletedStep,
+      continuationScheduled: result.continuationScheduled,
+      targetSpreadsheetId: result.targetSpreadsheetId || null,
+    });
+    return result;
+  } catch (error) {
+    logCxp07Public('CXP07_INSTALL', {
+      event: 'ERROR',
+      mode: 'initialize',
+      message: error && error.message ? String(error.message) : String(error),
+    });
+    throw error;
+  }
 }
 
 function continueCxp07HandledOfferedTransformations() {
-  return Cxp07Setup.continueConfigured();
+  logCxp07Public('CXP07_INSTALL', { event: 'START', mode: 'continue' });
+  try {
+    var result = Cxp07Setup.continueConfigured();
+    logCxp07Public('CXP07_INSTALL', {
+      event: 'RETURN',
+      mode: 'continue',
+      status: result.status,
+      nextStep: result.nextStep,
+      stepCount: result.stepCount,
+      lastCompletedStep: result.lastCompletedStep,
+      continuationScheduled: result.continuationScheduled,
+      targetSpreadsheetId: result.targetSpreadsheetId || null,
+    });
+    return result;
+  } catch (error) {
+    logCxp07Public('CXP07_INSTALL', {
+      event: 'ERROR',
+      mode: 'continue',
+      message: error && error.message ? String(error.message) : String(error),
+    });
+    throw error;
+  }
 }
 
 function getCxp07HandledOfferedTransformationStatus() {
   var status = Cxp07Setup.getStatus();
-  if (typeof console !== 'undefined' && typeof console.log === 'function') {
-    console.log('CXP07_STATUS ' + JSON.stringify(status));
-  }
+  logCxp07Public('CXP07_STATUS', status);
   return status;
+}
+
+function resetCxp07HandledOfferedInstallationState() {
+  logCxp07Public('CXP07_INSTALL', { event: 'START', mode: 'reset' });
+  try {
+    var result = Cxp07Setup.resetConfigured();
+    logCxp07Public('CXP07_INSTALL', {
+      event: 'RETURN',
+      mode: 'reset',
+      cleared: result.cleared,
+      status: result.status,
+      stateKey: result.stateKey,
+    });
+    return result;
+  } catch (error) {
+    logCxp07Public('CXP07_INSTALL', {
+      event: 'ERROR',
+      mode: 'reset',
+      message: error && error.message ? String(error.message) : String(error),
+    });
+    throw error;
+  }
+}
+
+/**
+ * CXP-07 runbook install/inspect diagnostic for a target workbook.
+ * Pass a spreadsheet ID string, or omit to use the configured target.
+ */
+function diagnoseCxp07RunbookChecks(spreadsheetId) {
+  var SchemaRegistryRef = typeof SchemaRegistry !== 'undefined'
+    ? SchemaRegistry
+    : null;
+  if (!SchemaRegistryRef) {
+    throw new Error('SchemaRegistry is required.');
+  }
+  var id = spreadsheetId;
+  if (!id || typeof id !== 'string') {
+    id = Config.load().targetSpreadsheetId;
+  }
+  var ss = SpreadsheetApp.openById(id);
+  var report = {
+    spreadsheetId: id,
+    title: ss.getName(),
+    status: null,
+    rawSchema: {},
+    calc: {},
+  };
+  try {
+    report.status = Cxp07Setup.getStatus();
+  } catch (statusError) {
+    report.statusError = statusError && statusError.message
+      ? statusError.message
+      : String(statusError);
+  }
+
+  var datasets = [
+    { datasetName: 'AHT - Raw', sheetName: '_RAW_AHT' },
+    { datasetName: 'Handled', sheetName: '_RAW_HANDLED' },
+    { datasetName: 'Offered', sheetName: '_RAW_OFFERED' },
+  ];
+  datasets.forEach(function (entry) {
+    var expected = SchemaRegistryRef.getSchema(entry.datasetName).requiredHeaders;
+    var sheet = ss.getSheetByName(entry.sheetName);
+    if (!sheet) {
+      report.rawSchema[entry.sheetName] = {
+        present: false,
+        expectedCount: expected.length,
+      };
+      return;
+    }
+    var actual = sheet.getRange(1, 1, 1, expected.length).getDisplayValues()[0];
+    var diffs = [];
+    for (var i = 0; i < expected.length; i += 1) {
+      if (actual[i] !== expected[i]) {
+        diffs.push({
+          col: i + 1,
+          actual: actual[i],
+          expected: expected[i],
+        });
+      }
+    }
+    var lastRow = sheet.getLastRow();
+    report.rawSchema[entry.sheetName] = {
+      present: true,
+      matchesCxp03: diffs.length === 0,
+      expectedCount: expected.length,
+      headerCount: actual.length,
+      diffs: diffs,
+      lastRow: lastRow,
+      dataRowsApprox: Math.max(0, lastRow - 1),
+    };
+  });
+
+  function inspectCalc(sheetName, expectedHeaderCount, formulaColumns) {
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      report.calc[sheetName] = { present: false };
+      return;
+    }
+    var headers = sheet.getRange(1, 1, 1, expectedHeaderCount).getDisplayValues()[0];
+    while (headers.length && headers[headers.length - 1] === '') {
+      headers.pop();
+    }
+    var formulas = sheet.getRange(2, 1, 2, formulaColumns).getFormulas()[0];
+    var formulaPresent = [];
+    var formulaMissing = [];
+    var formulaParseErrors = [];
+    var i;
+    for (i = 0; i < formulaColumns; i += 1) {
+      var colLetter = String.fromCharCode(65 + i);
+      if (formulas[i]) {
+        formulaPresent.push(colLetter + '2');
+        if (formulas[i].charAt(0) !== '=') {
+          formulaParseErrors.push(colLetter + '2');
+        }
+      } else {
+        formulaMissing.push(colLetter + '2');
+      }
+    }
+    var fillDownSample = [];
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 2) {
+      var below = sheet.getRange(3, 1, Math.min(lastRow, 12), formulaColumns).getFormulas();
+      for (var r = 0; r < below.length; r += 1) {
+        for (var c = 0; c < below[r].length; c += 1) {
+          if (below[r][c]) {
+            fillDownSample.push(String.fromCharCode(65 + c) + String(r + 3));
+            if (fillDownSample.length >= 10) {
+              break;
+            }
+          }
+        }
+        if (fillDownSample.length >= 10) {
+          break;
+        }
+      }
+    }
+    var displaySample = sheet.getRange(
+      2,
+      1,
+      Math.min(Math.max(lastRow, 2), 5),
+      Math.min(formulaColumns, 8),
+    ).getDisplayValues();
+    report.calc[sheetName] = {
+      present: true,
+      headerCount: headers.length,
+      headerCountOk: headers.length === expectedHeaderCount,
+      headers: headers,
+      formulaAnchorsPresent: formulaPresent,
+      formulaAnchorsMissing: formulaMissing,
+      formulaAnchorCountOk: formulaMissing.length === 0,
+      noFillDown: fillDownSample.length === 0,
+      fillDownSample: fillDownSample,
+      displaySampleRows2to5: displaySample,
+      lastRow: lastRow,
+    };
+  }
+
+  inspectCalc('_CALC_HANDLED', 30, 4);
+  inspectCalc('_CALC_OFFERED', 42, 16);
+
+  if (typeof Logger !== 'undefined' && typeof Logger.log === 'function') {
+    Logger.log(JSON.stringify(report));
+  }
+  return report;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
