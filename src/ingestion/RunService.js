@@ -294,7 +294,7 @@
     }
   }
 
-  function persistFailure(error, machine, context, request, dependencies, clock) {
+  function buildFailure(error, machine, context, request, clock) {
     var failedAtState = machine.currentState();
     var normalized = ErrorCodes.normalize(error, fallbackCodeFor(failedAtState));
     var failureState = ErrorCodes.failureStateFor(normalized.code);
@@ -320,9 +320,64 @@
     });
     normalized.runRecord = failedRunRecord;
     normalized.errorRecord = errorRecord;
+    return normalized;
+  }
+
+  function persistFailure(error, machine, context, request, dependencies, clock) {
+    var normalized = buildFailure(error, machine, context, request, clock);
     if (dependencies.repository && typeof dependencies.repository.persist === 'function') {
-      dependencies.repository.persist([failedRunRecord], [errorRecord]);
+      dependencies.repository.persist([normalized.runRecord], [normalized.errorRecord]);
     }
+    throw normalized;
+  }
+
+  function recordFailure(checkpoint, error, services) {
+    resolveRuntimeDependencies();
+    var dependencies = services || {};
+    var clock = dependencies.clock && typeof dependencies.clock.now === 'function'
+      ? dependencies.clock
+      : defaultClock();
+    if (
+      !checkpoint || checkpoint.version !== 1 ||
+      !checkpoint.request || !checkpoint.runId || !checkpoint.startedAtUtc ||
+      !Array.isArray(checkpoint.stateHistory)
+    ) {
+      throw ErrorCodes.create('INGESTION_INVALID_RUN_METADATA', {
+        details: { field: 'checkpoint' }
+      });
+    }
+    requireMetadata(checkpoint.request);
+    if (!dependencies.repository || typeof dependencies.repository.persistOnce !== 'function') {
+      throw ErrorCodes.create('REPORTING_LOG_WRITE_FAILED', {
+        message: 'A run repository with persistOnce is required.'
+      });
+    }
+
+    var normalized = ErrorCodes.normalize(error, 'MIGRATION_COMMIT_FAILED');
+    if (!normalized.runRecord || !normalized.errorRecord) {
+      var machine = RunStateMachine.restore(clock, checkpoint.stateHistory);
+      if (machine.currentState() === 'VALIDATING_STAGE') {
+        machine.transition('COMMITTING');
+      }
+      if (machine.currentState() !== 'COMMITTING') {
+        throw ErrorCodes.create('INGESTION_INVALID_RUN_METADATA', {
+          details: { field: 'checkpoint.stateHistory' }
+        });
+      }
+      normalized = buildFailure(
+        normalized,
+        machine,
+        {
+          operationResults: {},
+          request: checkpoint.request,
+          runId: checkpoint.runId,
+          startedAtUtc: checkpoint.startedAtUtc
+        },
+        checkpoint.request,
+        clock
+      );
+    }
+    dependencies.repository.persistOnce([normalized.runRecord], [normalized.errorRecord]);
     throw normalized;
   }
 
@@ -460,6 +515,7 @@
     REQUIRED_OPERATIONS: REQUIRED_OPERATIONS,
     execute: execute,
     prepare: prepare,
+    recordFailure: recordFailure,
     resume: resume
   });
 });

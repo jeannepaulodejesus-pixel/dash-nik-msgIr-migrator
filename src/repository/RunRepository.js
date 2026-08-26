@@ -82,6 +82,35 @@
     sheet.getRange(startRow, 1, rows.length, width).setValues(rows);
   }
 
+  function existingRunIds(sheet) {
+    var ids = Object.create(null);
+    var dataRowCount = sheet.getLastRow() - 1;
+    if (dataRowCount <= 0) {
+      return ids;
+    }
+    sheet.getRange(2, 1, dataRowCount, 1).getValues().forEach(function (row) {
+      if (row[0] !== '') {
+        ids[String(row[0])] = true;
+      }
+    });
+    return ids;
+  }
+
+  function missingRecords(records, knownIds) {
+    var existingCount = 0;
+    var missing = [];
+    records.forEach(function (record) {
+      var runId = String(record && record.runId || '');
+      if (knownIds[runId]) {
+        existingCount += 1;
+        return;
+      }
+      knownIds[runId] = true;
+      missing.push(record);
+    });
+    return { existingCount: existingCount, records: missing };
+  }
+
   function create(spreadsheet) {
     resolveRuntimeDependencies();
     if (!spreadsheet || typeof spreadsheet.getSheetByName !== 'function') {
@@ -120,7 +149,50 @@
       }
     }
 
-    return Object.freeze({ persist: persist });
+    function persistOnce(runRecords, errorRecords) {
+      var normalizedRuns = runRecords || [];
+      var normalizedErrors = errorRecords || [];
+
+      try {
+        var runSheet = null;
+        var errorSheet = null;
+        if (normalizedRuns.length > 0) {
+          runSheet = requireSheet(spreadsheet, RUN_LOG_SHEET);
+          ensureHeaders(runSheet, RUN_LOG_SHEET, RunLogger.HEADERS);
+        }
+        if (normalizedErrors.length > 0) {
+          errorSheet = requireSheet(spreadsheet, ERROR_LOG_SHEET);
+          ensureHeaders(errorSheet, ERROR_LOG_SHEET, ErrorLogger.HEADERS);
+        }
+
+        var filteredRuns = runSheet
+          ? missingRecords(normalizedRuns, existingRunIds(runSheet))
+          : { existingCount: 0, records: [] };
+        var filteredErrors = errorSheet
+          ? missingRecords(normalizedErrors, existingRunIds(errorSheet))
+          : { existingCount: 0, records: [] };
+        if (runSheet) {
+          appendRows(runSheet, RunLogger.toRows(filteredRuns.records), RunLogger.HEADERS.length);
+        }
+        if (errorSheet) {
+          appendRows(
+            errorSheet,
+            ErrorLogger.toRows(filteredErrors.records),
+            ErrorLogger.HEADERS.length,
+          );
+        }
+        return Object.freeze({
+          appendedErrors: filteredErrors.records.length,
+          appendedRuns: filteredRuns.records.length,
+          existingErrors: filteredErrors.existingCount,
+          existingRuns: filteredRuns.existingCount,
+        });
+      } catch (error) {
+        throw ErrorCodes.normalize(error, 'REPORTING_LOG_WRITE_FAILED');
+      }
+    }
+
+    return Object.freeze({ persist: persist, persistOnce: persistOnce });
   }
 
   return Object.freeze({

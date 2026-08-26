@@ -360,6 +360,103 @@ test('prepared runs checkpoint after validated staging and resume commit without
   );
 });
 
+// Defect caught: a hosted worker fails after preparation without producing standard terminal audit records.
+test('recordFailure audits a prepared worker failure from the COMMITTING boundary', () => {
+  const ErrorCodes = loadModule('../src/monitoring/ErrorCodes.js');
+  const RunService = loadModule('../src/ingestion/RunService.js');
+  const repository = {
+    calls: [],
+    persist() {},
+    persistOnce(runRecords, errorRecords) {
+      this.calls.push({ errorRecords, runRecords });
+      return {
+        appendedErrors: errorRecords.length,
+        appendedRuns: runRecords.length,
+        existingErrors: 0,
+        existingRuns: 0,
+      };
+    },
+  };
+  const services = servicesWith({
+    createCheckpoint: () => ({ token: 'hosted-worker' }),
+    repository,
+  });
+  const prepared = RunService.prepare(validRequest(), operationsWith(), services);
+  const failure = ErrorCodes.create('MIGRATION_COMMIT_FAILED', {
+    details: { rollbackStatus: 'VERIFIED' },
+  });
+
+  assert.throws(
+    () => RunService.recordFailure(prepared.checkpoint, failure, services),
+    (error) => {
+      assert.equal(error.code, 'MIGRATION_COMMIT_FAILED');
+      assert.equal(error.runRecord.status, 'FAILED_MIGRATION_CALCULATION');
+      assert.deepEqual(
+        error.runRecord.stateHistory.map((event) => event.state),
+        [
+          'RECEIVED',
+          'VALIDATING_FILE',
+          'PARSING',
+          'VALIDATING_SCHEMA',
+          'CHECKING_DUPLICATE',
+          'STAGING',
+          'VALIDATING_STAGE',
+          'COMMITTING',
+          'FAILED_MIGRATION_CALCULATION',
+        ],
+      );
+      assert.equal(error.errorRecord.state, 'COMMITTING');
+      assert.deepEqual(error.errorRecord.details, { rollbackStatus: 'VERIFIED' });
+      return true;
+    },
+  );
+  assert.equal(repository.calls.length, 1);
+  assert.equal(repository.calls[0].runRecords.length, 1);
+  assert.equal(repository.calls[0].errorRecords.length, 1);
+});
+
+// Defect caught: retrying an already-built terminal failure changes its immutable audit timestamps or history.
+test('recordFailure reuses attached terminal records during an idempotent retry', () => {
+  const ErrorCodes = loadModule('../src/monitoring/ErrorCodes.js');
+  const RunService = loadModule('../src/ingestion/RunService.js');
+  const repository = {
+    calls: [],
+    persist() {},
+    persistOnce(runRecords, errorRecords) {
+      this.calls.push({ errorRecords, runRecords });
+    },
+  };
+  const services = servicesWith({ createCheckpoint: () => ({}), repository });
+  const prepared = RunService.prepare(validRequest(), operationsWith(), services);
+  const attachedRunRecord = Object.freeze({
+    endedAtUtc: '2026-08-27T00:02:00.000Z',
+    errorCode: 'MIGRATION_COMMIT_FAILED',
+    runId: prepared.checkpoint.runId,
+    stateHistory: Object.freeze([{ atUtc: '2026-08-27T00:02:00.000Z', state: 'FAILED_MIGRATION_CALCULATION' }]),
+    status: 'FAILED_MIGRATION_CALCULATION',
+  });
+  const attachedErrorRecord = Object.freeze({
+    atUtc: '2026-08-27T00:02:00.000Z',
+    errorCode: 'MIGRATION_COMMIT_FAILED',
+    runId: prepared.checkpoint.runId,
+    state: 'COMMITTING',
+  });
+  const failure = ErrorCodes.create('MIGRATION_COMMIT_FAILED');
+  failure.runRecord = attachedRunRecord;
+  failure.errorRecord = attachedErrorRecord;
+
+  assert.throws(
+    () => RunService.recordFailure(prepared.checkpoint, failure, services),
+    (error) => {
+      assert.strictEqual(error.runRecord, attachedRunRecord);
+      assert.strictEqual(error.errorRecord, attachedErrorRecord);
+      return true;
+    },
+  );
+  assert.strictEqual(repository.calls[0].runRecords[0], attachedRunRecord);
+  assert.strictEqual(repository.calls[0].errorRecords[0], attachedErrorRecord);
+});
+
 // Defect caught: a corrupted persisted stage masks its real failure behind an illegal restored-state transition.
 test('resumed stage failures are audited from VALIDATING_STAGE without entering the lock', () => {
   const RunService = loadModule('../src/ingestion/RunService.js');
@@ -644,6 +741,79 @@ test('run repository validates controlled headers and appends run/error rows wit
     (error) => error.code === 'REPORTING_LOG_SCHEMA_MISMATCH',
   );
   assert.equal(driftedRunSheet.writeCalls.length, 0);
+});
+
+// Defect caught: a continuation retry duplicates a terminal audit row or cannot repair one side of a partial write.
+test('run repository persistOnce repairs partial terminal audit rows without duplicates', () => {
+  const RunRepository = loadModule('../src/repository/RunRepository.js');
+  const runSheet = new FakeLogSheet('RUN_LOG');
+  const errorSheet = new FakeLogSheet('ERROR_LOG');
+  const repository = RunRepository.create(
+    new FakeControlSpreadsheet([runSheet, errorSheet]),
+  );
+  const runRecord = {
+    endedAtUtc: '2026-08-27T00:01:00.000Z',
+    errorCode: 'MIGRATION_COMMIT_FAILED',
+    inputRowCounts: { Handled: 2 },
+    outputRowCounts: {},
+    runId: 'run-terminal-once',
+    schemaVersion: '1.0.0',
+    sourceActor: 'uat@example.test',
+    sourceFileId: 'file-terminal',
+    sourceFileName: 'terminal.xls',
+    startedAtUtc: '2026-08-27T00:00:00.000Z',
+    stateHistory: [{ atUtc: '2026-08-27T00:00:00.000Z', state: 'RECEIVED' }],
+    status: 'FAILED_MIGRATION_CALCULATION',
+    targetWorkbookId: 'target-terminal',
+  };
+  const errorRecord = {
+    atUtc: '2026-08-27T00:01:00.000Z',
+    category: 'MIGRATION_CALCULATION',
+    details: { rollbackStatus: 'VERIFIED' },
+    errorCode: 'MIGRATION_COMMIT_FAILED',
+    failureState: 'FAILED_MIGRATION_CALCULATION',
+    message: 'The production commit failed.',
+    runId: 'run-terminal-once',
+    state: 'COMMITTING',
+  };
+
+  assert.deepEqual(repository.persistOnce([runRecord], [errorRecord]), {
+    appendedErrors: 1,
+    appendedRuns: 1,
+    existingErrors: 0,
+    existingRuns: 0,
+  });
+  assert.equal(runSheet.rows.length, 2);
+  assert.equal(errorSheet.rows.length, 2);
+
+  assert.deepEqual(repository.persistOnce([runRecord], [errorRecord]), {
+    appendedErrors: 0,
+    appendedRuns: 0,
+    existingErrors: 1,
+    existingRuns: 1,
+  });
+  assert.equal(runSheet.rows.length, 2);
+  assert.equal(errorSheet.rows.length, 2);
+
+  errorSheet.rows.pop();
+  assert.deepEqual(repository.persistOnce([runRecord], [errorRecord]), {
+    appendedErrors: 1,
+    appendedRuns: 0,
+    existingErrors: 0,
+    existingRuns: 1,
+  });
+  assert.equal(runSheet.rows.length, 2);
+  assert.equal(errorSheet.rows.length, 2);
+
+  runSheet.rows.pop();
+  assert.deepEqual(repository.persistOnce([runRecord], [errorRecord]), {
+    appendedErrors: 0,
+    appendedRuns: 1,
+    existingErrors: 1,
+    existingRuns: 0,
+  });
+  assert.equal(runSheet.rows.length, 2);
+  assert.equal(errorSheet.rows.length, 2);
 });
 
 // Defect caught: Apps Script evaluates a consumer before its global dependency files.
