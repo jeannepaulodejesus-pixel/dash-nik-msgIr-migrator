@@ -1,0 +1,30 @@
+{
+  "folderId": "1fMvoiP4O_TBrJ7DaC9hAfQYprql0GUZv",
+  "files": [
+    {
+      "prop": "CXP_UAT_HANDLED_FILE_ID",
+      "fileId": "1-QykowOA6EYYZI23UXAeo73N62lO-bnH",
+      "name": "Nike_Messaging_Handled_Synthetic_10000.xlsx"
+    },
+    {
+      "prop": "CXP_UAT_OFFERED_FILE_ID",
+      "fileId": "1nAjNfhbbI8dAxMYiYnpzppGJlLJ0cKIm",
+      "name": "Nike_Messaging_Offered_Synthetic_10000.xlsx"
+    },
+    {
+      "prop": "CXP_UAT_AHT_FILE_ID",
+      "fileId": "1T5m3ZWZlUvy9vLgigZ2rt5Zj4dBtxFFp",
+      "name": "Nike_Messaging_AHT_Synthetic_15000.xlsx"
+    },
+    {
+      "prop": "CXP_UAT_AUXES_FILE_ID",
+      "fileId": "106yWuhU4hsRgGIKdCloxwShnii2GGE4l",
+      "name": "Nike_Messaging_Aux_Synthetic_7500.xlsx"
+    },
+    {
+      "prop": "CXP_UAT_STAFF_FILE_ID",
+      "fileId": "15RSaMxH4o3VQCtV9vIEhkRKQ1eTxPpB8",
+      "name": "Nike_Messaging_Staffing_Synthetic_2000.xlsx"
+    }
+  ]
+}
