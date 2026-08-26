@@ -169,7 +169,9 @@ var Cxp06UatContinuation = (function () {
     return Object.freeze({
       continuationScheduled: continuationScheduled === true,
       environment: state.environment,
+      failureAuditStatus: state.failureAuditStatus || null,
       heartbeatAtUtc: state.heartbeatAtUtc || null,
+      lastAuditErrorCode: state.lastAuditErrorCode || null,
       lastCompletedBackupDataset: state.lastCompletedBackupDataset || null,
       lastCompletedCommitDataset: state.lastCompletedCommitDataset || null,
       lastErrorCode: state.lastErrorCode || null,
@@ -266,6 +268,22 @@ var Cxp06UatContinuation = (function () {
     }
 
     return Object.freeze({
+      auditFailure: function (state, error) {
+        var hosted = hostedDependencies();
+        var repository = hosted.runServices.repository;
+        if (error && error.runRecord && error.errorRecord) {
+          repository.persistOnce([error.runRecord], [error.errorRecord]);
+          return;
+        }
+        try {
+          runService.recordFailure(state.checkpoint, error, hosted.runServices);
+        } catch (recordedError) {
+          if (recordedError && recordedError.runRecord && recordedError.errorRecord) {
+            return;
+          }
+          throw recordedError;
+        }
+      },
       backup: function (state) {
         var output;
         var adapter = {
@@ -394,15 +412,74 @@ var Cxp06UatContinuation = (function () {
   }
 
   function markFailed(state, error, dependencies) {
-    removeTriggers(dependencies.scriptApp);
     state.status = 'FAILED';
     state.lastErrorCode = error && typeof error.code === 'string'
       ? error.code
       : 'UNKNOWN_ERROR';
     state.lastErrorDetails = boundedErrorDetails(error);
+    state.failureAuditStatus = null;
+    state.lastAuditErrorCode = null;
     state.updatedAtUtc = nowIso(dependencies);
     saveState(dependencies.properties, state);
+    var executor = executorFor(dependencies);
+    if (typeof executor.auditFailure === 'function') {
+      state.failureAuditStatus = 'PENDING';
+      saveState(dependencies.properties, state);
+      try {
+        executor.auditFailure(state, error);
+        state.failureAuditStatus = 'RECORDED';
+        state.lastAuditErrorCode = null;
+        removeTriggers(dependencies.scriptApp);
+      } catch (auditError) {
+        state.failureAuditStatus = 'PENDING';
+        state.lastAuditErrorCode = auditError && typeof auditError.code === 'string'
+          ? auditError.code
+          : 'REPORTING_LOG_WRITE_FAILED';
+        replaceContinuationTrigger(dependencies.scriptApp, SELF_RESUME_DELAY_MS);
+      }
+      state.updatedAtUtc = nowIso(dependencies);
+      saveState(dependencies.properties, state);
+    } else {
+      removeTriggers(dependencies.scriptApp);
+    }
     throw error;
+  }
+
+  function stateFailureError(state) {
+    var error = new Error('Retrying terminal CXP-06 failure audit.');
+    error.code = state.lastErrorCode || 'INGESTION_OPERATION_FAILED';
+    error.details = Object.assign({}, state.lastErrorDetails || {});
+    return error;
+  }
+
+  function retryFailureAudit(state, dependencies) {
+    var executor = executorFor(dependencies);
+    if (typeof executor.auditFailure !== 'function') {
+      state.failureAuditStatus = null;
+      state.lastAuditErrorCode = null;
+      state.updatedAtUtc = nowIso(dependencies);
+      saveState(dependencies.properties, state);
+      removeTriggers(dependencies.scriptApp);
+      return publicResult(state, false);
+    }
+    try {
+      executor.auditFailure(state, stateFailureError(state));
+      state.failureAuditStatus = 'RECORDED';
+      state.lastAuditErrorCode = null;
+      state.updatedAtUtc = nowIso(dependencies);
+      saveState(dependencies.properties, state);
+      removeTriggers(dependencies.scriptApp);
+      return publicResult(state, false);
+    } catch (auditError) {
+      state.failureAuditStatus = 'PENDING';
+      state.lastAuditErrorCode = auditError && typeof auditError.code === 'string'
+        ? auditError.code
+        : 'REPORTING_LOG_WRITE_FAILED';
+      state.updatedAtUtc = nowIso(dependencies);
+      saveState(dependencies.properties, state);
+      replaceContinuationTrigger(dependencies.scriptApp, SELF_RESUME_DELAY_MS);
+      return publicResult(state, true);
+    }
   }
 
   function isLockContention(error) {
@@ -647,6 +724,9 @@ var Cxp06UatContinuation = (function () {
         ensureContinuationTrigger(dependencies.scriptApp, SELF_RESUME_DELAY_MS),
       );
     }
+    if (state && state.status === 'FAILED' && state.failureAuditStatus === 'PENDING') {
+      return retryFailureAudit(state, dependencies);
+    }
     if (state && state.status === 'FAILED' && state.checkpoint &&
         state.lastErrorCode !== 'MIGRATION_STAGE_VALIDATION_FAILED') {
       if (state.lastErrorCode === 'MIGRATION_ROLLBACK_FAILED') {
@@ -666,6 +746,8 @@ var Cxp06UatContinuation = (function () {
       }
       state.lastErrorCode = null;
       state.lastErrorDetails = null;
+      state.failureAuditStatus = null;
+      state.lastAuditErrorCode = null;
       if (state.checkpoint.data && state.checkpoint.data.backupRunId) {
         return commitState(state, dependencies);
       }
@@ -674,6 +756,8 @@ var Cxp06UatContinuation = (function () {
     state = {
       checkpoint: null,
       environment: environment,
+      failureAuditStatus: null,
+      lastAuditErrorCode: null,
       lastErrorCode: null,
       lastErrorDetails: null,
       scenario: scenario,
@@ -694,6 +778,8 @@ var Cxp06UatContinuation = (function () {
       return Object.freeze({
         continuationScheduled: false,
         environment: environment,
+        failureAuditStatus: null,
+        lastAuditErrorCode: null,
         lastCompletedBackupDataset: null,
         lastCompletedCommitDataset: null,
         lastErrorCode: null,
@@ -706,6 +792,9 @@ var Cxp06UatContinuation = (function () {
     }
     if (state.environment !== environment) {
       throw new Error('The active CXP-06 continuation belongs to another environment.');
+    }
+    if (state.status === 'FAILED' && state.failureAuditStatus === 'PENDING') {
+      return retryFailureAudit(state, dependencies);
     }
     if (state.status === 'COMPLETE' || state.status === 'FAILED') {
       removeTriggers(dependencies.scriptApp);
@@ -734,6 +823,8 @@ var Cxp06UatContinuation = (function () {
       return Object.freeze({
         continuationScheduled: false,
         environment: environment,
+        failureAuditStatus: null,
+        lastAuditErrorCode: null,
         lastCompletedBackupDataset: null,
         lastCompletedCommitDataset: null,
         lastErrorCode: null,

@@ -479,6 +479,112 @@ test('hosted CXP-06 production executor uses dataset-scoped commit before final 
   }
 });
 
+// Defect caught: the production continuation executor never bridges a dataset-worker failure into RunService terminal auditing.
+test('hosted CXP-06 production executor records a worker failure through RunService', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const originalHarness = global.Cxp06UatHarness;
+  const originalRunService = global.RunService;
+  const persisted = [];
+  const recorded = [];
+  const operationalFailure = ErrorCodes.create('MIGRATION_COMMIT_FAILED', {
+    details: { rollbackStatus: 'VERIFIED' },
+  });
+  const repository = {
+    persistOnce(runRecords, errorRecords) {
+      persisted.push({ errorRecords, runRecords });
+    },
+  };
+  const hosted = { runServices: { repository } };
+  try {
+    global.RunService = {
+      recordFailure(checkpoint, error, services) {
+        recorded.push({ checkpoint, code: error.code, services });
+        error.runRecord = { runId: checkpoint.runId, status: 'FAILED_MIGRATION_CALCULATION' };
+        error.errorRecord = { errorCode: error.code, runId: checkpoint.runId };
+        services.repository.persistOnce([error.runRecord], [error.errorRecord]);
+        throw error;
+      },
+      resume() {
+        throw new Error('Final resume must not run after the worker failure.');
+      },
+    };
+    global.Cxp06UatHarness = {
+      createHostedDependencies() {
+        return hosted;
+      },
+      hostedRuntimeServices() {
+        return {};
+      },
+      execute(_options, dependencies) {
+        try {
+          return dependencies.runService.execute(
+            { targetWorkbookId: 'target-id' },
+            {
+              commitDatasetStep() {
+                throw operationalFailure;
+              },
+              resumeDataset() {},
+            },
+            hosted.runServices,
+          );
+        } catch (error) {
+          return { error };
+        }
+      },
+    };
+    const propertiesStore = mutableProperties({
+      CXP_ENV: 'DEV',
+      CXP_UAT_ENABLED: 'true',
+      CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+        checkpoint: {
+          data: {
+            backupRunId: 'run-production-audit',
+            datasetNames: ['Handled'],
+          },
+          request: { targetWorkbookId: 'target-id' },
+          runId: 'run-production-audit',
+          startedAtUtc: '2026-08-27T03:00:00.000Z',
+          stateHistory: [{ atUtc: '2026-08-27T03:00:00.000Z', state: 'VALIDATING_STAGE' }],
+          version: 1,
+        },
+        environment: 'DEV',
+        lastErrorCode: null,
+        scenario: 'CASE3_MID_COMMIT_FAILURE',
+        startedAtUtc: '2026-08-27T03:00:00.000Z',
+        status: 'COMMIT_PENDING',
+        updatedAtUtc: '2026-08-27T03:00:00.000Z',
+        version: 1,
+      }),
+    });
+    const scriptApp = triggerService();
+
+    assert.throws(
+      () => Cxp06UatContinuation.continueConfigured({
+        clock: { now: () => new Date('2026-08-27T03:01:00.000Z') },
+        properties: propertiesStore,
+        scriptApp,
+      }),
+      { code: 'MIGRATION_COMMIT_FAILED' },
+    );
+    const status = Cxp06UatContinuation.getStatus({
+      properties: propertiesStore,
+      scriptApp,
+    });
+
+    assert.equal(recorded.length, 1);
+    assert.equal(recorded[0].checkpoint.runId, 'run-production-audit');
+    assert.strictEqual(recorded[0].services.repository, repository);
+    assert.equal(persisted.length, 1);
+    assert.equal(status.failureAuditStatus, 'RECORDED');
+    assert.equal(status.continuationScheduled, false);
+  } finally {
+    if (originalHarness === undefined) delete global.Cxp06UatHarness;
+    else global.Cxp06UatHarness = originalHarness;
+    if (originalRunService === undefined) delete global.RunService;
+    else global.RunService = originalRunService;
+  }
+});
+
 // Defect caught: a resume-time staged row-count failure preserves a stale
 // checkpoint, so every manual retry revalidates the same unusable staging data.
 test('hosted CXP-06 re-prepares after a resume-time stage validation failure', () => {
@@ -904,6 +1010,141 @@ test('hosted CXP-06 failed status retains bounded rollback diagnostics', () => {
     rollbackStatus: 'FAILED',
   });
   assert.equal(JSON.stringify(status).includes('do-not-persist'), false);
+});
+
+// Defect caught: a direct hosted worker failure updates Script Properties but never writes its terminal audit rows.
+test('hosted CXP-06 records a successful failure audit before removing its trigger', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { backupRunId: 'run-audited-failure' },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-audited-failure',
+        startedAtUtc: '2026-08-27T01:00:00.000Z',
+        stateHistory: [{ atUtc: '2026-08-27T01:00:00.000Z', state: 'VALIDATING_STAGE' }],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastErrorCode: null,
+      scenario: 'CASE3_MID_COMMIT_FAILURE',
+      startedAtUtc: '2026-08-27T01:00:00.000Z',
+      status: 'COMMIT_PENDING',
+      updatedAtUtc: '2026-08-27T01:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  scriptApp.newTrigger('continueCxp06UatPipeline').timeBased().after(60000).create();
+  const failure = ErrorCodes.create('MIGRATION_COMMIT_FAILED', {
+    details: { rollbackStatus: 'VERIFIED' },
+  });
+  const auditCalls = [];
+  const services = {
+    clock: { now: () => new Date('2026-08-27T01:01:00.000Z') },
+    executor: {
+      auditFailure(state, error) {
+        auditCalls.push({ code: error.code, runId: state.checkpoint.runId, status: state.status });
+      },
+      commit() {
+        throw failure;
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  assert.throws(
+    () => Cxp06UatContinuation.continueConfigured(services),
+    { code: 'MIGRATION_COMMIT_FAILED' },
+  );
+  const status = Cxp06UatContinuation.getStatus(services);
+
+  assert.deepEqual(auditCalls, [{
+    code: 'MIGRATION_COMMIT_FAILED',
+    runId: 'run-audited-failure',
+    status: 'FAILED',
+  }]);
+  assert.equal(status.failureAuditStatus, 'RECORDED');
+  assert.equal(status.lastAuditErrorCode, null);
+  assert.equal(status.lastErrorCode, 'MIGRATION_COMMIT_FAILED');
+  assert.equal(status.continuationScheduled, false);
+  assert.equal(scriptApp.triggers.length, 0);
+});
+
+// Defect caught: a reporting outage deletes the only trigger or replays production writes instead of retrying only the audit.
+test('hosted CXP-06 retries a pending failure audit without replaying commit work', () => {
+  const Cxp06UatContinuation = require('../src/uat/Cxp06UatContinuation.js');
+  const propertiesStore = mutableProperties({
+    CXP_ENV: 'DEV',
+    CXP_UAT_ENABLED: 'true',
+    CXP06_UAT_PIPELINE_STATE: JSON.stringify({
+      checkpoint: {
+        data: { backupRunId: 'run-audit-retry' },
+        request: { targetWorkbookId: 'target-id' },
+        runId: 'run-audit-retry',
+        startedAtUtc: '2026-08-27T02:00:00.000Z',
+        stateHistory: [{ atUtc: '2026-08-27T02:00:00.000Z', state: 'VALIDATING_STAGE' }],
+        version: 1,
+      },
+      environment: 'DEV',
+      lastErrorCode: null,
+      scenario: 'CASE3_MID_COMMIT_FAILURE',
+      startedAtUtc: '2026-08-27T02:00:00.000Z',
+      status: 'COMMIT_PENDING',
+      updatedAtUtc: '2026-08-27T02:00:00.000Z',
+      version: 1,
+    }),
+  });
+  const scriptApp = triggerService();
+  let auditCalls = 0;
+  let commitCalls = 0;
+  const operationalFailure = ErrorCodes.create('MIGRATION_COMMIT_FAILED', {
+    details: { rollbackStatus: 'VERIFIED' },
+  });
+  const services = {
+    clock: { now: () => new Date('2026-08-27T02:01:00.000Z') },
+    executor: {
+      auditFailure(_state, error) {
+        auditCalls += 1;
+        assert.equal(error.code, 'MIGRATION_COMMIT_FAILED');
+        if (auditCalls === 1) {
+          throw ErrorCodes.create('REPORTING_LOG_WRITE_FAILED');
+        }
+      },
+      backup() {
+        throw new Error('Backup must not replay during an audit retry.');
+      },
+      commit() {
+        commitCalls += 1;
+        throw operationalFailure;
+      },
+    },
+    properties: propertiesStore,
+    scriptApp,
+  };
+
+  assert.throws(
+    () => Cxp06UatContinuation.continueConfigured(services),
+    { code: 'MIGRATION_COMMIT_FAILED' },
+  );
+  const pending = Cxp06UatContinuation.getStatus(services);
+  assert.equal(pending.failureAuditStatus, 'PENDING');
+  assert.equal(pending.lastAuditErrorCode, 'REPORTING_LOG_WRITE_FAILED');
+  assert.equal(pending.lastErrorCode, 'MIGRATION_COMMIT_FAILED');
+  assert.equal(pending.continuationScheduled, true);
+  assert.equal(scriptApp.triggers.length, 1);
+
+  const recorded = Cxp06UatContinuation.continueConfigured(services);
+  assert.equal(recorded.status, 'FAILED');
+  assert.equal(recorded.failureAuditStatus, 'RECORDED');
+  assert.equal(recorded.lastAuditErrorCode, null);
+  assert.equal(recorded.continuationScheduled, false);
+  assert.equal(auditCalls, 2);
+  assert.equal(commitCalls, 1);
+  assert.equal(scriptApp.triggers.length, 0);
 });
 
 // Defect caught: retrying MIGRATION_ROLLBACK_FAILED resumes after Handled even
