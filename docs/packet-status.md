@@ -15,7 +15,7 @@ Valid states are `Not started`, `In progress`, `Blocked`, and `Complete`. A pack
 | CXP-04 — Run State Machine, Locking, Logging, and Error Taxonomy | Complete | Delivery `CXP-04-v1` |
 | CXP-05 — Drive/XLSX Input Adapters and Duplicate Fingerprinting | Complete | Delivery `CXP-05-v1` |
 | CXP-06 — Staging, Two-Phase Commit, Rollback, and Raw Replacement | Complete | Delivery `CXP-06-v1` |
-| CXP-07 — Native Transformations: Handled and Offered | Not started | Requires CXP-01 and CXP-02 complete |
+| CXP-07 — Native Transformations: Handled and Offered | Completed | Delivery `CXP-07-v1` |
 | CXP-08 — Native Transformations: AHT, Auxes, and Staff | Not started | Requires CXP-01 and CXP-02 complete |
 | CXP-09 — Stable Aggregation and Domain Model | Not started | Requires CXP-01, CXP-07, and CXP-08 complete |
 | CXP-10 — Interval View and MOM Reporting Surfaces | Not started | Requires CXP-01 and CXP-09 complete |
