@@ -7,6 +7,8 @@
  *   cxp07UatStep1RunParity
  *   cxp07UatStep2PeakFlushTiming
  *   cxp07UatStep3SecondBundleRefresh
+ *   continueCxp07UatStep3Refresh
+ *   getCxp07UatStep3Status
  *   cxp07UatStep4ReinstallTopology
  *   cxp07UatStep4VerifyTopology
  */
@@ -577,6 +579,25 @@ var Cxp07ParityUat = (function () {
     return row;
   }
 
+  function clearSheetContent(sheet, clearRows, clearCols) {
+    var rows = Math.max(1, clearRows || 1);
+    var cols = Math.max(1, clearCols || 1);
+    // Prefer whole-sheet clearContents for peak-sized sheets. Chunked
+    // clearContent + flush forces calc spills to recalc and can exceed the
+    // 6-minute Apps Script limit when _CALC_* already span ~10k rows.
+    if (rows >= 500 || (typeof sheet.getLastRow === 'function' && sheet.getLastRow() >= 500)) {
+      if (typeof sheet.clearContents === 'function') {
+        sheet.clearContents();
+        return;
+      }
+      if (typeof sheet.clear === 'function') {
+        sheet.clear();
+        return;
+      }
+    }
+    sheet.getRange(1, 1, rows, cols).clearContent();
+  }
+
   function writeDataset(sheet, headers, rows, logPrefix) {
     var prefix = logPrefix || 'step1.parity';
     var sheetName = typeof sheet.getName === 'function' ? sheet.getName() : 'unknown';
@@ -589,7 +610,13 @@ var Cxp07ParityUat = (function () {
     var lastColumn = typeof sheet.getLastColumn === 'function' ? sheet.getLastColumn() : 0;
     var clearRows = Math.max(lastRow, rows.length + 1, 1);
     var clearCols = Math.max(lastColumn, headers.length, 1);
-    sheet.getRange(1, 1, clearRows, clearCols).clearContent();
+    uatLog(prefix + '.write.clear.start', {
+      sheetName: sheetName,
+      clearRows: clearRows,
+      clearCols: clearCols,
+    });
+    clearSheetContent(sheet, clearRows, clearCols);
+    uatLog(prefix + '.write.clear.done', { sheetName: sheetName });
 
     var matrix = [headers].concat(rows);
     var range = sheet.getRange(1, 1, matrix.length, headers.length);
@@ -669,6 +696,7 @@ var Cxp07ParityUat = (function () {
     var fixture = opts.fixture || FIXTURE;
     var prefix = opts.logPrefix || 'step1.parity';
     var agentPrefix = opts.agentPrefix || 'AW-PARITY-';
+    var skipFlush = opts.skipFlush === true;
     uatLog(prefix + '.load.start', {});
     var ss = openTarget(spreadsheetId);
     uatLog(prefix + '.load.target_opened', {
@@ -683,9 +711,15 @@ var Cxp07ParityUat = (function () {
     writeDataset(requireSheet(ss, '_RAW_OFFERED'), offered.headers, offered.rows, prefix);
     writeDataset(requireSheet(ss, '_RAW_AHT'), aht.headers, aht.rows, prefix);
 
-    uatLog(prefix + '.load.flush.start', {});
-    SpreadsheetApp.flush();
-    uatLog(prefix + '.load.flush.done', {});
+    if (skipFlush) {
+      uatLog(prefix + '.load.flush.skipped', {
+        note: 'Deferred flush to avoid peak calc recalc during multi-sheet clear/write',
+      });
+    } else {
+      uatLog(prefix + '.load.flush.start', {});
+      SpreadsheetApp.flush();
+      uatLog(prefix + '.load.flush.done', {});
+    }
 
     var report = {
       spreadsheetId: ss.getId(),
@@ -695,10 +729,273 @@ var Cxp07ParityUat = (function () {
         offeredRows: offered.rows.length,
         ahtRows: aht.rows.length,
       },
-      flushed: true,
+      flushed: !skipFlush,
     };
     uatLog(prefix + '.load.complete', report);
     return report;
+  }
+
+  var STEP3_STATE_KEY = 'CXP07_UAT_STEP3_STATE';
+  var STEP3_CONTINUE_HANDLER = 'continueCxp07UatStep3Refresh';
+  var STEP3_PHASES = Object.freeze([
+    'WRITE_HANDLED',
+    'WRITE_OFFERED',
+    'WRITE_AHT',
+    'VERIFY',
+  ]);
+
+  function resolveStep3Properties() {
+    if (
+      typeof PropertiesService !== 'undefined' &&
+      PropertiesService &&
+      typeof PropertiesService.getScriptProperties === 'function'
+    ) {
+      return PropertiesService.getScriptProperties();
+    }
+    throw new Error('Script Properties are required for resumable CXP-07 step 3.');
+  }
+
+  function loadStep3State(properties) {
+    var raw = properties.getProperty(STEP3_STATE_KEY);
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      throw new Error('The persisted CXP-07 step 3 state is invalid.');
+    }
+  }
+
+  function saveStep3State(properties, state) {
+    properties.setProperty(STEP3_STATE_KEY, JSON.stringify(state));
+  }
+
+  function clearStep3State(properties) {
+    if (typeof properties.deleteProperty === 'function') {
+      properties.deleteProperty(STEP3_STATE_KEY);
+      return;
+    }
+    properties.setProperty(STEP3_STATE_KEY, '');
+  }
+
+  function removeStep3Triggers(scriptApp) {
+    if (!scriptApp || typeof scriptApp.getProjectTriggers !== 'function') {
+      return;
+    }
+    scriptApp.getProjectTriggers().forEach(function (trigger) {
+      if (trigger.getHandlerFunction() === STEP3_CONTINUE_HANDLER) {
+        scriptApp.deleteTrigger(trigger);
+      }
+    });
+  }
+
+  function scheduleStep3Continuation(scriptApp, delayMs) {
+    if (!scriptApp || typeof scriptApp.newTrigger !== 'function') {
+      return false;
+    }
+    removeStep3Triggers(scriptApp);
+    scriptApp.newTrigger(STEP3_CONTINUE_HANDLER).timeBased().after(delayMs || 30000).create();
+    return true;
+  }
+
+  function publicStep3Status(state, continuationScheduled) {
+    return Object.freeze({
+      continuationScheduled: continuationScheduled === true,
+      lastError: state && state.lastError ? state.lastError : null,
+      phase: state && state.phase ? state.phase : null,
+      phaseIndex: state && Number.isFinite(state.phaseIndex) ? state.phaseIndex : 0,
+      phaseCount: STEP3_PHASES.length,
+      spreadsheetId: state && state.spreadsheetId ? state.spreadsheetId : null,
+      status: state && state.status ? state.status : 'IDLE',
+      updatedAtUtc: state && state.updatedAtUtc ? state.updatedAtUtc : null,
+    });
+  }
+
+  function getStep3Status() {
+    var state = loadStep3State(resolveStep3Properties());
+    var status = publicStep3Status(state, false);
+    uatLog('step3.refresh.status', status);
+    return status;
+  }
+
+  function runStep3Verify(ss, state) {
+    var prefix = 'step3.refresh';
+    var handledSheet = requireSheet(ss, '_CALC_HANDLED');
+    var offeredSheet = requireSheet(ss, '_CALC_OFFERED');
+    uatLog(prefix + '.recalc_wait.start', { sleepMs: 1500 });
+    Utilities.sleep(1500);
+    SpreadsheetApp.flush();
+    uatLog(prefix + '.recalc_wait.done', {});
+
+    var handledFormulaAfter = handledSheet.getRange(2, 1).getFormula();
+    var offeredFormulaAfter = offeredSheet.getRange(2, 1).getFormula();
+    var formulasUnchanged =
+      handledFormulaAfter === state.handledFormulaBefore &&
+      offeredFormulaAfter === state.offeredFormulaBefore;
+    uatLog(prefix + '.formulas_after', {
+      formulasUnchanged: formulasUnchanged,
+    });
+    if (!formulasUnchanged) {
+      throw new Error(
+        'CXP-07 step 3 failed: calc formula anchors changed (reinstall detected).',
+      );
+    }
+
+    var compare = recordFixtureOutputs(ss.getId(), {
+      fixture: SECOND_FIXTURE,
+      logPrefix: prefix,
+      priorSessionsMustBeAbsent: ['SESSION-100', 'SESSION-200'],
+      sessions: ['SESSION-300', 'SESSION-400'],
+      timezoneCheck: {
+        session300: 'UTC 07:45 -> prior fixed-PST date 2026-08-19 @ 23:30',
+        session400: 'UTC 08:05 -> same UTC date 2026-08-20 @ 00:00',
+      },
+    });
+    if (!compare.pass) {
+      throw new Error(
+        'CXP-07 step 3 second-bundle refresh failed. See Logger for diffs.',
+      );
+    }
+    return {
+      formulasUnchanged: formulasUnchanged,
+      compare: compare,
+      pass: true,
+    };
+  }
+
+  function runStep3Phase(ss, state) {
+    var phase = state.phase;
+    var prefix = 'step3.refresh';
+    if (phase === 'WRITE_HANDLED') {
+      var handled = buildHandledMatrix(SECOND_FIXTURE, prefix);
+      writeDataset(
+        requireSheet(ss, '_RAW_HANDLED'),
+        handled.headers,
+        handled.rows,
+        prefix,
+      );
+      return { wrote: 'Handled', rows: handled.rows.length };
+    }
+    if (phase === 'WRITE_OFFERED') {
+      var offered = buildOfferedMatrix(SECOND_FIXTURE, prefix);
+      writeDataset(
+        requireSheet(ss, '_RAW_OFFERED'),
+        offered.headers,
+        offered.rows,
+        prefix,
+      );
+      return { wrote: 'Offered', rows: offered.rows.length };
+    }
+    if (phase === 'WRITE_AHT') {
+      var aht = buildAhtMatrix(SECOND_FIXTURE, prefix, 'AW-REFRESH-');
+      writeDataset(requireSheet(ss, '_RAW_AHT'), aht.headers, aht.rows, prefix);
+      return { wrote: 'AHT', rows: aht.rows.length };
+    }
+    if (phase === 'VERIFY') {
+      return runStep3Verify(ss, state);
+    }
+    throw new Error('Unknown CXP-07 step 3 phase: ' + phase);
+  }
+
+  function advanceStep3(continueOnly) {
+    resetTelemetryClock();
+    var properties = resolveStep3Properties();
+    var scriptApp = typeof ScriptApp !== 'undefined' ? ScriptApp : null;
+    var state = loadStep3State(properties);
+
+    if (continueOnly && (!state || state.status === 'COMPLETE' || state.status === 'FAILED')) {
+      return publicStep3Status(state, false);
+    }
+
+    if (!state || state.status === 'COMPLETE' || state.status === 'FAILED') {
+      var ssInit = openTarget();
+      var handledSheet = requireSheet(ssInit, '_CALC_HANDLED');
+      var offeredSheet = requireSheet(ssInit, '_CALC_OFFERED');
+      var handledFormulaBefore = handledSheet.getRange(2, 1).getFormula();
+      var offeredFormulaBefore = offeredSheet.getRange(2, 1).getFormula();
+      if (!handledFormulaBefore || !offeredFormulaBefore) {
+        throw new Error(
+          'CXP-07 step 3 requires installed calc formulas. Run initializeCxp07 first.',
+        );
+      }
+      removeStep3Triggers(scriptApp);
+      state = {
+        handledFormulaBefore: handledFormulaBefore,
+        offeredFormulaBefore: offeredFormulaBefore,
+        lastError: null,
+        phase: STEP3_PHASES[0],
+        phaseIndex: 0,
+        spreadsheetId: ssInit.getId(),
+        startedAtUtc: new Date().toISOString(),
+        status: 'RUNNING',
+        updatedAtUtc: new Date().toISOString(),
+      };
+      saveStep3State(properties, state);
+      uatLog('step3.refresh.start', {
+        note: 'Resumable second-bundle refresh (one raw sheet per invocation)',
+        spreadsheetId: state.spreadsheetId,
+      });
+    }
+
+    uatLog('step3.refresh.phase.start', {
+      phase: state.phase,
+      phaseIndex: state.phaseIndex,
+      phaseCount: STEP3_PHASES.length,
+    });
+
+    try {
+      var ss = SpreadsheetApp.openById(state.spreadsheetId);
+      var phaseResult = runStep3Phase(ss, state);
+      uatLog('step3.refresh.phase.done', {
+        phase: state.phase,
+        result: phaseResult,
+      });
+
+      if (state.phaseIndex >= STEP3_PHASES.length - 1) {
+        removeStep3Triggers(scriptApp);
+        state.status = 'COMPLETE';
+        state.lastError = null;
+        state.updatedAtUtc = new Date().toISOString();
+        saveStep3State(properties, state);
+        var complete = publicStep3Status(state, false);
+        uatLog('step3.refresh.pass', { pass: true, status: complete });
+        uatLog('step3.refresh.complete', complete);
+        return Object.assign({}, complete, { pass: true, phaseResult: phaseResult });
+      }
+
+      state.phaseIndex += 1;
+      state.phase = STEP3_PHASES[state.phaseIndex];
+      state.updatedAtUtc = new Date().toISOString();
+      saveStep3State(properties, state);
+      var scheduled = scheduleStep3Continuation(scriptApp, 30000);
+      var pending = publicStep3Status(state, scheduled);
+      uatLog('step3.refresh.pending', pending);
+      return Object.assign({}, pending, {
+        pass: false,
+        pending: true,
+        nextAction: scheduled
+          ? 'Wait for continueCxp07UatStep3Refresh, or poll getCxp07UatStep3Status / re-run cxp07UatStep3SecondBundleRefresh'
+          : 'Re-run cxp07UatStep3SecondBundleRefresh to advance the next phase',
+      });
+    } catch (error) {
+      removeStep3Triggers(scriptApp);
+      state.status = 'FAILED';
+      state.lastError = error && error.message ? String(error.message) : String(error);
+      state.updatedAtUtc = new Date().toISOString();
+      saveStep3State(properties, state);
+      uatLog('step3.refresh.fail', publicStep3Status(state, false));
+      throw error;
+    }
+  }
+
+  function runStep3SecondBundleRefresh(spreadsheetId) {
+    // spreadsheetId reserved for API symmetry; configured target is always used.
+    return advanceStep3(false);
+  }
+
+  function continueStep3SecondBundleRefresh() {
+    return advanceStep3(true);
   }
 
   function loadParityFixture(spreadsheetId) {
@@ -987,79 +1284,6 @@ var Cxp07ParityUat = (function () {
     return report;
   }
 
-  function runStep3SecondBundleRefresh(spreadsheetId) {
-    resetTelemetryClock();
-    uatLog('step3.refresh.start', {
-      note: 'Replace raw with second valid bundle without reinstalling formulas',
-    });
-    var ss = openTarget(spreadsheetId);
-    var handledSheet = requireSheet(ss, '_CALC_HANDLED');
-    var offeredSheet = requireSheet(ss, '_CALC_OFFERED');
-    var handledFormulaBefore = handledSheet.getRange(2, 1).getFormula();
-    var offeredFormulaBefore = offeredSheet.getRange(2, 1).getFormula();
-    if (!handledFormulaBefore || !offeredFormulaBefore) {
-      throw new Error(
-        'CXP-07 step 3 requires installed calc formulas. Run initializeCxp07 first.',
-      );
-    }
-    uatLog('step3.refresh.formulas_before', {
-      handledA2Present: true,
-      offeredA2Present: true,
-    });
-
-    var load = loadFixtureBundle(spreadsheetId, {
-      agentPrefix: 'AW-REFRESH-',
-      fixture: SECOND_FIXTURE,
-      logPrefix: 'step3.refresh',
-    });
-    uatLog('step3.refresh.recalc_wait.start', { sleepMs: 2000 });
-    Utilities.sleep(2000);
-    uatLog('step3.refresh.recalc_wait.done', {});
-    SpreadsheetApp.flush();
-
-    var handledFormulaAfter = handledSheet.getRange(2, 1).getFormula();
-    var offeredFormulaAfter = offeredSheet.getRange(2, 1).getFormula();
-    var formulasUnchanged =
-      handledFormulaAfter === handledFormulaBefore &&
-      offeredFormulaAfter === offeredFormulaBefore;
-    uatLog('step3.refresh.formulas_after', {
-      formulasUnchanged: formulasUnchanged,
-    });
-    if (!formulasUnchanged) {
-      throw new Error(
-        'CXP-07 step 3 failed: calc formula anchors changed (reinstall detected).',
-      );
-    }
-
-    var compare = recordFixtureOutputs(spreadsheetId, {
-      fixture: SECOND_FIXTURE,
-      logPrefix: 'step3.refresh',
-      priorSessionsMustBeAbsent: ['SESSION-100', 'SESSION-200'],
-      sessions: ['SESSION-300', 'SESSION-400'],
-      timezoneCheck: {
-        session300: 'UTC 07:45 -> prior fixed-PST date 2026-08-19 @ 23:30',
-        session400: 'UTC 08:05 -> same UTC date 2026-08-20 @ 00:00',
-      },
-    });
-
-    var report = {
-      load: load,
-      compare: compare,
-      formulasUnchanged: formulasUnchanged,
-      pass: compare.pass && formulasUnchanged,
-    };
-    uatLog(report.pass ? 'step3.refresh.pass' : 'step3.refresh.fail', {
-      pass: report.pass,
-    });
-    if (!report.pass) {
-      throw new Error(
-        'CXP-07 step 3 second-bundle refresh failed. See Logger for diffs.',
-      );
-    }
-    uatLog('step3.refresh.complete', { pass: true });
-    return report;
-  }
-
   function resolveCxp07Setup() {
     if (typeof Cxp07Setup !== 'undefined') {
       return Cxp07Setup;
@@ -1250,6 +1474,8 @@ var Cxp07ParityUat = (function () {
   return Object.freeze({
     FIXTURE: FIXTURE,
     SECOND_FIXTURE: SECOND_FIXTURE,
+    continueStep3SecondBundleRefresh: continueStep3SecondBundleRefresh,
+    getStep3Status: getStep3Status,
     loadParityFixture: loadParityFixture,
     recordParityOutputs: recordParityOutputs,
     resetTelemetryClock: resetTelemetryClock,
@@ -1281,6 +1507,15 @@ function cxp07UatStep2PeakFlushTiming() {
 
 function cxp07UatStep3SecondBundleRefresh() {
   return Cxp07ParityUat.runStep3SecondBundleRefresh();
+}
+
+function continueCxp07UatStep3Refresh() {
+  return Cxp07ParityUat.continueStep3SecondBundleRefresh();
+}
+
+function getCxp07UatStep3Status() {
+  Cxp07ParityUat.resetTelemetryClock();
+  return Cxp07ParityUat.getStep3Status();
 }
 
 function cxp07UatStep4ReinstallTopology() {
