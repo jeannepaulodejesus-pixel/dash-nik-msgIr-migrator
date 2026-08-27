@@ -22,6 +22,7 @@
     "test:cxp06:uat": "node --test tests/cxp06-uat-harness.test.cjs",
     "test:cxp07": "node --test tests/cxp07-native-transformations.test.cjs",
     "test:cxp08": "node --test tests/cxp08-native-transformations.test.cjs",
+    "test:bootstrap": "node --test tests/cxp-dev-workbook-bootstrap.test.cjs",
     "verify": "npm run lint && npm test && npm run guardrails"
   },
   "devDependencies": {

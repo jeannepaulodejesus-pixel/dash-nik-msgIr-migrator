@@ -20,6 +20,8 @@ Use a disposable DEV or UAT target initialized by CXP-02. Never point `CXP_ENV` 
 
 Confirm `_RAW_AHT`, `_RAW_AUXES`, `_RAW_STAFF`, `_CALC_AHT`, `_CALC_AUXES`, and `_CALC_STAFF` exist. Load raw sheets with exact CXP-03 headers. Preserve AHT within its 15,000-row bound, Auxes within 7,500, and Staff within 2,000. Representative peak evidence uses approximately 7,000 AHT, 3,000 Auxes, and 300 Staff rows.
 
+Fresh DEV pair (optional): set Script Property `CXP_DEV_BOOTSTRAP_FOLDER_ID` to a writable Drive folder, then run `bootstrapCxpDevWorkbooks()` once. That creates `DEV_TARGET_WORKBOOK` + `DEV_SYSTEM_CONTROL_WORKBOOK`, stores both spreadsheet IDs, runs CXP-02 init, and seeds CXP-03 raw headers. See [`docs/configuration.md`](configuration.md).
+
 ## Planned install entrypoints
 
 | Entrypoint | Purpose |
