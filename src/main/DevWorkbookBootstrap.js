@@ -1,11 +1,16 @@
 /**
  * DEV-only automation: create target + control workbooks in a Drive folder,
- * store their IDs in Script Properties, run CXP-02 sheet init, and seed CXP-03
- * headers on the five raw sheets so CXP-07/CXP-08 install preflight can pass.
+ * store their IDs in Script Properties, run CXP-02 sheet init, seed CXP-03
+ * headers on the five raw sheets, and seed CXP-04/CXP-05 control headers so
+ * CXP-07/CXP-08 install preflight and hosted UAT audit writes can pass.
  *
  * Editor entrypoints:
- *   bootstrapCxpDevWorkbooks()           // folder from CXP_DEV_BOOTSTRAP_FOLDER_ID
- *   bootstrapCxpDevWorkbooks(folderId)   // optional folder ID argument
+ *   bootstrapCxpDevWorkbooks()                    // folder from CXP_DEV_BOOTSTRAP_FOLDER_ID
+ *   bootstrapCxpDevWorkbooks(folderId)            // optional folder ID argument
+ *   bootstrapCxpDevWorkbooksForceReplace()        // forceReplace=true; folder from property
+ *   registerCxpDevWorkbookIds(targetId, controlId) // set Script Properties for existing workbooks
+ *   registerCxpDevWorkbooksFromFolder(folderId?)  // discover by folder + set Script Properties
+ *   registerCxpDevWorkbooksFromFolderAndSeed()    // folder from property; init + seed headers
  *
  * Never commits IDs to source. Refuses PROD. Refuses overwrite of existing
  * CXP_DEV_* spreadsheet IDs unless forceReplace is true.
@@ -106,12 +111,155 @@ var DevWorkbookBootstrap = (function () {
     }
   }
 
-  function assertIdsReplaceable(properties, forceReplace) {
+  function parseSpreadsheetId(value, label) {
+    var normalized = requireNonEmptyString(value, label);
+    var match = normalized.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    if (match) {
+      return match[1];
+    }
+    return normalized;
+  }
+
+  function devWorkbookPropertyKeys(config) {
+    return {
+      controlKey: config.propertyKey(ENVIRONMENT, config.CONFIGURATION_KEYS.controlSpreadsheetId),
+      targetKey: config.propertyKey(ENVIRONMENT, config.CONFIGURATION_KEYS.targetSpreadsheetId),
+    };
+  }
+
+  function writeDevWorkbookProperties(properties, targetId, controlId) {
     var config = resolveConfig();
-    var targetKey = config.propertyKey(ENVIRONMENT, config.CONFIGURATION_KEYS.targetSpreadsheetId);
-    var controlKey = config.propertyKey(ENVIRONMENT, config.CONFIGURATION_KEYS.controlSpreadsheetId);
-    var existingTarget = properties.getProperty(targetKey);
-    var existingControl = properties.getProperty(controlKey);
+    var keys = devWorkbookPropertyKeys(config);
+    if (targetId === controlId) {
+      throw new Error('Target and control spreadsheet IDs must be distinct.');
+    }
+    properties.setProperty(config.ACTIVE_ENVIRONMENT_KEY, ENVIRONMENT);
+    properties.setProperty(keys.targetKey, targetId);
+    properties.setProperty(keys.controlKey, controlId);
+    return keys;
+  }
+
+  function assertSpreadsheetsOpen(targetId, controlId, services) {
+    if (
+      !services.spreadsheetApp ||
+      typeof services.spreadsheetApp.openById !== 'function'
+    ) {
+      return;
+    }
+    services.spreadsheetApp.openById(targetId);
+    services.spreadsheetApp.openById(controlId);
+  }
+
+  function findUniqueSpreadsheetInFolder(folder, name) {
+    if (!folder || typeof folder.getFilesByName !== 'function') {
+      throw new Error('Drive folder lookup requires getFilesByName.');
+    }
+    var iterator = folder.getFilesByName(name);
+    if (!iterator.hasNext()) {
+      throw new Error(
+        'Expected spreadsheet "' +
+          name +
+          '" in bootstrap folder. Run bootstrapCxpDevWorkbooks() first.',
+      );
+    }
+    var file = iterator.next();
+    if (iterator.hasNext()) {
+      throw new Error('Multiple spreadsheets named "' + name + '" in bootstrap folder.');
+    }
+    if (!file || typeof file.getId !== 'function') {
+      throw new Error('Spreadsheet file lookup failed for "' + name + '".');
+    }
+    return file.getId();
+  }
+
+  function discoverWorkbooksInFolder(folder) {
+    return Object.freeze({
+      controlSpreadsheetId: findUniqueSpreadsheetInFolder(
+        folder,
+        CONTROL_WORKBOOK_NAME,
+      ),
+      targetSpreadsheetId: findUniqueSpreadsheetInFolder(folder, TARGET_WORKBOOK_NAME),
+    });
+  }
+
+  function registerWorkbooksFromFolder(folderId, options, properties, services) {
+    var opts = options || {};
+    var resolvedProperties = resolveProperties(properties);
+    var resolvedServices = resolveServices(services);
+
+    assertDevOnly(resolvedProperties);
+    var resolvedFolderId = resolveFolderId(folderId, resolvedProperties);
+    if (
+      !resolvedServices.driveApp ||
+      typeof resolvedServices.driveApp.getFolderById !== 'function'
+    ) {
+      throw new Error('DriveApp.getFolderById is required for folder registration.');
+    }
+    var folder = resolvedServices.driveApp.getFolderById(resolvedFolderId);
+    if (!folder) {
+      throw new Error('Bootstrap Drive folder was not found.');
+    }
+    var discovered = discoverWorkbooksInFolder(folder);
+    resolvedProperties.setProperty(BOOTSTRAP_FOLDER_PROPERTY, resolvedFolderId);
+    emitLog('CXP_DEV_REGISTER', {
+      event: 'DISCOVERED_FROM_FOLDER',
+      initializeAndSeed: opts.initializeAndSeed === true,
+    });
+    return registerWorkbookIds(
+      discovered.targetSpreadsheetId,
+      discovered.controlSpreadsheetId,
+      opts,
+      resolvedProperties,
+      resolvedServices,
+    );
+  }
+
+  function registerWorkbookIds(targetSpreadsheetId, controlSpreadsheetId, options, properties, services) {
+    var opts = options || {};
+    var resolvedProperties = resolveProperties(properties);
+    var resolvedServices = resolveServices(services);
+
+    assertDevOnly(resolvedProperties);
+    var targetId = parseSpreadsheetId(targetSpreadsheetId, 'targetSpreadsheetId');
+    var controlId = parseSpreadsheetId(controlSpreadsheetId, 'controlSpreadsheetId');
+    assertSpreadsheetsOpen(targetId, controlId, resolvedServices);
+    writeDevWorkbookProperties(resolvedProperties, targetId, controlId);
+
+    emitLog('CXP_DEV_REGISTER', {
+      event: 'PROPERTIES_SET',
+      initializeAndSeed: opts.initializeAndSeed === true,
+    });
+
+    var skeleton = null;
+    var seededRawSheets = Object.freeze([]);
+    var seededControlSheets = Object.freeze([]);
+    if (opts.initializeAndSeed === true) {
+      skeleton = resolveWorkbookSetup().initializeConfiguredWorkbooks(
+        resolvedProperties,
+        resolvedServices,
+      );
+      var target = resolvedServices.spreadsheetApp.openById(targetId);
+      var control = resolvedServices.spreadsheetApp.openById(controlId);
+      removeDefaultSheetIfPresent(target);
+      removeDefaultSheetIfPresent(control);
+      seededRawSheets = Object.freeze(seedRawHeaders(target));
+      seededControlSheets = Object.freeze(seedControlHeaders(control));
+    }
+
+    return Object.freeze({
+      controlSpreadsheetId: controlId,
+      environment: ENVIRONMENT,
+      seededControlSheets: seededControlSheets,
+      seededRawSheets: seededRawSheets,
+      skeleton: skeleton,
+      targetSpreadsheetId: targetId,
+    });
+  }
+
+  function assertIdsReplaceable(properties, forceReplace) {
+    var keys = devWorkbookPropertyKeys(resolveConfig());
+    var existingTarget = properties.getProperty(keys.targetKey);
+    var existingControl = properties.getProperty(keys.controlKey);
     if (
       !forceReplace &&
       ((existingTarget && String(existingTarget).trim()) ||
@@ -122,7 +270,7 @@ var DevWorkbookBootstrap = (function () {
           'Pass forceReplace=true to create replacements, or clear those Script Properties first.',
       );
     }
-    return { controlKey: controlKey, targetKey: targetKey };
+    return keys;
   }
 
   function createSpreadsheetInFolder(name, folder, services) {
@@ -170,6 +318,17 @@ var DevWorkbookBootstrap = (function () {
     }
   }
 
+  function resolveControlWorkbookHeaders() {
+    if (typeof ControlWorkbookHeaders !== 'undefined') {
+      return ControlWorkbookHeaders;
+    }
+    return require('./ControlWorkbookHeaders.js');
+  }
+
+  function seedControlHeaders(spreadsheet) {
+    return resolveControlWorkbookHeaders().seed(spreadsheet).seededControlSheets;
+  }
+
   function seedRawHeaders(spreadsheet) {
     var seeded = [];
     resolveDatasetSheets().listBindings().forEach(function (binding) {
@@ -191,10 +350,9 @@ var DevWorkbookBootstrap = (function () {
     var forceReplace = opts.forceReplace === true;
     var resolvedProperties = resolveProperties(properties);
     var resolvedServices = resolveServices(services);
-    var config = resolveConfig();
 
     assertDevOnly(resolvedProperties);
-    var keys = assertIdsReplaceable(resolvedProperties, forceReplace);
+    assertIdsReplaceable(resolvedProperties, forceReplace);
     var resolvedFolderId = resolveFolderId(folderId, resolvedProperties);
 
     if (!resolvedServices.driveApp || typeof resolvedServices.driveApp.getFolderById !== 'function') {
@@ -227,10 +385,9 @@ var DevWorkbookBootstrap = (function () {
       throw new Error('Bootstrap created identical spreadsheet IDs.');
     }
 
-    resolvedProperties.setProperty(config.ACTIVE_ENVIRONMENT_KEY, ENVIRONMENT);
-    resolvedProperties.setProperty(keys.targetKey, targetId);
-    resolvedProperties.setProperty(keys.controlKey, controlId);
     resolvedProperties.setProperty(BOOTSTRAP_FOLDER_PROPERTY, resolvedFolderId);
+
+    writeDevWorkbookProperties(resolvedProperties, targetId, controlId);
 
     var skeleton = resolveWorkbookSetup().initializeConfiguredWorkbooks(
       resolvedProperties,
@@ -239,11 +396,13 @@ var DevWorkbookBootstrap = (function () {
     removeDefaultSheetIfPresent(target);
     removeDefaultSheetIfPresent(control);
     var seededRawSheets = seedRawHeaders(target);
+    var seededControlSheets = seedControlHeaders(control);
 
     var result = Object.freeze({
       controlSpreadsheetId: controlId,
       environment: ENVIRONMENT,
       folderId: resolvedFolderId,
+      seededControlSheets: Object.freeze(seededControlSheets.slice()),
       seededRawSheets: Object.freeze(seededRawSheets.slice()),
       skeleton: skeleton,
       targetSpreadsheetId: targetId,
@@ -251,6 +410,7 @@ var DevWorkbookBootstrap = (function () {
     emitLog('CXP_DEV_BOOTSTRAP', {
       event: 'COMPLETE',
       environment: result.environment,
+      seededControlSheetCount: result.seededControlSheets.length,
       seededRawSheetCount: result.seededRawSheets.length,
       targetName: TARGET_WORKBOOK_NAME,
       controlName: CONTROL_WORKBOOK_NAME,
@@ -265,6 +425,10 @@ var DevWorkbookBootstrap = (function () {
     ENVIRONMENT: ENVIRONMENT,
     TARGET_WORKBOOK_NAME: TARGET_WORKBOOK_NAME,
     bootstrap: bootstrap,
+    discoverWorkbooksInFolder: discoverWorkbooksInFolder,
+    parseSpreadsheetId: parseSpreadsheetId,
+    registerWorkbookIds: registerWorkbookIds,
+    registerWorkbooksFromFolder: registerWorkbooksFromFolder,
   });
 })();
 
@@ -276,6 +440,41 @@ function bootstrapCxpDevWorkbooks(folderId, forceReplace) {
   return DevWorkbookBootstrap.bootstrap(folderId, {
     forceReplace: forceReplace === true,
   });
+}
+
+function bootstrapCxpDevWorkbooksForceReplace() {
+  return bootstrapCxpDevWorkbooks(null, true);
+}
+
+/**
+ * @param {string} targetSpreadsheetId spreadsheet ID or Google Sheets URL
+ * @param {string} controlSpreadsheetId spreadsheet ID or Google Sheets URL
+ * @param {boolean=} initializeAndSeed run CXP-02 init and seed target/control headers
+ */
+function registerCxpDevWorkbookIds(
+  targetSpreadsheetId,
+  controlSpreadsheetId,
+  initializeAndSeed,
+) {
+  return DevWorkbookBootstrap.registerWorkbookIds(
+    targetSpreadsheetId,
+    controlSpreadsheetId,
+    { initializeAndSeed: initializeAndSeed === true },
+  );
+}
+
+/**
+ * @param {string=} folderId Drive folder ID (optional if CXP_DEV_BOOTSTRAP_FOLDER_ID is set)
+ * @param {boolean=} initializeAndSeed run CXP-02 init and seed target/control headers
+ */
+function registerCxpDevWorkbooksFromFolder(folderId, initializeAndSeed) {
+  return DevWorkbookBootstrap.registerWorkbooksFromFolder(folderId, {
+    initializeAndSeed: initializeAndSeed === true,
+  });
+}
+
+function registerCxpDevWorkbooksFromFolderAndSeed() {
+  return registerCxpDevWorkbooksFromFolder(null, true);
 }
 
 if (typeof module !== 'undefined' && module.exports) {

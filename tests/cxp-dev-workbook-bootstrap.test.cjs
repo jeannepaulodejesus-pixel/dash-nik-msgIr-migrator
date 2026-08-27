@@ -2,6 +2,8 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const DevWorkbookBootstrap = require('../src/main/DevWorkbookBootstrap.js');
+const ErrorLogger = require('../src/monitoring/ErrorLogger.js');
+const RunLogger = require('../src/monitoring/RunLogger.js');
 const SchemaRegistry = require('../src/ingestion/SchemaRegistry.js');
 const SheetNames = require('../src/config/SheetNames.js');
 
@@ -109,12 +111,16 @@ class FakeSheet {
     const sheet = this;
     return {
       setValues(matrix) {
-        if (row === 1 && rowCount === 1) {
-          sheet.values[0] = matrix[0].slice();
+        for (let index = 0; index < matrix.length; index += 1) {
+          sheet.values[row - 1 + index] = matrix[index].slice();
         }
         return this;
       },
     };
+  }
+
+  getLastRow() {
+    return this.values.length;
   }
 }
 
@@ -172,9 +178,22 @@ function createServices() {
   const editors = [new FakeUser('dev@example.com')];
   const created = [];
   const files = new Map();
+  const folderFilesByName = new Map();
   const folder = {
     getId() {
       return 'folder-1';
+    },
+    getFilesByName(name) {
+      const matches = folderFilesByName.get(name) || [];
+      let index = 0;
+      return {
+        hasNext() {
+          return index < matches.length;
+        },
+        next() {
+          return matches[index++];
+        },
+      };
     },
   };
   return {
@@ -200,8 +219,15 @@ function createServices() {
         const spreadsheet = new FakeSpreadsheet(id, name, editors);
         created.push(spreadsheet);
         files.set(id, {
+          getId() {
+            return id;
+          },
           moveTo(targetFolder) {
             assert.equal(targetFolder.getId(), 'folder-1');
+            if (!folderFilesByName.has(name)) {
+              folderFilesByName.set(name, []);
+            }
+            folderFilesByName.get(name).push({ getId: () => id });
           },
         });
         return spreadsheet;
@@ -236,12 +262,25 @@ test('DEV bootstrap creates workbooks, stores IDs, initializes sheets, and seeds
   assert.equal(properties.getProperty('CXP_DEV_CONTROL_SPREADSHEET_ID'), 'sheet-2');
   assert.equal(properties.getProperty('CXP_DEV_BOOTSTRAP_FOLDER_ID'), 'folder-1');
   assert.equal(result.seededRawSheets.length, 5);
+  assert.equal(result.seededControlSheets.length, 7);
   assert.ok(services.created[0].getSheetByName('_RAW_AHT'));
   assert.ok(services.created[0].getSheetByName('_CALC_STAFF'));
   assert.ok(services.created[1].getSheetByName('RUN_LOG'));
   assert.deepEqual(
     services.created[0].getSheetByName('_RAW_AHT').values[0],
     SchemaRegistry.getSchema('AHT - Raw').requiredHeaders,
+  );
+  assert.deepEqual(
+    services.created[1].getSheetByName('RUN_LOG').values[0],
+    RunLogger.HEADERS,
+  );
+  assert.deepEqual(
+    services.created[1].getSheetByName('ERROR_LOG').values[0],
+    ErrorLogger.HEADERS,
+  );
+  assert.equal(
+    services.created[1].getSheetByName('SCHEMA_REGISTRY').values.length,
+    SchemaRegistry.listSchemas().length + 1,
   );
   assert.equal(services.created[0].getName(), DevWorkbookBootstrap.TARGET_WORKBOOK_NAME);
   assert.equal(services.created[1].getName(), DevWorkbookBootstrap.CONTROL_WORKBOOK_NAME);
@@ -281,4 +320,77 @@ test('DEV bootstrap reads folder id from Script Property when argument omitted',
   );
   assert.equal(result.folderId, 'folder-1');
   assert.equal(result.targetSpreadsheetId, 'sheet-1');
+});
+
+test('registerCxpDevWorkbookIds writes Script Properties from IDs or URLs', () => {
+  const properties = createPropertyStore({});
+  const services = createServices();
+  const created = DevWorkbookBootstrap.bootstrap('folder-1', {}, properties, services);
+
+  const targetUrl =
+    'https://docs.google.com/spreadsheets/d/' +
+    created.targetSpreadsheetId +
+    '/edit#gid=0';
+
+  const result = DevWorkbookBootstrap.registerWorkbookIds(
+    targetUrl,
+    created.controlSpreadsheetId,
+    {},
+    properties,
+    services,
+  );
+
+  assert.equal(result.targetSpreadsheetId, created.targetSpreadsheetId);
+  assert.equal(result.controlSpreadsheetId, created.controlSpreadsheetId);
+  assert.equal(properties.getProperty('CXP_ENV'), 'DEV');
+  assert.equal(
+    properties.getProperty('CXP_DEV_TARGET_SPREADSHEET_ID'),
+    created.targetSpreadsheetId,
+  );
+  assert.equal(
+    properties.getProperty('CXP_DEV_CONTROL_SPREADSHEET_ID'),
+    created.controlSpreadsheetId,
+  );
+});
+
+test('registerCxpDevWorkbookIds can initialize and seed existing workbooks', () => {
+  const properties = createPropertyStore({});
+  const services = createServices();
+  const target = services.spreadsheetApp.create('bare-target');
+  const control = services.spreadsheetApp.create('bare-control');
+
+  const result = DevWorkbookBootstrap.registerWorkbookIds(
+    target.getId(),
+    control.getId(),
+    { initializeAndSeed: true },
+    properties,
+    services,
+  );
+
+  assert.equal(result.seededRawSheets.length, 5);
+  assert.equal(result.seededControlSheets.length, 7);
+});
+
+test('registerWorkbooksFromFolder discovers bootstrap workbooks and sets Script Properties', () => {
+  const properties = createPropertyStore({
+    CXP_DEV_BOOTSTRAP_FOLDER_ID: 'folder-1',
+  });
+  const services = createServices();
+  DevWorkbookBootstrap.bootstrap('folder-1', { forceReplace: true }, properties, services);
+
+  properties.setProperty('CXP_DEV_TARGET_SPREADSHEET_ID', '');
+  properties.setProperty('CXP_DEV_CONTROL_SPREADSHEET_ID', '');
+
+  const result = DevWorkbookBootstrap.registerWorkbooksFromFolder(
+    null,
+    { initializeAndSeed: true },
+    properties,
+    services,
+  );
+
+  assert.equal(result.targetSpreadsheetId, 'sheet-1');
+  assert.equal(result.controlSpreadsheetId, 'sheet-2');
+  assert.equal(properties.getProperty('CXP_DEV_TARGET_SPREADSHEET_ID'), 'sheet-1');
+  assert.equal(properties.getProperty('CXP_DEV_CONTROL_SPREADSHEET_ID'), 'sheet-2');
+  assert.equal(properties.getProperty('CXP_DEV_BOOTSTRAP_FOLDER_ID'), 'folder-1');
 });
