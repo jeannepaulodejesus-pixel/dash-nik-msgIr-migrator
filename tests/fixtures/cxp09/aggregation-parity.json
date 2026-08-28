@@ -1,0 +1,180 @@
+{
+  "businessDay": "2026-08-18",
+  "inputs": {
+    "handledRows": [
+      {
+        "Case: Case Number": "C-100",
+        "Messaging Session Name": "SESSION-100",
+        "Initial Athlete CS Owner": "NA",
+        "Speed to Answer": 42,
+        "Initial Athlete Site": "PH",
+        "Language": "English"
+      },
+      {
+        "Case: Case Number": "C-200",
+        "Messaging Session Name": "SESSION-200",
+        "Initial Athlete CS Owner": "NA",
+        "Speed to Answer": 95,
+        "Initial Athlete Site": "LAS",
+        "Language": "Spanish"
+      }
+    ],
+    "offeredRows": [
+      {
+        "Case: Case Number": "C-100",
+        "Messaging Session Name": "SESSION-100",
+        "Language": "English",
+        "Initial Athlete CS Owner": "NA",
+        "Contact Fragment Count": null,
+        "Initial Athlete BPO": "BPO-A"
+      },
+      {
+        "Case: Case Number": "C-200",
+        "Messaging Session Name": "SESSION-200",
+        "Language": "English",
+        "Initial Athlete CS Owner": "NA",
+        "Contact Fragment Count": 2,
+        "Initial Athlete BPO": "BPO-B"
+      }
+    ],
+    "ahtRows": [
+      {
+        "Work Item: Name": "SESSION-100",
+        "Accept Date": "2026-08-18T07:45:00.000Z",
+        "Handle Time": 120,
+        "Active Time": 100,
+        "Speed To Answer": 50,
+        "Time To First Response": 20,
+        "Athlete Site": "PH",
+        "After Conversation Work Actual Time": 30
+      },
+      {
+        "Work Item: Name": "SESSION-100",
+        "Accept Date": "2026-08-18T07:50:00.000Z",
+        "Handle Time": 180,
+        "Active Time": 140,
+        "Speed To Answer": 55,
+        "Time To First Response": 25,
+        "Athlete Site": "PH",
+        "After Conversation Work Actual Time": 40
+      },
+      {
+        "Work Item: Name": "SESSION-200",
+        "Accept Date": "2026-08-18T08:05:00.000Z",
+        "Handle Time": 90,
+        "Active Time": 60,
+        "Speed To Answer": 100,
+        "Time To First Response": 5,
+        "Athlete Site": "LAS",
+        "After Conversation Work Actual Time": 15
+      }
+    ],
+    "auxesRows": [
+      {
+        "Name": "P1",
+        "User Presence ID": "UP-1",
+        "Status Start Date": "2026-08-18T07:45:00.000Z",
+        "Service Presence Status: Status Name": "Available - Messaging",
+        "Sign On Time (hours)": 1.5
+      },
+      {
+        "Name": "P2",
+        "User Presence ID": "UP-2",
+        "Status Start Date": "2026-08-18T08:05:00.000Z",
+        "Service Presence Status: Status Name": "Concluding",
+        "Sign On Time (hours)": 0.25
+      }
+    ],
+    "staffRows": [
+      {
+        "Status Start Date": "2026-08-18T08:00:00.000Z",
+        "Status End Date": "2026-08-18T09:00:00.000Z",
+        "Athlete Display Name": "Agent A",
+        "Athlete Site": "INT-LAS",
+        "Athlete Profile": "Messaging"
+      }
+    ],
+    "forecastInputs": [
+      {
+        "Date": "2026-08-17",
+        "Interval": "23:30",
+        "Site": "PH",
+        "Type": "Forecast",
+        "Value": 10
+      },
+      {
+        "Date": "2026-08-18",
+        "Interval": "00:00",
+        "Site": "LAS",
+        "Type": "Required",
+        "Value": 5
+      }
+    ]
+  },
+  "expected": {
+    "aggInterval": [
+      {
+        "Date": "2026-08-17",
+        "Interval": "23:30",
+        "Site": "PH",
+        "Offered": 1,
+        "Handled": 1,
+        "Chats in SL": 1,
+        "SL TTC": 1,
+        "AHT (Session)": 300,
+        "AHT": 150,
+        "ACW": 35,
+        "ASA": 75,
+        "Concurrency": 1.25
+      },
+      {
+        "Date": "2026-08-18",
+        "Interval": "00:00",
+        "Site": "LAS",
+        "Offered": 1,
+        "Handled": 0,
+        "Chats in SL": 0,
+        "SL TTC": 0,
+        "AHT (Session)": 90,
+        "AHT": 90,
+        "ACW": 15,
+        "ASA": 105,
+        "Concurrency": 1.5
+      }
+    ],
+    "aggForecast": [
+      {
+        "Date": "2026-08-17",
+        "Interval": "23:30",
+        "Site": "PH",
+        "Type": "Forecast",
+        "Value": 10
+      },
+      {
+        "Date": "2026-08-18",
+        "Interval": "00:00",
+        "Site": "LAS",
+        "Type": "Required",
+        "Value": 5
+      }
+    ],
+    "aggAllocation": [
+      {
+        "Date": "2026-08-17",
+        "Interval": "23:30",
+        "Site": "PH",
+        "BPO": "BPO-A",
+        "Offered Count": 1,
+        "Allocation Share": 1
+      },
+      {
+        "Date": "2026-08-18",
+        "Interval": "00:00",
+        "Site": "LAS",
+        "BPO": "BPO-B",
+        "Offered Count": 1,
+        "Allocation Share": 1
+      }
+    ]
+  }
+}
