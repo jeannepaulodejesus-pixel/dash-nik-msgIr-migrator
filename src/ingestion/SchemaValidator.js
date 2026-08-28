@@ -167,14 +167,99 @@ var SchemaValidator = (function () {
     return date;
   }
 
+  var SHEETS_SERIAL_EPOCH_UTC_MS = Date.UTC(1899, 11, 30);
+  var SHEETS_SERIAL_DATE_MIN = 1000;
+  var SHEETS_SERIAL_DATE_MAX = 999999;
+
+  function isSheetsSerialCandidate(value) {
+    return typeof value === 'number' &&
+      Number.isFinite(value) &&
+      value >= SHEETS_SERIAL_DATE_MIN &&
+      value <= SHEETS_SERIAL_DATE_MAX;
+  }
+
+  function isSheetsSerialString(value) {
+    if (typeof value !== 'string') {
+      return false;
+    }
+    var trimmed = value.trim();
+    return /^\d{4,6}(\.\d+)?$/.test(trimmed) &&
+      isSheetsSerialCandidate(Number(trimmed));
+  }
+
+  function sheetsSerialToUtcDate(serial) {
+    if (!isSheetsSerialCandidate(serial)) {
+      return null;
+    }
+    var utcMs = SHEETS_SERIAL_EPOCH_UTC_MS + Math.floor(serial) * 86400000;
+    var date = new Date(utcMs);
+    return validatedUtcDate(
+      date.getUTCFullYear(),
+      date.getUTCMonth() + 1,
+      date.getUTCDate(),
+    );
+  }
+
+  function sheetsSerialToUtcDateTime(serial) {
+    if (!isSheetsSerialCandidate(serial)) {
+      return null;
+    }
+    var utcMs = SHEETS_SERIAL_EPOCH_UTC_MS + serial * 86400000;
+    var date = new Date(utcMs);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return date;
+  }
+
+  function pad2(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  function formatContractDate(isoDate) {
+    var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+    if (!match) {
+      return null;
+    }
+    return Number(match[2]) + '/' + Number(match[3]) + '/' + match[1];
+  }
+
+  function formatContractDateTime(isoDateTime) {
+    var date = new Date(isoDateTime);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    var calendar = formatContractDate(date.toISOString().slice(0, 10));
+    if (!calendar) {
+      return null;
+    }
+    var hour24 = date.getUTCHours();
+    var minute = date.getUTCMinutes();
+    var ampm = hour24 >= 12 ? 'PM' : 'AM';
+    var hour12 = hour24 % 12;
+    if (hour12 === 0) {
+      hour12 = 12;
+    }
+    return calendar + ' ' + hour12 + ':' + pad2(minute) + ' ' + ampm;
+  }
+
   function normalizeDate(value) {
     if (value instanceof Date && !Number.isNaN(value.getTime())) {
       return value.toISOString().slice(0, 10);
     }
+    if (isSheetsSerialCandidate(value)) {
+      var serialDate = sheetsSerialToUtcDate(value);
+      return serialDate ? serialDate.toISOString().slice(0, 10) : null;
+    }
     if (typeof value !== 'string') {
       return null;
     }
-    var match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value.trim());
+    var trimmed = value.trim();
+    if (isSheetsSerialString(trimmed)) {
+      var serialFromString = sheetsSerialToUtcDate(Number(trimmed));
+      return serialFromString ? serialFromString.toISOString().slice(0, 10) : null;
+    }
+    var match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed);
     if (!match) {
       return null;
     }
@@ -186,11 +271,20 @@ var SchemaValidator = (function () {
     if (value instanceof Date && !Number.isNaN(value.getTime())) {
       return value.toISOString();
     }
+    if (isSheetsSerialCandidate(value)) {
+      var serialDateTime = sheetsSerialToUtcDateTime(value);
+      return serialDateTime ? serialDateTime.toISOString() : null;
+    }
     if (typeof value !== 'string') {
       return null;
     }
+    var trimmed = value.trim();
+    if (isSheetsSerialString(trimmed)) {
+      var serialDateTimeFromString = sheetsSerialToUtcDateTime(Number(trimmed));
+      return serialDateTimeFromString ? serialDateTimeFromString.toISOString() : null;
+    }
     var match = /^(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{2}) (AM|PM)$/i.exec(
-      value.trim(),
+      trimmed,
     );
     if (!match) {
       return null;
@@ -281,6 +375,346 @@ var SchemaValidator = (function () {
     return normalized;
   }
 
+  function previewValue(value, maxLength) {
+    var limit = typeof maxLength === 'number' ? maxLength : 48;
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    var text = typeof value === 'string' ? value : String(value);
+    text = text.replace(/\s+/g, ' ').trim();
+    if (text.length > limit) {
+      return text.slice(0, limit) + '...';
+    }
+    return text;
+  }
+
+  function recordGroupedIssue(groups, issue) {
+    var key = issue.errorCode + '\0' + (issue.column || '');
+    var existing = groups[key];
+    if (!existing) {
+      groups[key] = {
+        column: issue.column,
+        count: 1,
+        errorCode: issue.errorCode,
+        expectedType: issue.expectedType,
+        firstRowNumber: issue.rowNumber,
+        lastRowNumber: issue.rowNumber,
+        sampleValuePreview: issue.valuePreview,
+      };
+      return;
+    }
+    existing.count += 1;
+    existing.lastRowNumber = issue.rowNumber;
+  }
+
+  function collectValidationErrorSummary(datasetName, sourceHeaders, rows) {
+    var groups = Object.create(null);
+    var totalErrorCount = 0;
+    var headerResult;
+
+    try {
+      headerResult = validateHeaders(datasetName, sourceHeaders);
+    } catch (error) {
+      if (error instanceof SchemaContractError) {
+        return Object.freeze({
+          datasetName: datasetName,
+          errorGroups: Object.freeze([]),
+          headerError: Object.freeze({
+            details: error.details,
+            errorCode: error.code,
+            message: error.message,
+          }),
+          rowCount: Array.isArray(rows) ? rows.length : 0,
+          rowVolumeError: null,
+          totalErrorCount: 0,
+        });
+      }
+      throw error;
+    }
+
+    if (!Array.isArray(rows)) {
+      recordGroupedIssue(groups, {
+        column: null,
+        errorCode: ERROR_CODES.DATASET_INVALID_ROW,
+        expectedType: null,
+        rowNumber: null,
+        valuePreview: '',
+      });
+      totalErrorCount = 1;
+      return Object.freeze({
+        datasetName: datasetName,
+        errorGroups: Object.freeze([Object.freeze(groups[ERROR_CODES.DATASET_INVALID_ROW + '\0'])]),
+        headerError: null,
+        rowCount: 0,
+        rowVolumeError: null,
+        totalErrorCount: totalErrorCount,
+      });
+    }
+
+    try {
+      validateRowVolume(datasetName, rows.length);
+    } catch (error) {
+      if (error instanceof SchemaContractError) {
+        return Object.freeze({
+          datasetName: datasetName,
+          errorGroups: Object.freeze([]),
+          headerError: null,
+          rowCount: rows.length,
+          rowVolumeError: Object.freeze({
+            details: error.details,
+            errorCode: error.code,
+            message: error.message,
+          }),
+          totalErrorCount: 0,
+        });
+      }
+      throw error;
+    }
+
+    var schema = requireSchema(datasetName);
+    var columnByName = Object.create(null);
+    schema.columns.forEach(function (column) {
+      columnByName[column.name] = column;
+    });
+
+    for (var rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      var row = rows[rowIndex];
+      var rowNumber = rowIndex + 2;
+      if (!Array.isArray(row) || row.length !== sourceHeaders.length) {
+        recordGroupedIssue(groups, {
+          column: null,
+          errorCode: ERROR_CODES.DATASET_INVALID_ROW,
+          expectedType: null,
+          rowNumber: rowNumber,
+          valuePreview: '',
+        });
+        totalErrorCount += 1;
+        continue;
+      }
+
+      for (var headerIndex = 0; headerIndex < headerResult.canonicalHeaders.length; headerIndex += 1) {
+        var header = headerResult.canonicalHeaders[headerIndex];
+        var sourceIndex = headerResult.sourceIndexByCanonicalHeader[header];
+        var rawValue = row[sourceIndex];
+        try {
+          normalizeValue(columnByName[header], rawValue, datasetName, rowNumber);
+        } catch (error) {
+          if (!(error instanceof SchemaContractError)) {
+            throw error;
+          }
+          recordGroupedIssue(groups, {
+            column: error.details.column || header,
+            errorCode: error.code,
+            expectedType: error.details.expectedType || columnByName[header].type,
+            rowNumber: error.details.rowNumber || rowNumber,
+            valuePreview: previewValue(rawValue),
+          });
+          totalErrorCount += 1;
+        }
+      }
+
+      for (var keyIndex = 0; keyIndex < schema.keyFields.length; keyIndex += 1) {
+        var keyField = schema.keyFields[keyIndex];
+        var keySourceIndex = headerResult.sourceIndexByCanonicalHeader[keyField];
+        var keyValue = row[keySourceIndex];
+        if (keyValue === null || keyValue === undefined) {
+          recordGroupedIssue(groups, {
+            column: keyField,
+            errorCode: ERROR_CODES.DATASET_MISSING_KEY,
+            expectedType: columnByName[keyField].type,
+            rowNumber: rowNumber,
+            valuePreview: previewValue(keyValue),
+          });
+          totalErrorCount += 1;
+          continue;
+        }
+        if (typeof keyValue === 'string' && !keyValue.trim()) {
+          recordGroupedIssue(groups, {
+            column: keyField,
+            errorCode: ERROR_CODES.DATASET_MISSING_KEY,
+            expectedType: columnByName[keyField].type,
+            rowNumber: rowNumber,
+            valuePreview: '',
+          });
+          totalErrorCount += 1;
+        }
+      }
+    }
+
+    var errorGroups = Object.keys(groups).map(function (key) {
+      return Object.freeze(groups[key]);
+    }).sort(function (left, right) {
+      if (left.column !== right.column) {
+        return String(left.column).localeCompare(String(right.column));
+      }
+      return String(left.errorCode).localeCompare(String(right.errorCode));
+    });
+
+    return Object.freeze({
+      datasetName: datasetName,
+      errorGroups: Object.freeze(errorGroups),
+      headerError: null,
+      rowCount: rows.length,
+      rowVolumeError: null,
+      totalErrorCount: totalErrorCount,
+    });
+  }
+
+  function collectValidationErrors(datasetName, sourceHeaders, rows, options) {
+    var opts = options || {};
+    var maxErrors = typeof opts.maxErrors === 'number' ? opts.maxErrors : 50;
+    var errors = [];
+    var headerResult;
+
+    try {
+      headerResult = validateHeaders(datasetName, sourceHeaders);
+    } catch (error) {
+      if (error instanceof SchemaContractError) {
+        return Object.freeze({
+          datasetName: datasetName,
+          errors: Object.freeze([]),
+          headerError: Object.freeze({
+            details: error.details,
+            errorCode: error.code,
+            message: error.message,
+          }),
+          rowCount: Array.isArray(rows) ? rows.length : 0,
+          rowVolumeError: null,
+          truncated: false,
+        });
+      }
+      throw error;
+    }
+
+    if (!Array.isArray(rows)) {
+      return Object.freeze({
+        datasetName: datasetName,
+        errors: Object.freeze([Object.freeze({
+          column: null,
+          errorCode: ERROR_CODES.DATASET_INVALID_ROW,
+          expectedType: null,
+          rowNumber: null,
+          valuePreview: '',
+        })]),
+        headerError: null,
+        rowCount: 0,
+        rowVolumeError: null,
+        truncated: false,
+      });
+    }
+
+    try {
+      validateRowVolume(datasetName, rows.length);
+    } catch (error) {
+      if (error instanceof SchemaContractError) {
+        return Object.freeze({
+          datasetName: datasetName,
+          errors: Object.freeze([]),
+          headerError: null,
+          rowCount: rows.length,
+          rowVolumeError: Object.freeze({
+            details: error.details,
+            errorCode: error.code,
+            message: error.message,
+          }),
+          truncated: false,
+        });
+      }
+      throw error;
+    }
+
+    var schema = requireSchema(datasetName);
+    var columnByName = Object.create(null);
+    schema.columns.forEach(function (column) {
+      columnByName[column.name] = column;
+    });
+
+    outer:
+    for (var rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      var row = rows[rowIndex];
+      var rowNumber = rowIndex + 2;
+      if (!Array.isArray(row) || row.length !== sourceHeaders.length) {
+        errors.push(Object.freeze({
+          column: null,
+          errorCode: ERROR_CODES.DATASET_INVALID_ROW,
+          expectedType: null,
+          rowNumber: rowNumber,
+          valuePreview: '',
+        }));
+        if (errors.length >= maxErrors) {
+          break;
+        }
+        continue;
+      }
+
+      for (var headerIndex = 0; headerIndex < headerResult.canonicalHeaders.length; headerIndex += 1) {
+        var header = headerResult.canonicalHeaders[headerIndex];
+        var sourceIndex = headerResult.sourceIndexByCanonicalHeader[header];
+        var rawValue = row[sourceIndex];
+        try {
+          normalizeValue(columnByName[header], rawValue, datasetName, rowNumber);
+        } catch (error) {
+          if (!(error instanceof SchemaContractError)) {
+            throw error;
+          }
+          errors.push(Object.freeze({
+            column: error.details.column || header,
+            errorCode: error.code,
+            expectedType: error.details.expectedType || columnByName[header].type,
+            rowNumber: error.details.rowNumber || rowNumber,
+            valuePreview: previewValue(rawValue),
+          }));
+          if (errors.length >= maxErrors) {
+            break outer;
+          }
+        }
+      }
+
+      for (var keyIndex = 0; keyIndex < schema.keyFields.length; keyIndex += 1) {
+        var keyField = schema.keyFields[keyIndex];
+        var keySourceIndex = headerResult.sourceIndexByCanonicalHeader[keyField];
+        var keyValue = row[keySourceIndex];
+        if (keyValue === null || keyValue === undefined) {
+          errors.push(Object.freeze({
+            column: keyField,
+            errorCode: ERROR_CODES.DATASET_MISSING_KEY,
+            expectedType: columnByName[keyField].type,
+            rowNumber: rowNumber,
+            valuePreview: previewValue(keyValue),
+          }));
+          if (errors.length >= maxErrors) {
+            break outer;
+          }
+          continue;
+        }
+        if (typeof keyValue === 'string' && !keyValue.trim()) {
+          errors.push(Object.freeze({
+            column: keyField,
+            errorCode: ERROR_CODES.DATASET_MISSING_KEY,
+            expectedType: columnByName[keyField].type,
+            rowNumber: rowNumber,
+            valuePreview: '',
+          }));
+          if (errors.length >= maxErrors) {
+            break outer;
+          }
+        }
+      }
+    }
+
+    return Object.freeze({
+      datasetName: datasetName,
+      errors: Object.freeze(errors.slice()),
+      headerError: null,
+      rowCount: rows.length,
+      rowVolumeError: null,
+      truncated: errors.length >= maxErrors,
+    });
+  }
+
   function normalizeRows(datasetName, sourceHeaders, rows) {
     var schema = requireSchema(datasetName);
     var headerResult = validateHeaders(datasetName, sourceHeaders);
@@ -342,9 +776,72 @@ var SchemaValidator = (function () {
     });
   }
 
+  function coerceCellToContractString(column, value) {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    if (typeof value === 'string' && !value.trim()) {
+      return value;
+    }
+    if (column.type !== 'date' && column.type !== 'date_time') {
+      return value;
+    }
+    var normalized = null;
+    if (column.type === 'date') {
+      normalized = normalizeDate(value);
+      return normalized ? formatContractDate(normalized) : value;
+    }
+    normalized = normalizeDateTime(value);
+    return normalized ? formatContractDateTime(normalized) : value;
+  }
+
+  function coerceSourceTableValues(datasetName, sourceHeaders, rows) {
+    var headerResult = validateHeaders(datasetName, sourceHeaders);
+    var schema = requireSchema(datasetName);
+    var columnByName = Object.create(null);
+    schema.columns.forEach(function (column) {
+      columnByName[column.name] = column;
+    });
+    if (!Array.isArray(rows)) {
+      fail(
+        ERROR_CODES.DATASET_INVALID_ROW,
+        'Rows for ' + datasetName + ' must be an array.',
+        { datasetName: datasetName },
+      );
+    }
+    var coercedRows = rows.map(function (row) {
+      if (!Array.isArray(row)) {
+        return row;
+      }
+      var nextRow = row.slice();
+      headerResult.canonicalHeaders.forEach(function (header) {
+        var column = columnByName[header];
+        if (!column || (column.type !== 'date' && column.type !== 'date_time')) {
+          return;
+        }
+        var sourceIndex = headerResult.sourceIndexByCanonicalHeader[header];
+        nextRow[sourceIndex] = coerceCellToContractString(column, nextRow[sourceIndex]);
+      });
+      return nextRow;
+    });
+    return Object.freeze({
+      datasetName: datasetName,
+      headers: Object.freeze(sourceHeaders.slice()),
+      rows: Object.freeze(coercedRows.map(function (row) {
+        return Object.freeze(row.slice());
+      })),
+    });
+  }
+
   return Object.freeze({
     ERROR_CODES: ERROR_CODES,
     SchemaContractError: SchemaContractError,
+    coerceSourceTableValues: coerceSourceTableValues,
+    collectValidationErrorSummary: collectValidationErrorSummary,
+    collectValidationErrors: collectValidationErrors,
+    formatContractDate: formatContractDate,
+    formatContractDateTime: formatContractDateTime,
+    normalizeDate: normalizeDate,
     normalizeRows: normalizeRows,
     validateHeaders: validateHeaders,
     validateRowVolume: validateRowVolume,

@@ -57,6 +57,41 @@ var Cxp06UatHarness = (function () {
     return require('../repository/RunRepository.js');
   }
 
+  function resolveDriveService() {
+    if (typeof DriveService !== 'undefined') {
+      return DriveService;
+    }
+    return require('../services/DriveService.js');
+  }
+
+  function resolveDatasetAdapter() {
+    if (typeof DatasetAdapter !== 'undefined') {
+      return DatasetAdapter;
+    }
+    return require('../ingestion/DatasetAdapter.js');
+  }
+
+  function resolveXlsxAdapter() {
+    if (typeof XlsxAdapter !== 'undefined') {
+      return XlsxAdapter;
+    }
+    return require('../ingestion/XlsxAdapter.js');
+  }
+
+  function resolveSchemaValidator() {
+    if (typeof SchemaValidator !== 'undefined') {
+      return SchemaValidator;
+    }
+    return require('../ingestion/SchemaValidator.js');
+  }
+
+  function resolveErrorCodes() {
+    if (typeof ErrorCodes !== 'undefined') {
+      return ErrorCodes;
+    }
+    return require('../monitoring/ErrorCodes.js');
+  }
+
   function getPropValue(props, key) {
     if (!props) {
       return null;
@@ -131,6 +166,520 @@ var Cxp06UatHarness = (function () {
       operations.commitDatasetStep = commit.commitDatasetStep;
     }
     return Object.freeze(operations);
+  }
+
+  var UAT_SOURCE_FILE_DEFINITIONS = Object.freeze([
+    { datasetName: 'Handled', propertyKey: 'CXP_UAT_HANDLED_FILE_ID' },
+    { datasetName: 'Offered', propertyKey: 'CXP_UAT_OFFERED_FILE_ID' },
+    { datasetName: 'AHT - Raw', propertyKey: 'CXP_UAT_AHT_FILE_ID' },
+    { datasetName: 'Auxes - Raw', propertyKey: 'CXP_UAT_AUXES_FILE_ID' },
+    { datasetName: 'Staff', propertyKey: 'CXP_UAT_STAFF_FILE_ID' },
+  ]);
+
+  var BOOTSTRAP_FOLDER_PROPERTY = 'CXP_DEV_BOOTSTRAP_FOLDER_ID';
+
+  function requireListingEnvironment(properties) {
+    var props = properties;
+    if (
+      !props &&
+      typeof PropertiesService !== 'undefined' &&
+      typeof PropertiesService.getScriptProperties === 'function'
+    ) {
+      props = PropertiesService.getScriptProperties();
+    }
+    var env = getPropValue(props, 'CXP_ENV');
+    if (env === 'PROD') {
+      throw new Error('UAT file listing is not available in PROD environment.');
+    }
+    if (env !== 'DEV' && env !== 'UAT') {
+      throw new Error('UAT file listing requires DEV or UAT environment.');
+    }
+    return Object.freeze({ environment: env, properties: props });
+  }
+
+  function lookupDriveFile(driveApp, fileId) {
+    if (!driveApp || typeof driveApp.getFileById !== 'function') {
+      return Object.freeze({ found: false, reason: 'drive_unavailable' });
+    }
+    try {
+      var file = driveApp.getFileById(fileId);
+      if (!file || typeof file.getName !== 'function') {
+        return Object.freeze({ found: false, reason: 'not_found' });
+      }
+      return Object.freeze({
+        found: true,
+        name: file.getName(),
+      });
+    } catch (error) {
+      return Object.freeze({ found: false, reason: 'not_accessible' });
+    }
+  }
+
+  function listConfiguredSourceFiles(properties, driveApp) {
+    return UAT_SOURCE_FILE_DEFINITIONS.map(function (definition) {
+      var rawId = getPropValue(properties, definition.propertyKey);
+      var fileId = typeof rawId === 'string' ? rawId.trim() : '';
+      var entry = {
+        configured: fileId.length > 0,
+        datasetName: definition.datasetName,
+        found: false,
+        propertyKey: definition.propertyKey,
+      };
+      if (!entry.configured) {
+        return Object.freeze(entry);
+      }
+      var lookup = lookupDriveFile(driveApp, fileId);
+      return Object.freeze(Object.assign({}, entry, lookup));
+    });
+  }
+
+  function listFolderFiles(folderId, driveApp) {
+    if (!folderId || !driveApp || typeof driveApp.getFolderById !== 'function') {
+      return Object.freeze([]);
+    }
+    var folder;
+    try {
+      folder = driveApp.getFolderById(folderId);
+    } catch (error) {
+      return Object.freeze([]);
+    }
+    if (!folder || typeof folder.getFiles !== 'function') {
+      return Object.freeze([]);
+    }
+    var listed = [];
+    var iterator = folder.getFiles();
+    while (iterator.hasNext()) {
+      var file = iterator.next();
+      if (file && typeof file.getName === 'function') {
+        listed.push(Object.freeze({
+          found: true,
+          name: file.getName(),
+        }));
+      }
+    }
+    listed.sort(function (left, right) {
+      return left.name.localeCompare(right.name);
+    });
+    return Object.freeze(listed);
+  }
+
+  function listBackupSheetsIfFound(properties, spreadsheetApp, environment) {
+    if (
+      !spreadsheetApp ||
+      typeof spreadsheetApp.openById !== 'function' ||
+      typeof environment !== 'string'
+    ) {
+      return Object.freeze([]);
+    }
+    var targetKey = 'CXP_' + environment + '_TARGET_SPREADSHEET_ID';
+    var targetId = getPropValue(properties, targetKey);
+    if (typeof targetId !== 'string' || !targetId.trim()) {
+      return Object.freeze([]);
+    }
+    try {
+      var spreadsheet = spreadsheetApp.openById(targetId.trim());
+      if (!spreadsheet || typeof spreadsheet.getSheets !== 'function') {
+        return Object.freeze([]);
+      }
+      return Object.freeze(spreadsheet.getSheets().map(function (sheet) {
+        return sheet && typeof sheet.getName === 'function' ? sheet.getName() : '';
+      }).filter(function (name) {
+        return name.indexOf('_CXP06_BAK_') === 0;
+      }).sort().map(function (name) {
+        return Object.freeze({ found: true, name: name });
+      }));
+    } catch (error) {
+      return Object.freeze([]);
+    }
+  }
+
+  function listSourceFiles(options) {
+    var opts = options || {};
+    var gate = requireListingEnvironment(opts.properties);
+    var properties = gate.properties;
+    var services = opts.services || {};
+    var driveApp = services.driveApp ||
+      (typeof DriveApp !== 'undefined' ? DriveApp : null);
+    var spreadsheetApp = services.spreadsheetApp ||
+      (typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null);
+    var sourceFiles = listConfiguredSourceFiles(properties, driveApp);
+    var folderId = typeof opts.folderId === 'string' && opts.folderId.trim()
+      ? opts.folderId.trim()
+      : getPropValue(properties, BOOTSTRAP_FOLDER_PROPERTY);
+    var folderFiles = listFolderFiles(
+      typeof folderId === 'string' ? folderId.trim() : '',
+      driveApp,
+    );
+    var backupSheets = listBackupSheetsIfFound(
+      properties,
+      spreadsheetApp,
+      gate.environment,
+    );
+    return Object.freeze({
+      allConfigured: sourceFiles.every(function (entry) { return entry.configured; }),
+      allFound: sourceFiles.every(function (entry) {
+        return !entry.configured || entry.found;
+      }),
+      backupSheets: backupSheets,
+      environment: gate.environment,
+      folderFileCount: folderFiles.length,
+      folderFiles: folderFiles,
+      sourceFiles: Object.freeze(sourceFiles),
+    });
+  }
+
+  function readConfiguredSourceTable(datasetName, fileId, services) {
+    if (services && typeof services.readSourceTable === 'function') {
+      return services.readSourceTable(datasetName, fileId);
+    }
+    var driveService = resolveDriveService();
+    var source = driveService.readFile(fileId, services);
+    var enrichedSource = Object.assign({}, source, { datasetName: datasetName });
+    if (source.format === driveService.FORMATS.HTML_TABLE) {
+      return resolveDatasetAdapter().parseHtmlTable(enrichedSource);
+    }
+    if (source.format === driveService.FORMATS.XLSX) {
+      var workbook = resolveXlsxAdapter().read(enrichedSource, services);
+      var populatedSheets = workbook.sheets.filter(function (sheet) {
+        return sheet.values.length > 0;
+      });
+      if (populatedSheets.length > 1) {
+        throw resolveErrorCodes().create('SOURCE_MULTIPLE_TABLES', {
+          details: { sheetCount: populatedSheets.length },
+        });
+      }
+      if (populatedSheets.length !== 1) {
+        throw resolveErrorCodes().create('SOURCE_INVALID_TABLE', {
+          details: { sheetCount: populatedSheets.length },
+        });
+      }
+      return populatedSheets[0];
+    }
+    throw resolveErrorCodes().create('SOURCE_UNSUPPORTED_FORMAT');
+  }
+
+  function countDatasetValidationErrors(datasetResult) {
+    if (datasetResult.readError) {
+      return 1;
+    }
+    if (datasetResult.headerError || datasetResult.rowVolumeError) {
+      return 1;
+    }
+    if (typeof datasetResult.totalErrorCount === 'number') {
+      return datasetResult.totalErrorCount;
+    }
+    return datasetResult.errors.length;
+  }
+
+  function formatSourceValidationLog(result) {
+    return Object.freeze({
+      allValid: result.allValid,
+      datasets: Object.freeze(result.datasets.map(function (datasetResult) {
+        return Object.freeze({
+          datasetName: datasetResult.datasetName,
+          errorGroups: datasetResult.errorGroups || Object.freeze([]),
+          headerError: datasetResult.headerError,
+          readError: datasetResult.readError,
+          rowCount: datasetResult.rowCount,
+          rowVolumeError: datasetResult.rowVolumeError,
+          sourceName: datasetResult.sourceName,
+          totalErrorCount: typeof datasetResult.totalErrorCount === 'number'
+            ? datasetResult.totalErrorCount
+            : datasetResult.errors.length,
+          valid: countDatasetValidationErrors(datasetResult) === 0,
+        });
+      })),
+      environment: result.environment,
+      totalErrors: result.totalErrors,
+    });
+  }
+
+  function scanSourceFileValidation(options) {
+    var opts = options || {};
+    var gate = requireListingEnvironment(opts.properties);
+    var properties = gate.properties;
+    var services = opts.services || {};
+    var datasets = UAT_SOURCE_FILE_DEFINITIONS.map(function (definition) {
+      var rawId = getPropValue(properties, definition.propertyKey);
+      var fileId = typeof rawId === 'string' ? rawId.trim() : '';
+      var entry = {
+        configured: fileId.length > 0,
+        datasetName: definition.datasetName,
+        errorGroups: Object.freeze([]),
+        found: false,
+        headerError: null,
+        propertyKey: definition.propertyKey,
+        readError: null,
+        rowCount: 0,
+        rowVolumeError: null,
+        sourceName: null,
+        totalErrorCount: 0,
+      };
+      if (!entry.configured) {
+        return Object.freeze(Object.assign({}, entry, {
+          readError: Object.freeze({
+            errorCode: 'SOURCE_FILE_NOT_CONFIGURED',
+            message: definition.propertyKey + ' is not configured.',
+          }),
+        }));
+      }
+
+      var lookup = lookupDriveFile(services.driveApp ||
+        (typeof DriveApp !== 'undefined' ? DriveApp : null), fileId);
+      if (!lookup.found) {
+        return Object.freeze(Object.assign({}, entry, {
+          readError: Object.freeze({
+            errorCode: 'SOURCE_FILE_NOT_FOUND',
+            message: 'Drive file is not accessible for ' + definition.propertyKey + '.',
+          }),
+        }));
+      }
+
+      try {
+        var table = readConfiguredSourceTable(definition.datasetName, fileId, services);
+        if (!table || !Array.isArray(table.values) || table.values.length < 2) {
+          return Object.freeze(Object.assign({}, entry, {
+            found: true,
+            readError: Object.freeze({
+              errorCode: 'SOURCE_INVALID_TABLE',
+              message: 'Source table is missing headers or data rows.',
+            }),
+            sourceName: lookup.name,
+          }));
+        }
+        var headers = table.values[0].slice();
+        var bodyRows = table.values.slice(1);
+        var scan = resolveSchemaValidator().collectValidationErrorSummary(
+          definition.datasetName,
+          headers,
+          bodyRows,
+        );
+        return Object.freeze(Object.assign({}, entry, {
+          errorGroups: scan.errorGroups,
+          found: true,
+          headerError: scan.headerError,
+          rowCount: scan.rowCount,
+          rowVolumeError: scan.rowVolumeError,
+          sourceName: lookup.name,
+          totalErrorCount: scan.totalErrorCount,
+        }));
+      } catch (error) {
+        return Object.freeze(Object.assign({}, entry, {
+          found: lookup.found,
+          readError: Object.freeze({
+            errorCode: error && typeof error.code === 'string'
+              ? error.code
+              : 'SOURCE_READ_FAILED',
+            message: error && error.message ? error.message : String(error),
+          }),
+          sourceName: lookup.name,
+        }));
+      }
+    });
+
+    var totalErrors = datasets.reduce(function (sum, datasetResult) {
+      return sum + countDatasetValidationErrors(datasetResult);
+    }, 0);
+
+    return Object.freeze({
+      allValid: datasets.every(function (datasetResult) {
+        return countDatasetValidationErrors(datasetResult) === 0;
+      }),
+      datasets: Object.freeze(datasets),
+      environment: gate.environment,
+      totalErrors: totalErrors,
+    });
+  }
+
+  function scanSourceFileValidationLog(options) {
+    return formatSourceValidationLog(scanSourceFileValidation(options));
+  }
+
+  function buildRepairedFileName(sourceName) {
+    var normalized = typeof sourceName === 'string' ? sourceName.trim() : '';
+    if (!normalized) {
+      return 'Fixed-UAT-Source.xlsx';
+    }
+    if (/^fixed[\s_-]/i.test(normalized)) {
+      return normalized;
+    }
+    return 'Fixed - ' + normalized.replace(/\.xlsx$/i, '') + '.xlsx';
+  }
+
+  function exportRepairedTableToFolder(table, fileName, folderId, services) {
+    var spreadsheetApp = services.spreadsheetApp;
+    var driveApp = services.driveApp;
+    var utilities = services.utilities;
+    if (
+      !spreadsheetApp ||
+      typeof spreadsheetApp.create !== 'function' ||
+      !driveApp ||
+      typeof driveApp.getFileById !== 'function' ||
+      typeof driveApp.getFolderById !== 'function'
+    ) {
+      throw new Error('SpreadsheetApp and DriveApp are required to export repaired source files.');
+    }
+    var folder = driveApp.getFolderById(folderId);
+    if (!folder || typeof folder.createFile !== 'function') {
+      throw new Error('Bootstrap Drive folder was not found for repaired source export.');
+    }
+    var tempName = 'CXP-UAT-REPAIR-TEMP-' +
+      (utilities && typeof utilities.getUuid === 'function'
+        ? utilities.getUuid()
+        : String(Date.now()));
+    var spreadsheet = spreadsheetApp.create(tempName);
+    var tempFileId = spreadsheet.getId();
+    try {
+      var sheet = spreadsheet.getSheets()[0];
+      var values = [table.headers.slice()].concat(table.rows.map(function (row) {
+        return row.slice();
+      }));
+      sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+      if (typeof spreadsheetApp.flush === 'function') {
+        spreadsheetApp.flush();
+      }
+      var blob = driveApp.getFileById(tempFileId).getAs(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      blob.setName(fileName);
+      var created = folder.createFile(blob);
+      return Object.freeze({
+        fileId: created.getId(),
+        fileName: created.getName(),
+      });
+    } finally {
+      driveApp.getFileById(tempFileId).setTrashed(true);
+    }
+  }
+
+  function repairSourceFiles(options) {
+    var opts = options || {};
+    var gate = requireListingEnvironment(opts.properties);
+    var properties = gate.properties;
+    var services = opts.services || {};
+    var updateProperties = opts.updateProperties === true;
+    var folderId = typeof opts.folderId === 'string' && opts.folderId.trim()
+      ? opts.folderId.trim()
+      : getPropValue(properties, BOOTSTRAP_FOLDER_PROPERTY);
+    if (typeof folderId !== 'string' || !folderId.trim()) {
+      throw new Error(BOOTSTRAP_FOLDER_PROPERTY + ' is required to export repaired source files.');
+    }
+
+    var repairedFiles = [];
+    var skippedFiles = [];
+    UAT_SOURCE_FILE_DEFINITIONS.forEach(function (definition) {
+      var rawId = getPropValue(properties, definition.propertyKey);
+      var fileId = typeof rawId === 'string' ? rawId.trim() : '';
+      if (!fileId) {
+        skippedFiles.push(Object.freeze({
+          datasetName: definition.datasetName,
+          propertyKey: definition.propertyKey,
+          reason: 'not_configured',
+        }));
+        return;
+      }
+      var lookup = lookupDriveFile(services.driveApp ||
+        (typeof DriveApp !== 'undefined' ? DriveApp : null), fileId);
+      if (!lookup.found) {
+        skippedFiles.push(Object.freeze({
+          datasetName: definition.datasetName,
+          propertyKey: definition.propertyKey,
+          reason: 'not_accessible',
+        }));
+        return;
+      }
+
+      try {
+        var table = readConfiguredSourceTable(definition.datasetName, fileId, services);
+        var headers = table.values[0].slice();
+        var bodyRows = table.values.slice(1);
+        var coerced = resolveSchemaValidator().coerceSourceTableValues(
+          definition.datasetName,
+          headers,
+          bodyRows,
+        );
+        var changedCellCount = 0;
+        coerced.rows.forEach(function (coercedRow, rowIndex) {
+          var sourceRow = bodyRows[rowIndex];
+          if (!Array.isArray(sourceRow) || !Array.isArray(coercedRow)) {
+            return;
+          }
+          for (var columnIndex = 0; columnIndex < sourceRow.length; columnIndex += 1) {
+            if (sourceRow[columnIndex] !== coercedRow[columnIndex]) {
+              changedCellCount += 1;
+            }
+          }
+        });
+        var afterScan = resolveSchemaValidator().collectValidationErrorSummary(
+          definition.datasetName,
+          coerced.headers,
+          coerced.rows,
+        );
+        if (afterScan.totalErrorCount > 0) {
+          skippedFiles.push(Object.freeze({
+            datasetName: definition.datasetName,
+            propertyKey: definition.propertyKey,
+            reason: 'still_invalid',
+            remainingErrorCount: afterScan.totalErrorCount,
+            sourceName: lookup.name,
+          }));
+          return;
+        }
+        if (changedCellCount === 0) {
+          skippedFiles.push(Object.freeze({
+            datasetName: definition.datasetName,
+            propertyKey: definition.propertyKey,
+            reason: 'already_valid',
+            sourceName: lookup.name,
+          }));
+          return;
+        }
+        var exportResult = exportRepairedTableToFolder(
+          coerced,
+          buildRepairedFileName(lookup.name),
+          folderId.trim(),
+          {
+            driveApp: services.driveApp || (typeof DriveApp !== 'undefined' ? DriveApp : null),
+            spreadsheetApp: services.spreadsheetApp ||
+              (typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null),
+            utilities: services.utilities ||
+              (typeof Utilities !== 'undefined' ? Utilities : null),
+          },
+        );
+        if (
+          updateProperties &&
+          properties &&
+          typeof properties.setProperty === 'function'
+        ) {
+          properties.setProperty(definition.propertyKey, exportResult.fileId);
+        }
+        repairedFiles.push(Object.freeze({
+          cellsCoerced: changedCellCount,
+          datasetName: definition.datasetName,
+          fileId: exportResult.fileId,
+          fileName: exportResult.fileName,
+          propertyKey: definition.propertyKey,
+          propertyUpdated: updateProperties,
+          sourceName: lookup.name,
+        }));
+      } catch (error) {
+        skippedFiles.push(Object.freeze({
+          datasetName: definition.datasetName,
+          propertyKey: definition.propertyKey,
+          reason: 'repair_failed',
+          sourceName: lookup.name,
+        }));
+      }
+    });
+
+    return Object.freeze({
+      environment: gate.environment,
+      folderId: folderId.trim(),
+      propertiesUpdated: updateProperties,
+      repairedFiles: Object.freeze(repairedFiles),
+      repairedFileCount: repairedFiles.length,
+      skippedFiles: Object.freeze(skippedFiles),
+    });
   }
 
   function readSyntheticFileIds(properties) {
@@ -542,12 +1091,19 @@ var Cxp06UatHarness = (function () {
   }
 
   return Object.freeze({
+    BOOTSTRAP_FOLDER_PROPERTY: BOOTSTRAP_FOLDER_PROPERTY,
     composeOperations: composeOperations,
     createHostedDependencies: createHostedDependencies,
     execute: execute,
+    formatSourceValidationLog: formatSourceValidationLog,
     hostedRuntimeServices: hostedRuntimeServices,
+    listSourceFiles: listSourceFiles,
     readSyntheticFileIds: readSyntheticFileIds,
+    repairSourceFiles: repairSourceFiles,
     requireSafetyGate: requireSafetyGate,
+    scanSourceFileValidation: scanSourceFileValidation,
+    scanSourceFileValidationLog: scanSourceFileValidationLog,
+    UAT_SOURCE_FILE_DEFINITIONS: UAT_SOURCE_FILE_DEFINITIONS,
   });
 })();
 

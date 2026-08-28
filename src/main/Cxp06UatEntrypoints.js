@@ -56,6 +56,34 @@ function executeCxp06UatScenario(scenario) {
   return resolveCxp06UatHarness().execute({ scenario: scenario });
 }
 
+function cxp06UatListSourceFiles() {
+  var result = resolveCxp06UatHarness().listSourceFiles();
+  if (typeof console !== 'undefined' && typeof console.log === 'function') {
+    console.log('CXP06_UAT_SOURCE_FILES ' + JSON.stringify(result));
+  }
+  return result;
+}
+
+function cxp06UatScanSourceFileValidation() {
+  var harness = resolveCxp06UatHarness();
+  var result = harness.scanSourceFileValidation();
+  var logPayload = harness.formatSourceValidationLog(result);
+  if (typeof console !== 'undefined' && typeof console.log === 'function') {
+    console.log('CXP06_UAT_SOURCE_VALIDATION ' + JSON.stringify(logPayload));
+  }
+  return result;
+}
+
+function cxp06UatRepairSourceFiles(updateProperties) {
+  var result = resolveCxp06UatHarness().repairSourceFiles({
+    updateProperties: updateProperties === true,
+  });
+  if (typeof console !== 'undefined' && typeof console.log === 'function') {
+    console.log('CXP06_UAT_SOURCE_REPAIR ' + JSON.stringify(result));
+  }
+  return result;
+}
+
 function cxp06UatPreflight() {
   return resolveCxp06UatHarness().execute({ scenario: 'PREFLIGHT' });
 }
@@ -131,8 +159,11 @@ if (typeof module !== 'undefined' && module.exports) {
     cxp06UatCase5IncompleteBackup: cxp06UatCase5IncompleteBackup,
     cxp06UatCase5SuccessfulLeftoverBackup: cxp06UatCase5SuccessfulLeftoverBackup,
     cxp06UatCase5TwoCompleteUnsuccessfulBackups: cxp06UatCase5TwoCompleteUnsuccessfulBackups,
+    cxp06UatListSourceFiles: cxp06UatListSourceFiles,
     cxp06UatPreflight: cxp06UatPreflight,
     cxp06UatReaderVisibility: cxp06UatReaderVisibility,
+    cxp06UatRepairSourceFiles: cxp06UatRepairSourceFiles,
+    cxp06UatScanSourceFileValidation: cxp06UatScanSourceFileValidation,
     continueCxp06UatPipeline: continueCxp06UatPipeline,
     getCxp06UatPipelineStatus: getCxp06UatPipelineStatus,
   };

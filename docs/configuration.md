@@ -27,6 +27,8 @@ To point Script Properties at workbooks you already created (spreadsheet IDs or 
 
 If bootstrap already created `DEV_TARGET_WORKBOOK` and `DEV_SYSTEM_CONTROL_WORKBOOK` in a Drive folder, run `registerCxpDevWorkbooksFromFolder(folderId?, initializeAndSeed?)` (or editor wrapper `registerCxpDevWorkbooksFromFolderAndSeed()` when `CXP_DEV_BOOTSTRAP_FOLDER_ID` is set) to discover those files by name and write Script Properties automatically. To seed headers only, run `seedCxpControlWorkbookHeaders()` (optional second argument `true` overwrites row 1). Logs never include spreadsheet IDs.
 
+UAT source diagnostics (also in `DevWorkbookBootstrap.js`): `listCxpUatSourceFiles()` / `listCxpUatFilesIfFound()` verifies all five `CXP_UAT_*_FILE_ID` properties; `scanCxpUatSourceFileValidation()` reports invalid types per dataset before CXP-06 Case 1. Read-only; does not require `CXP_UAT_ENABLED`.
+
 ## Local clasp target
 
 `CXP_CLASP_SCRIPT_ID` is a local process variable consumed only by `npm run clasp:configure`. It is written to the ignored `.clasp.json` with `"rootDir": "src"`. The generator uses exclusive-create semantics; remove or rename an obsolete local target deliberately before configuring another one.
