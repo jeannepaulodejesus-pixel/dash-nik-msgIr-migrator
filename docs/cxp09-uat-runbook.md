@@ -48,9 +48,17 @@ Record the aggregation grain key columns present on each `_AGG_*` sheet and the 
 
 ---
 
+## CXP09UatStep00 — VerifyPrerequisites
+
+**Helper:** `CXP09UatStep00VerifyPrerequisites`
+
+Run **before** Step 01. Confirms CXP-07 (`27/27`) and CXP-08 (`74/74`) install state is `COMPLETE` on the configured target. Throws if either packet is incomplete.
+
+---
+
 ## CXP09UatStep01 — Install
 
-**Helper (planned):** `CXP09UatStep01Install` (or run initialize/continue/status directly).
+**Helper:** `CXP09UatStep01Install` (or run initialize/continue/status directly).
 
 1. Push the verified `src/` tree to the non-production Apps Script project.
 2. Confirm CXP-07 and CXP-08 install status is `COMPLETE` on the configured target.
@@ -60,7 +68,7 @@ Record the aggregation grain key columns present on each `_AGG_*` sheet and the 
 
 ## CXP09UatStep02 — InspectTopology
 
-**Helper (planned):** `CXP09UatStep02InspectTopology`
+**Helper:** `CXP09UatStep02InspectTopology`
 
 1. Confirm `_AGG_INTERVAL`, `_AGG_FORECAST`, and `_AGG_ALLOCATION` exist and are backend-protected per CXP-02.
 2. Confirm each sheet declares the canonical dimension columns (at minimum fixed-PST `Date`, `Interval`, and `Site`; add `Queue`/`LOB`/`Type` only where `metric-lineage-contract.json` requires them for that measure family).
@@ -71,7 +79,7 @@ Record the aggregation grain key columns present on each `_AGG_*` sheet and the 
 
 ## CXP09UatStep03 — LoadParityFixture
 
-**Helper (planned):** `CXP09UatStep03LoadParityFixture`
+**Helper:** `CXP09UatStep03LoadParityFixture` / `CXP09UatStep03RunParity`
 
 Load a synthetic bundle that exercises calc → aggregation for all five datasets. Planned fixture path: `tests/fixtures/cxp09/aggregation-parity.json`. Adapt partials to complete CXP-03 raw rows without changing listed control values. Overwrite prior raw content only; do not reinstall aggregation formulas after the load.
 
@@ -101,7 +109,7 @@ Write approved MOM/forecast manual inputs required by `_AGG_FORECAST` per fixtur
 
 ## CXP09UatStep04 — RecordParityOutputs
 
-**Helper (planned):** `CXP09UatStep04RecordParityOutputs`
+**Helper:** `CXP09UatStep04RecordParityOutputs`
 
 1. Allow `_CALC_*` spills to settle, then read aggregation outputs from `_AGG_INTERVAL`, `_AGG_FORECAST`, and `_AGG_ALLOCATION` for the fixture keys.
 2. Compare to literal expected values in the fixture at **date + interval + site** grain (add queue/LOB/type only where the contract requires).
@@ -114,7 +122,7 @@ Write approved MOM/forecast manual inputs required by `_AGG_FORECAST` per fixtur
 
 ## CXP09UatStep05 — PeakFlushTiming
 
-**Helper (planned):** `CXP09UatStep05PeakFlushTiming`
+**Helper:** `CXP09UatStep05PeakFlushTiming`
 
 1. Load an approved peak bundle into all five raw sheets (for example via CXP-06 peak ingest into the same target, or a dedicated peak writer): approximately 5,000 Handled, 5,000 Offered, 7,000 AHT, 3,000 Auxes, and 300 Staff rows within declared bounds.
 2. Call `SpreadsheetApp.flush()` via the helper and record elapsed time, populated aggregation row counts per `_AGG_*` sheet, formula-error kinds, and Apps Script execution outcome.
@@ -122,7 +130,7 @@ Write approved MOM/forecast manual inputs required by `_AGG_FORECAST` per fixtur
 
 ## CXP09UatStep06 — SecondBundleRefresh
 
-**Helper (planned):** `CXP09UatStep06SecondBundleRefresh` (+ status/continue if resumable)
+**Helper:** `CXP09UatStep06SecondBundleRefresh`
 
 1. Replace raw values (and forecast manual inputs if applicable) with a second valid bundle **without** reinstalling aggregation formulas.
 2. Prefer one raw sheet (or one bounded write) per Apps Script invocation so peak-sized clears stay inside the execution limit; poll status until `COMPLETE`.
@@ -130,7 +138,7 @@ Write approved MOM/forecast manual inputs required by `_AGG_FORECAST` per fixtur
 
 ## CXP09UatStep07 — ReinstallTopology
 
-**Helper (planned):** `CXP09UatStep07ReinstallTopology`
+**Helper:** `CXP09UatStep07ReinstallTopology`
 
 1. Re-run the installer (`initializeCxp09StableAggregationModel` after `COMPLETE` starts a clean reinstall).
 2. Wait for `COMPLETE` (resume with continue on Sheets timeouts).
@@ -138,7 +146,7 @@ Write approved MOM/forecast manual inputs required by `_AGG_FORECAST` per fixtur
 
 ## CXP09UatStep08 — PromotionGate
 
-**Helper (planned):** `CXP09UatStep08PromotionGate` (summary/status aggregator) or manual checklist against prior step evidence.
+**Helper:** `CXP09UatStep08PromotionGate`
 
 Promotion requires all of the following:
 
