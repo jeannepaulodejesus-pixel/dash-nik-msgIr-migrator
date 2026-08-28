@@ -28,6 +28,9 @@ The harness exposes 12 parameterless entrypoint functions in `src/main/Cxp06UatE
 | Entrypoint | Scenario / Case | Purpose |
 |---|---|---|
 | `cxp06UatPreflight` | `PREFLIGHT` | Validates environment, safety gates, script properties, and workbook access without mutation. |
+| `cxp06UatListSourceFiles` | — | Lists configured `CXP_UAT_*_FILE_ID` Drive files (found/missing), optional bootstrap-folder files, and `_CXP06_BAK_*` sheets on the target if present. Read-only; does not require `CXP_UAT_ENABLED`. |
+| `cxp06UatScanSourceFileValidation` | — | Scans all five configured UAT source files and reports schema/type validation errors per dataset (column, row, expected type, value preview). Read-only; does not require `CXP_UAT_ENABLED`. |
+| `cxp06UatRepairSourceFiles` | — | Exports `Fixed - *.xlsx` copies with contract date/datetime strings into `CXP_DEV_BOOTSTRAP_FOLDER_ID`. Pass `true` to update `CXP_UAT_*_FILE_ID` Script Properties. Read-only when `updateProperties` is omitted/false. |
 | `cxp06UatCase1PeakSuccess` | `CASE1_PEAK_SUCCESS` | Executes full peak payload replacement through `RunService.execute()`. |
 | `cxp06UatCase2InvalidStage` | `CASE2_INVALID_STAGE` | Injects corrupt staging data after staging to verify `MIGRATION_STAGE_VALIDATION_FAILED`. |
 | `cxp06UatCase3MidCommitFailure` | `CASE3_MID_COMMIT_FAILURE` | Injects mid-commit failure after 2 raw dataset replacements to test rollback. |

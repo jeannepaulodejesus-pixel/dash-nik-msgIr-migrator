@@ -11,6 +11,10 @@
  *   registerCxpDevWorkbookIds(targetId, controlId) // set Script Properties for existing workbooks
  *   registerCxpDevWorkbooksFromFolder(folderId?)  // discover by folder + set Script Properties
  *   registerCxpDevWorkbooksFromFolderAndSeed()    // folder from property; init + seed headers
+ *   listCxpUatSourceFiles()                       // list configured CXP_UAT_* Drive files
+ *   listCxpUatFilesIfFound()                      // alias for listCxpUatSourceFiles()
+ *   scanCxpUatSourceFileValidation()              // scan all five UAT sources for schema/type errors
+ *   repairCxpUatSourceFiles(updateProperties?)    // export Fixed-*.xlsx sources; optional property update
  *
  * Never commits IDs to source. Refuses PROD. Refuses overwrite of existing
  * CXP_DEV_* spreadsheet IDs unless forceReplace is true.
@@ -475,6 +479,60 @@ function registerCxpDevWorkbooksFromFolder(folderId, initializeAndSeed) {
 
 function registerCxpDevWorkbooksFromFolderAndSeed() {
   return registerCxpDevWorkbooksFromFolder(null, true);
+}
+
+function resolveCxp06UatHarnessForBootstrap() {
+  if (typeof Cxp06UatHarness !== 'undefined') {
+    return Cxp06UatHarness;
+  }
+  return require('../uat/Cxp06UatHarness.js');
+}
+
+function logCxpUatHarnessResult(tag, result) {
+  var line = tag + ' ' + JSON.stringify(result);
+  if (typeof console !== 'undefined' && typeof console.log === 'function') {
+    console.log(line);
+  }
+  if (typeof Logger !== 'undefined' && typeof Logger.log === 'function') {
+    Logger.log(line);
+  }
+  return result;
+}
+
+/** Lists configured CXP_UAT_* Drive files, bootstrap folder files, and backup sheets. */
+function listCxpUatSourceFiles() {
+  return logCxpUatHarnessResult(
+    'CXP06_UAT_SOURCE_FILES',
+    resolveCxp06UatHarnessForBootstrap().listSourceFiles(),
+  );
+}
+
+/** Alias kept for operator runbooks; same as listCxpUatSourceFiles(). */
+function listCxpUatFilesIfFound() {
+  return listCxpUatSourceFiles();
+}
+
+/** Scans all five configured UAT source files and reports schema/type validation errors. */
+function scanCxpUatSourceFileValidation() {
+  var harness = resolveCxp06UatHarnessForBootstrap();
+  var result = harness.scanSourceFileValidation();
+  return logCxpUatHarnessResult(
+    'CXP06_UAT_SOURCE_VALIDATION',
+    harness.formatSourceValidationLog(result),
+  );
+}
+
+/**
+ * Exports Fixed-*.xlsx copies with contract date strings and optionally updates CXP_UAT_* file IDs.
+ * @param {boolean=} updateProperties when true, writes repaired Drive file IDs to Script Properties
+ */
+function repairCxpUatSourceFiles(updateProperties) {
+  return logCxpUatHarnessResult(
+    'CXP06_UAT_SOURCE_REPAIR',
+    resolveCxp06UatHarnessForBootstrap().repairSourceFiles({
+      updateProperties: updateProperties === true,
+    }),
+  );
 }
 
 if (typeof module !== 'undefined' && module.exports) {

@@ -229,6 +229,111 @@ test('payload normalization enforces UTC dates, nulls, keys, types, and error to
   );
 });
 
+test('normalizeDate accepts Google Sheets / Excel serial numbers from xlsx conversion', () => {
+  const SchemaValidator = loadModule('../src/ingestion/SchemaValidator.js');
+  assert.equal(SchemaValidator.normalizeDate(46251), '2026-08-17');
+  assert.equal(SchemaValidator.normalizeDate('46251'), '2026-08-17');
+  assert.equal(SchemaValidator.normalizeDate('8/17/2026'), '2026-08-17');
+});
+
+test('coerceSourceTableValues rewrites sheet serial dates to contract date strings', () => {
+  const SchemaValidator = loadModule('../src/ingestion/SchemaValidator.js');
+  const aht = fixtures.datasets.find((fixture) => fixture.name === 'AHT - Raw');
+  const row = blankRow(aht.headers, {
+    'Agent Work ID': 'agent-1',
+    'Created Date': 46251,
+  });
+  const coerced = SchemaValidator.coerceSourceTableValues('AHT - Raw', aht.headers, [row]);
+  assert.equal(coerced.rows[0][aht.headers.indexOf('Created Date')], '8/17/2026');
+});
+
+// Defect caught: operators need every invalid cell reported before Case 1, not just the first failure.
+test('collectValidationErrors reports multiple schema issues without stopping at the first cell', () => {
+  const SchemaValidator = loadModule('../src/ingestion/SchemaValidator.js');
+  assert.equal(typeof SchemaValidator?.collectValidationErrors, 'function');
+  const handled = fixtures.datasets.find((fixture) => fixture.name === 'Handled');
+  const validValues = {
+    'Messaging Session Name': 'synthetic-session',
+    'Start Time': '8/17/2026 4:01 AM',
+    'End Time': '8/17/2026 4:30 AM',
+    'Request Time': '8/17/2026 4:00 AM',
+    'Wait Time': '12.5',
+    'Total Resolution Time (minutes)': '15',
+    'Speed to Answer': '30',
+    'Created Date': '8/17/2026',
+  };
+  const validRow = blankRow(handled.headers, validValues);
+  const invalidTypeRow = validRow.slice();
+  invalidTypeRow[handled.headers.indexOf('Start Time')] = '2026-08-17T04:01:00.000Z';
+  const errorTokenRow = validRow.slice();
+  errorTokenRow[handled.headers.indexOf('Status')] = '#N/A';
+
+  const result = SchemaValidator.collectValidationErrors(
+    'Handled',
+    handled.headers,
+    [invalidTypeRow, errorTokenRow],
+    { maxErrors: 10 },
+  );
+
+  assert.equal(result.rowCount, 2);
+  assert.equal(result.headerError, null);
+  assert.equal(result.errors.length, 2);
+  assert.equal(result.errors[0].errorCode, 'DATASET_INVALID_TYPE');
+  assert.equal(result.errors[0].column, 'Start Time');
+  assert.equal(result.errors[0].expectedType, 'date_time');
+  assert.equal(result.errors[0].rowNumber, 2);
+  assert.equal(result.errors[1].errorCode, 'DATASET_ERROR_TOKEN');
+  assert.equal(result.errors[1].column, 'Status');
+});
+
+test('collectValidationErrorSummary groups repeated invalid cells with total counts', () => {
+  const SchemaValidator = loadModule('../src/ingestion/SchemaValidator.js');
+  assert.equal(typeof SchemaValidator?.collectValidationErrorSummary, 'function');
+  const handled = fixtures.datasets.find((fixture) => fixture.name === 'Handled');
+  const validValues = {
+    'Messaging Session Name': 'synthetic-session',
+    'Start Time': '8/17/2026 4:01 AM',
+    'End Time': '8/17/2026 4:30 AM',
+    'Request Time': '8/17/2026 4:00 AM',
+    'Wait Time': '12.5',
+    'Total Resolution Time (minutes)': '15',
+    'Speed to Answer': '30',
+    'Created Date': '8/17/2026',
+  };
+  const invalidRow = blankRow(handled.headers, validValues);
+  invalidRow[handled.headers.indexOf('Wait Time')] = 'not-a-number';
+
+  const result = SchemaValidator.collectValidationErrorSummary(
+    'Handled',
+    handled.headers,
+    [invalidRow, invalidRow.slice(), invalidRow.slice()],
+  );
+
+  assert.equal(result.totalErrorCount, 3);
+  assert.equal(result.errorGroups.length, 1);
+  assert.equal(result.errorGroups[0].column, 'Wait Time');
+  assert.equal(result.errorGroups[0].count, 3);
+  assert.equal(result.errorGroups[0].errorCode, 'DATASET_INVALID_TYPE');
+});
+
+test('collectValidationErrorSummary accepts sheet serial dates after xlsx coercion support', () => {
+  const SchemaValidator = loadModule('../src/ingestion/SchemaValidator.js');
+  const handled = fixtures.datasets.find((fixture) => fixture.name === 'Handled');
+  const validValues = {
+    'Messaging Session Name': 'synthetic-session',
+    'Start Time': '8/17/2026 4:01 AM',
+    'End Time': '8/17/2026 4:30 AM',
+    'Request Time': '8/17/2026 4:00 AM',
+    'Wait Time': '12.5',
+    'Total Resolution Time (minutes)': '15',
+    'Speed to Answer': '30',
+    'Created Date': 46251,
+  };
+  const row = blankRow(handled.headers, validValues);
+  const result = SchemaValidator.collectValidationErrorSummary('Handled', handled.headers, [row]);
+  assert.equal(result.totalErrorCount, 0);
+});
+
 // Defect caught: oversized/empty exports or stale version labels enter a run unnoticed.
 test('row-volume and schema-version gates fail closed', () => {
   const DatasetPayload = loadModule('../src/ingestion/DatasetPayload.js');

@@ -2048,9 +2048,252 @@ test('evidence applies a strict sanitized metadata allowlist', () => {
   assert.equal(serialized.includes('SECRET'), false);
 });
 
+// Defect caught: operators cannot verify configured UAT Drive files before Case 1.
+test('listSourceFiles reports configured source files, folder files, and backup sheets when found', () => {
+  const properties = {
+    CXP_ENV: 'DEV',
+    CXP_DEV_TARGET_SPREADSHEET_ID: 'target-list-uat',
+    CXP_DEV_BOOTSTRAP_FOLDER_ID: 'folder-uat',
+    CXP_UAT_HANDLED_FILE_ID: 'handled-id',
+    CXP_UAT_OFFERED_FILE_ID: 'offered-id',
+    CXP_UAT_AHT_FILE_ID: '',
+    CXP_UAT_AUXES_FILE_ID: 'missing-id',
+    CXP_UAT_STAFF_FILE_ID: 'staff-id',
+  };
+  const driveApp = {
+    getFileById(id) {
+      if (id === 'missing-id') {
+        throw new Error('not found');
+      }
+      return {
+        getName() {
+          return id + '.xlsx';
+        },
+      };
+    },
+    getFolderById(folderId) {
+      assert.equal(folderId, 'folder-uat');
+      return {
+        getFiles() {
+          var files = [
+            { getName: () => 'Zeta.xlsx' },
+            { getName: () => 'Alpha.xlsx' },
+          ];
+          var index = 0;
+          return {
+            hasNext() {
+              return index < files.length;
+            },
+            next() {
+              return files[index++];
+            },
+          };
+        },
+      };
+    },
+  };
+  const spreadsheetApp = {
+    openById(id) {
+      assert.equal(id, 'target-list-uat');
+      return {
+        getSheets() {
+          return [
+            { getName: () => '_RAW_AHT' },
+            { getName: () => '_CXP06_BAK_AHT_run-1' },
+            { getName: () => '_CALC_AHT' },
+          ];
+        },
+      };
+    },
+  };
+  const result = Cxp06UatHarness.listSourceFiles({
+    properties,
+    services: { driveApp, spreadsheetApp },
+  });
+  assert.equal(result.environment, 'DEV');
+  assert.equal(result.allConfigured, false);
+  assert.equal(result.allFound, false);
+  assert.equal(result.sourceFiles.length, 5);
+  assert.equal(result.sourceFiles[0].found, true);
+  assert.equal(result.sourceFiles[0].name, 'handled-id.xlsx');
+  assert.equal(result.sourceFiles[2].configured, false);
+  assert.equal(result.sourceFiles[3].found, false);
+  assert.equal(result.sourceFiles[3].reason, 'not_accessible');
+  assert.deepEqual(result.folderFiles.map((entry) => entry.name), ['Alpha.xlsx', 'Zeta.xlsx']);
+  assert.deepEqual(result.backupSheets.map((entry) => entry.name), ['_CXP06_BAK_AHT_run-1']);
+});
+
+// Defect caught: operators cannot see every invalid source cell before Case 1 ingest.
+test('scanSourceFileValidation reports schema/type errors for configured datasets', () => {
+  const handled = require('./fixtures/cxp03/schema-fixtures.json').datasets
+    .find((fixture) => fixture.name === 'Handled');
+  const validValues = {
+    'Messaging Session Name': 'synthetic-session',
+    'Start Time': '8/17/2026 4:01 AM',
+    'End Time': '8/17/2026 4:30 AM',
+    'Request Time': '8/17/2026 4:00 AM',
+    'Wait Time': '12.5',
+    'Total Resolution Time (minutes)': '15',
+    'Speed to Answer': '30',
+    'Created Date': '8/17/2026',
+  };
+  const validRow = handled.headers.map((header) =>
+    Object.prototype.hasOwnProperty.call(validValues, header) ? validValues[header] : null,
+  );
+  const invalidRow = validRow.slice();
+  invalidRow[handled.headers.indexOf('Wait Time')] = 'not-a-number';
+
+  const properties = {
+    CXP_ENV: 'DEV',
+    CXP_UAT_HANDLED_FILE_ID: 'handled-id',
+    CXP_UAT_OFFERED_FILE_ID: 'offered-id',
+    CXP_UAT_AHT_FILE_ID: 'aht-id',
+    CXP_UAT_AUXES_FILE_ID: 'aux-id',
+    CXP_UAT_STAFF_FILE_ID: 'staff-id',
+  };
+  const driveApp = {
+    getFileById(id) {
+      return {
+        getName() {
+          return id + '.xlsx';
+        },
+      };
+    },
+  };
+  const result = Cxp06UatHarness.scanSourceFileValidation({
+    properties,
+    services: {
+      driveApp,
+      readSourceTable(datasetName, fileId) {
+        if (fileId === 'handled-id') {
+          return {
+            values: [handled.headers.slice(), invalidRow],
+          };
+        }
+        return {
+          values: [handled.headers.slice(), validRow],
+        };
+      },
+    },
+  });
+
+  assert.equal(result.environment, 'DEV');
+  assert.equal(result.allValid, false);
+  assert.ok(result.totalErrors >= 1);
+  assert.equal(result.datasets[0].datasetName, 'Handled');
+  assert.equal(result.datasets[0].totalErrorCount, 1);
+  assert.equal(result.datasets[0].errorGroups.length, 1);
+  assert.equal(result.datasets[0].errorGroups[0].errorCode, 'DATASET_INVALID_TYPE');
+  assert.equal(result.datasets[0].errorGroups[0].column, 'Wait Time');
+  const logPayload = Cxp06UatHarness.formatSourceValidationLog(result);
+  assert.equal(logPayload.datasets[0].valid, false);
+  assert.equal(JSON.stringify(logPayload).includes('propertyKey'), false);
+});
+
+test('repairSourceFiles exports coerced copies and can update Script Properties', () => {
+  const aht = require('./fixtures/cxp03/schema-fixtures.json').datasets
+    .find((fixture) => fixture.name === 'AHT - Raw');
+  const row = aht.headers.map((header) => {
+    if (header === 'Agent Work ID') {
+      return 'agent-1';
+    }
+    if (header === 'Created Date') {
+      return 46251;
+    }
+    return null;
+  });
+  const properties = {
+    CXP_ENV: 'DEV',
+    CXP_DEV_BOOTSTRAP_FOLDER_ID: 'folder-uat',
+    CXP_UAT_AHT_FILE_ID: 'aht-id',
+    setProperty(key, value) {
+      this[key] = value;
+    },
+  };
+  const exported = [];
+  const result = Cxp06UatHarness.repairSourceFiles({
+    properties,
+    updateProperties: true,
+    services: {
+      driveApp: {
+        getFileById(id) {
+          return {
+            getAs() {
+              return {
+                setName(name) {
+                  this.name = name;
+                  return this;
+                },
+              };
+            },
+            getId() {
+              return id;
+            },
+            getName() {
+              return id + '.xlsx';
+            },
+            setTrashed() {},
+          };
+        },
+        getFolderById(folderId) {
+          assert.equal(folderId, 'folder-uat');
+          return {
+            createFile(blob) {
+              exported.push(blob.name);
+              return {
+                getId() {
+                  return 'fixed-aht-id';
+                },
+                getName() {
+                  return blob.name;
+                },
+              };
+            },
+          };
+        },
+      },
+      readSourceTable(datasetName, fileId) {
+        assert.equal(fileId, 'aht-id');
+        return { values: [aht.headers.slice(), row] };
+      },
+      spreadsheetApp: {
+        create() {
+          return {
+            getId() {
+              return 'temp-sheet-id';
+            },
+            getSheets() {
+              return [{
+                getRange() {
+                  return { setValues() {} };
+                },
+              }];
+            },
+          };
+        },
+        flush() {},
+      },
+      utilities: { getUuid() { return 'uuid-1'; } },
+    },
+  });
+
+  assert.equal(result.repairedFileCount, 1);
+  assert.equal(result.repairedFiles[0].datasetName, 'AHT - Raw');
+  assert.equal(result.repairedFiles[0].propertyUpdated, true);
+  assert.equal(properties.CXP_UAT_AHT_FILE_ID, 'fixed-aht-id');
+  assert.equal(exported[0], 'Fixed - aht-id.xlsx');
+});
+
+const OPTIONAL_PARAMETER_ENTRYPOINTS = Object.freeze({
+  cxp06UatRepairSourceFiles: 1,
+});
+
 // Defect caught: Entrypoints fail to expose parameterless entrypoints or allow PROD execution.
 test('every entrypoint is parameterless and delegates to Cxp06UatHarness with safety checks', () => {
   const entrypoints = [
+    'cxp06UatListSourceFiles',
+    'cxp06UatRepairSourceFiles',
+    'cxp06UatScanSourceFileValidation',
     'cxp06UatPreflight',
     'cxp06UatCase1PeakSuccess',
     'cxp06UatCase2InvalidStage',
@@ -2069,7 +2312,10 @@ test('every entrypoint is parameterless and delegates to Cxp06UatHarness with sa
 
   entrypoints.forEach((name) => {
     assert.equal(typeof Cxp06UatEntrypoints[name], 'function');
-    assert.equal(Cxp06UatEntrypoints[name].length, 0);
+    assert.equal(
+      Cxp06UatEntrypoints[name].length,
+      OPTIONAL_PARAMETER_ENTRYPOINTS[name] || 0,
+    );
   });
 
   const preflight = Cxp06UatEntrypoints.cxp06UatPreflight();
