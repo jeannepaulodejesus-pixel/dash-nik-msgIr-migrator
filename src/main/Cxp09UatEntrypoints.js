@@ -40,6 +40,13 @@ var Cxp09ParityUat = (function () {
     'Offered Count',
     'Allocation Share',
   ]);
+  var FORECAST_HEADERS = Object.freeze([
+    'Date',
+    'Interval',
+    'Site',
+    'Type',
+    'Value',
+  ]);
 
   // Mirror of tests/fixtures/cxp09/aggregation-parity.json (embedded for Apps Script).
   var FIXTURE = Object.freeze({
@@ -394,10 +401,42 @@ var Cxp09ParityUat = (function () {
     });
   }
 
+  // Convert fixture ISO dates to Google Sheets serial numbers (1899-12-30 epoch)
+  // so _AGG_FORECAST Date cells match how operator .xlsx sources display in Sheets.
   function excelSerialFromIsoDateOnly(isoDate) {
     var parts = String(isoDate).slice(0, 10).split('-').map(Number);
     var utc = Date.UTC(parts[0], parts[1] - 1, parts[2]);
     return (utc - Date.UTC(1899, 11, 30)) / 86400000;
+  }
+
+  // Seeds _AGG_FORECAST manual-input rows from the embedded parity fixture.
+  // Not a public editor entrypoint — invoked only by loadParityFixture / RunParity.
+  // Clears A2:E{capacity}, then writes Date (serial), Interval, Site, Type, Value.
+  function writeForecastInputs(spreadsheetId, forecastInputs) {
+    var prefix = 'CXP09UatStep03.forecast';
+    var ss = openTarget(spreadsheetId);
+    var sheet = requireSheet(ss, '_AGG_FORECAST');
+    var inputs = forecastInputs || FIXTURE.inputs.forecastInputs;
+    var rowCapacity = typeof StableAggregationFormulaCatalog !== 'undefined'
+      ? StableAggregationFormulaCatalog.ROW_CAPACITY
+      : 50;
+    sheet.getRange(2, 1, rowCapacity, FORECAST_HEADERS.length).clearContent();
+    if (!inputs || inputs.length === 0) {
+      uatLog(prefix + '.write.done', { rows: 0 });
+      return Object.freeze({ rows: 0 });
+    }
+    var rows = inputs.map(function (row) {
+      return [
+        excelSerialFromIsoDateOnly(row.Date),
+        row.Interval,
+        row.Site,
+        row.Type,
+        row.Value,
+      ];
+    });
+    sheet.getRange(2, 1, rows.length, FORECAST_HEADERS.length).setValues(rows);
+    uatLog(prefix + '.write.done', { rows: rows.length });
+    return Object.freeze({ rows: rows.length });
   }
 
   function loadParityFixture(spreadsheetId) {
@@ -416,6 +455,8 @@ var Cxp09ParityUat = (function () {
     requireSheet(ss, '_CALC_STAFF').getRange(1, 57).setValue(
       excelSerialFromIsoDateOnly(FIXTURE.businessDay),
     );
+    // Forecast inputs are part of the parity bundle, not a separate UAT step.
+    writeForecastInputs(spreadsheetId, FIXTURE.inputs.forecastInputs);
     SpreadsheetApp.flush();
     return Object.freeze({
       ahtRows: aht.rows.length,

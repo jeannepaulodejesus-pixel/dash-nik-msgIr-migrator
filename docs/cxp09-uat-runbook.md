@@ -105,7 +105,7 @@ Clear/write `_RAW_STAFF` from the fixture Staff rows; set the Staff business-day
 
 ### CXP09UatStep03.6 — WriteForecastInputs
 
-Write approved MOM/forecast manual inputs required by `_AGG_FORECAST` per fixture contract (if the parity scenario includes forecast-dependent measures).
+Included in `CXP09UatStep03LoadParityFixture` and `CXP09UatStep03RunParity`: writes approved MOM/forecast manual inputs to `_AGG_FORECAST` per fixture contract.
 
 ## CXP09UatStep04 — RecordParityOutputs
 
