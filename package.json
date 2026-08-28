@@ -23,6 +23,7 @@
     "test:cxp07": "node --test tests/cxp07-native-transformations.test.cjs",
     "test:cxp08": "node --test tests/cxp08-native-transformations.test.cjs tests/cxp08-parity-uat.test.cjs",
     "test:cxp09": "node --test tests/cxp09-stable-aggregation.test.cjs",
+    "test:cxp10": "node --test tests/cxp10-reporting-surfaces.test.cjs",
     "test:bootstrap": "node --test tests/cxp-dev-workbook-bootstrap.test.cjs",
     "test:control-headers": "node --test tests/cxp-control-workbook-headers.test.cjs",
     "verify": "npm run lint && npm test && npm run guardrails"

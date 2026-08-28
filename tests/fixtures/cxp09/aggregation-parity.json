@@ -69,8 +69,31 @@
         "After Conversation Work Actual Time": 15
       }
     ],
-    "auxesRows": [],
-    "staffRows": [],
+    "auxesRows": [
+      {
+        "Name": "P1",
+        "User Presence ID": "UP-1",
+        "Status Start Date": "2026-08-18T07:45:00.000Z",
+        "Service Presence Status: Status Name": "Available - Messaging",
+        "Sign On Time (hours)": 1.5
+      },
+      {
+        "Name": "P2",
+        "User Presence ID": "UP-2",
+        "Status Start Date": "2026-08-18T08:05:00.000Z",
+        "Service Presence Status: Status Name": "Concluding",
+        "Sign On Time (hours)": 0.25
+      }
+    ],
+    "staffRows": [
+      {
+        "Status Start Date": "2026-08-18T08:00:00.000Z",
+        "Status End Date": "2026-08-18T09:00:00.000Z",
+        "Athlete Display Name": "Agent A",
+        "Athlete Site": "INT-LAS",
+        "Athlete Profile": "Messaging"
+      }
+    ],
     "forecastInputs": [
       {
         "Date": "2026-08-17",

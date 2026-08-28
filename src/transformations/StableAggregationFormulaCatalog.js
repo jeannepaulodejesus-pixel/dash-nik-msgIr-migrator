@@ -20,18 +20,35 @@ var StableAggregationFormulaCatalog = (function () {
       'label sum(Col4) \'\', sum(Col5) \'\', sum(Col6) \'\', avg(Col7) \'\', avg(Col8) \'\'",0)';
   }
 
-  function ahtTimingQuery() {
-    return '=QUERY({' +
-      '\'_CALC_AHT\'!A2:A' + AHT_LAST_ROW + ',' +
-      '\'_CALC_AHT\'!B2:B' + AHT_LAST_ROW + ',' +
-      '\'_CALC_AHT\'!J2:J' + AHT_LAST_ROW + ',' +
-      '\'_CALC_AHT\'!Q2:Q' + AHT_LAST_ROW + ',' +
-      '\'_CALC_AHT\'!R2:R' + AHT_LAST_ROW + ',' +
-      '\'_CALC_AHT\'!E2:E' + AHT_LAST_ROW + ',' +
-      '\'_CALC_AHT\'!F2:F' + AHT_LAST_ROW +
-      '},"select Col1, Col2, Col3, avg(Col4), avg(Col5), avg(Col6), avg(Col7) ' +
-      'where Col1 is not null group by Col1, Col2, Col3 ' +
-      'label avg(Col4) \'\', avg(Col5) \'\', avg(Col6) \'\', avg(Col7) \'\'",0)';
+  function ahtMetricLookupFormula(metricExpr) {
+    var lastRow = AHT_LAST_ROW;
+    return '=ARRAYFORMULA(IF(A2:A' + ROW_CAPACITY + '="","",' +
+      'LET(' +
+        'calcDate,\'_CALC_AHT\'!A2:A' + lastRow + ',' +
+        'aggKey,IF(calcDate="","",TEXT(calcDate,"yyyy-mm-dd")&CHAR(29)&' +
+          'TEXT(\'_CALC_AHT\'!B2:B' + lastRow + ',"hh:mm")&CHAR(29)&' +
+          '\'_CALC_AHT\'!J2:J' + lastRow + '),' +
+        'metric,IF(calcDate="","",' + metricExpr + '),' +
+        'agg,QUERY({aggKey,metric},' +
+          '"select Col1, avg(Col2) where Col1 is not null group by Col1 ' +
+          'label avg(Col2) \'\'",0),' +
+        'rowKey,TEXT(A2:A' + ROW_CAPACITY + ',"yyyy-mm-dd")&CHAR(29)&' +
+          'TEXT(B2:B' + ROW_CAPACITY + ',"hh:mm")&CHAR(29)&C2:C' + ROW_CAPACITY + ',' +
+        'IFNA(VLOOKUP(rowKey,agg,2,FALSE),"")' +
+      ')' +
+    '))';
+  }
+
+  function ahtTimingLookupFormulas() {
+    var lastRow = AHT_LAST_ROW;
+    var calc = '\'_CALC_AHT\'!';
+    return Object.freeze([
+      ahtMetricLookupFormula(calc + 'Q2:Q' + lastRow),
+      ahtMetricLookupFormula(calc + 'R2:R' + lastRow),
+      // ASA Total (calc col E) is ARRAYFORMULA-sourced; QUERY avg errors on it — sum raw STA + TTFR.
+      ahtMetricLookupFormula(calc + 'T2:T' + lastRow + '+' + calc + 'AB2:AB' + lastRow),
+      ahtMetricLookupFormula(calc + 'F2:F' + lastRow),
+    ]);
   }
 
   function forecastInputQuery() {
@@ -52,20 +69,23 @@ var StableAggregationFormulaCatalog = (function () {
   }
 
   function allocationShareFormula() {
-    return '=ARRAYFORMULA(IF(A2:A' + ROW_CAPACITY + '="","",' +
-      'IF(E2:E' + ROW_CAPACITY + '=0,"",E2:E' + ROW_CAPACITY + '/SUMIFS(E:E,A:A,A2:A' +
-      ROW_CAPACITY + ',B:B,B2:B' + ROW_CAPACITY + ',C:C,C2:C' + ROW_CAPACITY + ')))';
+    var rowEnd = ROW_CAPACITY + 1;
+    return '=MAP(A2:A' + rowEnd + ',B2:B' + rowEnd + ',C2:C' + rowEnd + ',E2:E' + rowEnd + ',' +
+      'LAMBDA(date,interval,site,count,' +
+        'IF(date="","",IF(count=0,"",count/SUMIFS($E$2:$E$' + rowEnd +
+          ',$A$2:$A$' + rowEnd + ',date,$B$2:$B$' + rowEnd + ',interval,$C$2:$C$' +
+          rowEnd + ',site)))' +
+      '))';
   }
 
   function intervalSpec() {
     return Object.freeze({
       aggregationFormulas: Object.freeze([
         offeredVolumeQuery(),
-        ahtTimingQuery(),
-      ]),
+      ].concat(ahtTimingLookupFormulas())),
       aggregationSheetName: '_AGG_INTERVAL',
       datasetName: 'Interval Metrics',
-      formulaAnchors: Object.freeze([1, 9]),
+      formulaAnchors: Object.freeze([1, 9, 10, 11, 12]),
       headers: Object.freeze([
         'Date',
         'Interval',

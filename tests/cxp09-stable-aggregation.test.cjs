@@ -192,7 +192,7 @@ test('CXP-09 installs bounded aggregation formulas with constant write count', (
 
   assert.deepEqual(result, {
     datasetCount: 3,
-    formulaAnchorCount: 5,
+    formulaAnchorCount: 8,
     rowCapacity: 50,
   });
 
@@ -206,19 +206,22 @@ test('CXP-09 installs bounded aggregation formulas with constant write count', (
   assert.match(interval.formulas.get('2:1'), /QUERY\(/);
   assert.match(interval.formulas.get('2:1'), /_CALC_OFFERED/);
   assert.match(interval.formulas.get('2:9'), /_CALC_AHT/);
+  assert.match(interval.formulas.get('2:10'), /_CALC_AHT/);
+  assert.match(interval.formulas.get('2:11'), /_CALC_AHT/);
+  assert.match(interval.formulas.get('2:12'), /_CALC_AHT/);
   assert.match(forecast.formulas.get('2:1'), /QUERY\(A2:E/);
   assert.match(allocation.formulas.get('2:1'), /_CALC_OFFERED/);
   assert.match(allocation.formulas.get('2:6'), /SUMIFS/);
   assert.equal(
     interval.formulaWriteCount + forecast.formulaWriteCount + allocation.formulaWriteCount,
-    5,
+    8,
   );
 });
 
 test('CXP-09 exposes the aggregation installation as retry-safe bounded steps', () => {
   const harness = createFormulaHarness();
   const stepCount = StableAggregationTransformationService.getInstallStepCount();
-  assert.equal(stepCount, 15);
+  assert.equal(stepCount, 18);
 
   const labels = [];
   for (let stepIndex = 0; stepIndex < stepCount; stepIndex += 1) {
@@ -232,7 +235,7 @@ test('CXP-09 exposes the aggregation installation as retry-safe bounded steps', 
 
   assert.equal(labels[0], 'PREFLIGHT');
   assert.equal(labels.at(-1), 'Allocation:FORMULA:2');
-  assert.equal(harness.sheets.get('_AGG_INTERVAL').formulas.size, 2);
+  assert.equal(harness.sheets.get('_AGG_INTERVAL').formulas.size, 5);
   assert.equal(harness.sheets.get('_AGG_ALLOCATION').formulas.size, 2);
 });
 
@@ -262,7 +265,7 @@ test('CXP-09 configured setup opens only the target workbook and installs the ag
     environment: 'DEV',
     transformations: {
       datasetCount: 3,
-      formulaAnchorCount: 5,
+      formulaAnchorCount: 8,
       rowCapacity: 50,
     },
   });
@@ -339,5 +342,5 @@ test('CXP-09 idempotent reinstall clears and restores aggregation topology', () 
   const firstClearCount = interval.clearCount;
   StableAggregationTransformationService.install(harness.spreadsheet);
   assert.equal(interval.clearCount, firstClearCount + 1);
-  assert.equal(interval.formulas.size, 2);
+  assert.equal(interval.formulas.size, 5);
 });
