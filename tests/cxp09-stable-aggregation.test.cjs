@@ -192,7 +192,7 @@ test('CXP-09 installs bounded aggregation formulas with constant write count', (
 
   assert.deepEqual(result, {
     datasetCount: 3,
-    formulaAnchorCount: 8,
+    formulaAnchorCount: 7,
     rowCapacity: 50,
   });
 
@@ -209,19 +209,19 @@ test('CXP-09 installs bounded aggregation formulas with constant write count', (
   assert.match(interval.formulas.get('2:10'), /_CALC_AHT/);
   assert.match(interval.formulas.get('2:11'), /_CALC_AHT/);
   assert.match(interval.formulas.get('2:12'), /_CALC_AHT/);
-  assert.match(forecast.formulas.get('2:1'), /QUERY\(A2:E/);
+  assert.equal(forecast.formulaWriteCount, 0);
   assert.match(allocation.formulas.get('2:1'), /_CALC_OFFERED/);
   assert.match(allocation.formulas.get('2:6'), /SUMIFS/);
   assert.equal(
     interval.formulaWriteCount + forecast.formulaWriteCount + allocation.formulaWriteCount,
-    8,
+    7,
   );
 });
 
 test('CXP-09 exposes the aggregation installation as retry-safe bounded steps', () => {
   const harness = createFormulaHarness();
   const stepCount = StableAggregationTransformationService.getInstallStepCount();
-  assert.equal(stepCount, 18);
+  assert.equal(stepCount, 17);
 
   const labels = [];
   for (let stepIndex = 0; stepIndex < stepCount; stepIndex += 1) {
@@ -265,7 +265,7 @@ test('CXP-09 configured setup opens only the target workbook and installs the ag
     environment: 'DEV',
     transformations: {
       datasetCount: 3,
-      formulaAnchorCount: 8,
+      formulaAnchorCount: 7,
       rowCapacity: 50,
     },
   });

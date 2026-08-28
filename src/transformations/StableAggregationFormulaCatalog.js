@@ -51,11 +51,6 @@ var StableAggregationFormulaCatalog = (function () {
     ]);
   }
 
-  function forecastInputQuery() {
-    return '=QUERY(A2:E' + (ROW_CAPACITY + 1) +
-      ',"select Col1, Col2, Col3, Col4, Col5 where Col1 is not null",0)';
-  }
-
   function allocationCountQuery() {
     return '=QUERY({' +
       '\'_CALC_OFFERED\'!A2:A' + OFFERED_LAST_ROW + ',' +
@@ -108,14 +103,16 @@ var StableAggregationFormulaCatalog = (function () {
     });
   }
 
+  // _AGG_FORECAST holds operator-maintained MOM/forecast values, not generated
+  // QUERY output. The prior A2 QUERY read A2:E51 while spilling into the same
+  // range, which produced #REF! on install. Install only seeds headers and row
+  // capacity; parity/UAT writes fixture rows via loadParityFixture.
   function forecastSpec() {
     return Object.freeze({
-      aggregationFormulas: Object.freeze([
-        forecastInputQuery(),
-      ]),
+      aggregationFormulas: Object.freeze([]),
       aggregationSheetName: '_AGG_FORECAST',
       datasetName: 'Forecast',
-      formulaAnchors: Object.freeze([1]),
+      formulaAnchors: Object.freeze([]),
       headers: Object.freeze([
         'Date',
         'Interval',
