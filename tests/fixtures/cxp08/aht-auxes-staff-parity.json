@@ -1,0 +1,162 @@
+{
+  "businessDay": "2026-08-18",
+  "inputs": {
+    "ahtRows": [
+      {
+        "Agent Work ID": "AW-1",
+        "Work Item: Name": "SESSION-100",
+        "Athlete Site": "CNX-Que",
+        "Request Date": "2026-08-18T07:40:00.000Z",
+        "Accept Date": "2026-08-18T07:45:00.000Z",
+        "Handle Time": 120,
+        "Active Time": 100,
+        "Speed To Answer": 50,
+        "Time To First Response": 20
+      },
+      {
+        "Agent Work ID": "AW-2",
+        "Work Item: Name": "SESSION-100",
+        "Athlete Site": "CNX-Que",
+        "Request Date": "2026-08-18T07:48:00.000Z",
+        "Accept Date": "2026-08-18T07:50:00.000Z",
+        "Handle Time": 180,
+        "Active Time": 140,
+        "Speed To Answer": 55,
+        "Time To First Response": 25
+      },
+      {
+        "Agent Work ID": "AW-3",
+        "Work Item: Name": "SESSION-200",
+        "Athlete Site": "INT-LAS",
+        "Request Date": "2026-08-18T08:00:00.000Z",
+        "Accept Date": "2026-08-18T08:05:00.000Z",
+        "Handle Time": 90,
+        "Active Time": 60,
+        "Speed To Answer": 100,
+        "Time To First Response": 5
+      }
+    ],
+    "auxesRows": [
+      {
+        "Name": "P1",
+        "User Presence ID": "UP-1",
+        "Status Start Date": "2026-08-18T07:45:00.000Z",
+        "Service Presence Status: Status Name": "Available - Messaging",
+        "Sign On Time (hours)": 1.5
+      },
+      {
+        "Name": "P2",
+        "User Presence ID": "UP-2",
+        "Status Start Date": "2026-08-18T08:05:00.000Z",
+        "Service Presence Status: Status Name": "Concluding",
+        "Sign On Time (hours)": 0.25
+      }
+    ],
+    "staffRows": [
+      {
+        "Status Start Date": "2026-08-18T08:00:00.000Z",
+        "Status End Date": "2026-08-18T09:00:00.000Z",
+        "Athlete Display Name": "Agent A",
+        "Athlete Site": "INT-LAS",
+        "Athlete Profile": "Messaging"
+      }
+    ]
+  },
+  "expected": {
+    "aht": [
+      {
+        "Date": "2026-08-17",
+        "Interval": "23:30",
+        "Count": 1,
+        "Service Level": 1,
+        "ASA Total": 70,
+        "CC": 1.25,
+        "Request Interval": "23:30"
+      },
+      {
+        "Date": "2026-08-17",
+        "Interval": "23:30",
+        "Count": 1,
+        "Service Level": 1,
+        "ASA Total": 80,
+        "CC": 1.25,
+        "Request Interval": "23:30"
+      },
+      {
+        "Date": "2026-08-18",
+        "Interval": "00:00",
+        "Count": 1,
+        "Service Level": 0,
+        "ASA Total": 105,
+        "CC": 1.5,
+        "Request Interval": "00:00"
+      }
+    ],
+    "auxes": [
+      {
+        "Date": "2026-08-17",
+        "Interval": "23:30",
+        "Available Messaging in Hours": 1.5,
+        "Concluding in Hours": 0
+      },
+      {
+        "Date": "2026-08-18",
+        "Interval": "00:00",
+        "Available Messaging in Hours": 0,
+        "Concluding in Hours": 0.25
+      }
+    ],
+    "staff": [
+      {
+        "12:00 AM": 0.020833333336,
+        "12:30 AM": 0.020833333328,
+        "1:00 AM": 0,
+        "1:30 AM": 0,
+        "2:00 AM": 0,
+        "2:30 AM": 0,
+        "3:00 AM": 0,
+        "3:30 AM": 0,
+        "4:00 AM": 0,
+        "4:30 AM": 0,
+        "5:00 AM": 0,
+        "5:30 AM": 0,
+        "6:00 AM": 0,
+        "6:30 AM": 0,
+        "7:00 AM": 0,
+        "7:30 AM": 0,
+        "8:00 AM": 0,
+        "8:30 AM": 0,
+        "9:00 AM": 0,
+        "9:30 AM": 0,
+        "10:00 AM": 0,
+        "10:30 AM": 0,
+        "11:00 AM": 0,
+        "11:30 AM": 0,
+        "12:00 PM": 0,
+        "12:30 PM": 0,
+        "1:00 PM": 0,
+        "1:30 PM": 0,
+        "2:00 PM": 0,
+        "2:30 PM": 0,
+        "3:00 PM": 0,
+        "3:30 PM": 0,
+        "4:00 PM": 0,
+        "4:30 PM": 0,
+        "5:00 PM": 0,
+        "5:30 PM": 0,
+        "6:00 PM": 0,
+        "6:30 PM": 0,
+        "7:00 PM": 0,
+        "7:30 PM": 0,
+        "8:00 PM": 0,
+        "8:30 PM": 0,
+        "9:00 PM": 0,
+        "9:30 PM": 0,
+        "10:00 PM": 0,
+        "10:30 PM": 0,
+        "11:00 PM": 0,
+        "11:30 PM": 0
+      }
+    ]
+  }
+}

@@ -42,7 +42,22 @@ var ControlWorkbookInitializer = (function () {
     );
   }
 
-  return Object.freeze({ initialize: initialize, preflight: preflight });
+  function resolveControlWorkbookHeaders() {
+    if (typeof ControlWorkbookHeaders !== 'undefined') {
+      return ControlWorkbookHeaders;
+    }
+    return require('./ControlWorkbookHeaders.js');
+  }
+
+  function seedHeaders(spreadsheet, options) {
+    return resolveControlWorkbookHeaders().seed(spreadsheet, options);
+  }
+
+  return Object.freeze({
+    initialize: initialize,
+    preflight: preflight,
+    seedHeaders: seedHeaders,
+  });
 })();
 
 if (typeof module !== 'undefined' && module.exports) {

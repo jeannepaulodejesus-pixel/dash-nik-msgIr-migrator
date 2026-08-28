@@ -11,12 +11,21 @@ Runtime configuration uses Apps Script Script Properties. `Config.load()` reads 
 | `CXP_<ENV>_CONTROL_SPREADSHEET_ID` | Separate system-control workbook. | CXP-02 |
 | `CXP_<ENV>_DRIVE_INBOX_FOLDER_ID` | Controlled Drive intake folder. | CXP-05/CXP-13 |
 | `CXP_<ENV>_MASTER_TEMPLATE_SPREADSHEET_ID` | Master weekly workbook template. | CXP-12 |
+| `CXP_DEV_BOOTSTRAP_FOLDER_ID` | DEV-only Drive folder for `bootstrapCxpDevWorkbooks()` file automation. | Operator bootstrap |
 
 `<ENV>` is exactly `DEV`, `UAT`, or `PROD`. Values must be set in Script Properties, not in source.
 
 Example key names for DEV are `CXP_DEV_TARGET_SPREADSHEET_ID` and `CXP_DEV_CONTROL_SPREADSHEET_ID`; this repository intentionally supplies no values.
 
 `initializeCxp02Workbooks()` requires both active-environment target/control IDs, rejects blank values, and rejects one ID being used for both roles before calling `SpreadsheetApp.openById`. The IDs must reference existing spreadsheets that the effective user may edit; CXP-02 does not create, publish, or store those IDs.
+
+### DEV file automation
+
+`bootstrapCxpDevWorkbooks(folderId?, forceReplace?)` (see `src/main/DevWorkbookBootstrap.js`) creates `DEV_TARGET_WORKBOOK` and `DEV_SYSTEM_CONTROL_WORKBOOK` in a Drive folder, writes `CXP_ENV` / `CXP_DEV_TARGET_SPREADSHEET_ID` / `CXP_DEV_CONTROL_SPREADSHEET_ID`, runs CXP-02 sheet initialization, seeds CXP-03 headers on the five `_RAW_*` sheets, and seeds control headers on all seven control tabs (including five active schema rows on `SCHEMA_REGISTRY`). Folder ID may be passed as the first argument or read from `CXP_DEV_BOOTSTRAP_FOLDER_ID`. Refuses `CXP_ENV=PROD`. Refuses overwrite of existing DEV spreadsheet IDs unless `forceReplace` is true. Use editor entrypoint `bootstrapCxpDevWorkbooksForceReplace()` when IDs are already set.
+
+To point Script Properties at workbooks you already created (spreadsheet IDs or Google Sheets URLs), run `registerCxpDevWorkbookIds(targetSpreadsheetId, controlSpreadsheetId, initializeAndSeed?)`. Pass `true` as the third argument to also run CXP-02 init and seed target/control headers without creating new files.
+
+If bootstrap already created `DEV_TARGET_WORKBOOK` and `DEV_SYSTEM_CONTROL_WORKBOOK` in a Drive folder, run `registerCxpDevWorkbooksFromFolder(folderId?, initializeAndSeed?)` (or editor wrapper `registerCxpDevWorkbooksFromFolderAndSeed()` when `CXP_DEV_BOOTSTRAP_FOLDER_ID` is set) to discover those files by name and write Script Properties automatically. To seed headers only, run `seedCxpControlWorkbookHeaders()` (optional second argument `true` overwrites row 1). Logs never include spreadsheet IDs.
 
 ## Local clasp target
 
