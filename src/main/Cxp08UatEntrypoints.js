@@ -5,7 +5,11 @@
  *   CXP08UatStep01Install
  *   CXP08UatStep02InspectTopology
  *   CXP08UatStep03LoadParityFixture
- *   CXP08UatStep04RecordParityOutputs
+ *   CXP08UatStep03RunParity
+ *
+ * Dataset policy: operators never manually preload _RAW_* / _STG_* rows.
+ * Small data = embedded parity/refresh fixtures (Steps 03–04, 06).
+ * Peak data = backend-provided source files via CXP-06 ingest (Step 05).
  *   CXP08UatStep05PeakFlushTiming
  *   CXP08UatStep06SecondBundleRefresh
  *   CXP08UatStep07ReinstallTopology
@@ -250,21 +254,139 @@ var Cxp08ParityUat = (function () {
     });
   }
 
+  function runParityStep(spreadsheetId) {
+    var load = loadParityFixture(spreadsheetId);
+    if (typeof Utilities !== 'undefined' && typeof Utilities.sleep === 'function') {
+      Utilities.sleep(2000);
+    }
+    SpreadsheetApp.flush();
+    var compare = recordParityOutputs(spreadsheetId);
+    return Object.freeze({
+      load: load,
+      compare: compare,
+      pass: compare.pass,
+    });
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function isDateObject(value) {
+    return Object.prototype.toString.call(value) === '[object Date]' &&
+      !Number.isNaN(value.getTime());
+  }
+
+  function sheetsSerialToDateParts(serial) {
+    if (typeof serial !== 'number' || !Number.isFinite(serial)) {
+      return null;
+    }
+    var utcMs = Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000;
+    var date = new Date(utcMs);
+    return {
+      yyyyMmDd:
+        date.getUTCFullYear() +
+        '-' + pad2(date.getUTCMonth() + 1) +
+        '-' + pad2(date.getUTCDate()),
+    };
+  }
+
+  function normalizeField(header, rawValue, displayValue) {
+    if (header === 'Date') {
+      if (isDateObject(rawValue) && typeof Utilities !== 'undefined') {
+        return Utilities.formatDate(rawValue, 'Etc/GMT+8', 'yyyy-MM-dd');
+      }
+      if (isDateObject(rawValue)) {
+        return (
+          rawValue.getFullYear() +
+          '-' + pad2(rawValue.getMonth() + 1) +
+          '-' + pad2(rawValue.getDate())
+        );
+      }
+      if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+        var fromSerial = sheetsSerialToDateParts(rawValue);
+        if (fromSerial) {
+          return fromSerial.yyyyMmDd;
+        }
+      }
+      var text = String(displayValue || rawValue || '').trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+        return text.slice(0, 10);
+      }
+      var mdy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (mdy) {
+        return mdy[3] + '-' + pad2(mdy[1]) + '-' + pad2(mdy[2]);
+      }
+      if (/^\d{5}(\.\d+)?$/.test(text)) {
+        var serialParts = sheetsSerialToDateParts(Number(text));
+        if (serialParts) {
+          return serialParts.yyyyMmDd;
+        }
+      }
+      return text;
+    }
+
+    if (header === 'Interval' || header === 'Request Interval') {
+      if (isDateObject(rawValue) && typeof Utilities !== 'undefined') {
+        return Utilities.formatDate(rawValue, 'Etc/GMT+8', 'HH:mm');
+      }
+      if (isDateObject(rawValue)) {
+        return pad2(rawValue.getHours()) + ':' + pad2(rawValue.getMinutes());
+      }
+      if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+        var minutes = Math.round(((rawValue % 1) + 1) % 1 * 24 * 60);
+        return pad2(Math.floor(minutes / 60) % 24) + ':' + pad2(minutes % 60);
+      }
+      var display = String(displayValue || '').trim();
+      var ampm = display.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (ampm) {
+        var hour = Number(ampm[1]) % 12;
+        if (ampm[3].toUpperCase() === 'PM') {
+          hour += 12;
+        }
+        return pad2(hour) + ':' + ampm[2];
+      }
+      var timeMatch = display.match(/(\d{1,2}):(\d{2})/);
+      if (timeMatch) {
+        return pad2(timeMatch[1]) + ':' + timeMatch[2];
+      }
+      return display;
+    }
+
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      return rawValue;
+    }
+    var asText = String(displayValue === undefined || displayValue === null
+      ? (rawValue || '')
+      : displayValue).trim();
+    if (asText !== '' && /^-?\d+(\.\d+)?$/.test(asText)) {
+      return Number(asText);
+    }
+    return asText;
+  }
+
   function readCalcBlock(sheet, headers, maxRows) {
     var lastRow = Math.min(sheet.getLastRow(), maxRows);
     if (lastRow < 2) {
       return [];
     }
-    var values = sheet.getRange(2, 1, lastRow, headers.length).getDisplayValues();
-    return values.map(function (row) {
+    var range = sheet.getRange(2, 1, lastRow, headers.length);
+    var displayValues = range.getDisplayValues();
+    var rawValues = range.getValues();
+    return displayValues.map(function (row, rowIndex) {
       var out = {};
       headers.forEach(function (header, index) {
-        out[header] = row[index];
+        out[header] = normalizeField(
+          header,
+          rawValues[rowIndex][index],
+          row[index],
+        );
       });
       return out;
     }).filter(function (row) {
       return Object.keys(row).some(function (key) {
-        return row[key] !== '';
+        var value = row[key];
+        return value !== '' && value !== null && value !== undefined;
       });
     });
   }
@@ -274,8 +396,8 @@ var Cxp08ParityUat = (function () {
     expectedRows.forEach(function (expected, index) {
       var actual = actualRows[index] || {};
       headers.forEach(function (header) {
-        var left = String(actual[header] === undefined ? '' : actual[header]);
-        var right = String(expected[header] === undefined ? '' : expected[header]);
+        var left = actual[header] === undefined ? '' : actual[header];
+        var right = expected[header] === undefined ? '' : expected[header];
         if (left !== right) {
           diffs.push({
             row: index + 1,
@@ -312,6 +434,8 @@ var Cxp08ParityUat = (function () {
       pass: report.pass,
       ahtDiffCount: report.ahtDiffCount,
       auxesDiffCount: report.auxesDiffCount,
+      ahtDiffs: ahtDiffs.slice(0, 5),
+      auxesDiffs: auxesDiffs.slice(0, 5),
     });
     return report;
   }
@@ -385,9 +509,11 @@ var Cxp08ParityUat = (function () {
     FIXTURE: FIXTURE,
     inspectTopology: inspectTopology,
     loadParityFixture: loadParityFixture,
+    normalizeField: normalizeField,
     peakFlushTiming: peakFlushTiming,
     promotionGate: promotionGate,
     recordParityOutputs: recordParityOutputs,
+    runParityStep: runParityStep,
     secondBundleRefresh: secondBundleRefresh,
   });
 })();
@@ -406,6 +532,10 @@ function CXP08UatStep03LoadParityFixture() {
 
 function CXP08UatStep04RecordParityOutputs() {
   return Cxp08ParityUat.recordParityOutputs();
+}
+
+function CXP08UatStep03RunParity() {
+  return Cxp08ParityUat.runParityStep();
 }
 
 function CXP08UatStep05PeakFlushTiming() {
