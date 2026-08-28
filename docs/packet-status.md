@@ -16,7 +16,7 @@ Valid states are `Not started`, `In progress`, `Blocked`, and `Complete`. A pack
 | CXP-05 — Drive/XLSX Input Adapters and Duplicate Fingerprinting | Complete | Delivery `CXP-05-v1` |
 | CXP-06 — Staging, Two-Phase Commit, Rollback, and Raw Replacement | Complete | Delivery `CXP-06-v1` |
 | CXP-07 — Native Transformations: Handled and Offered | Completed | Delivery `CXP-07-v1` |
-| CXP-08 — Native Transformations: AHT, Auxes, and Staff | Not started | Requires CXP-01 and CXP-02 complete |
+| CXP-08 — Native Transformations: AHT, Auxes, and Staff | Complete | Delivery `CXP-08-v1` |
 | CXP-09 — Stable Aggregation and Domain Model | Not started | Requires CXP-01, CXP-07, and CXP-08 complete |
 | CXP-10 — Interval View and MOM Reporting Surfaces | Not started | Requires CXP-01 and CXP-09 complete |
 | CXP-11 — Excel-vs-Google-Sheets Parity Harness and Source-Error Ledger | Not started | Requires CXP-07 through CXP-10 complete |
@@ -344,3 +344,29 @@ Superseded by `CXP-01-v3` only for source timestamp interpretation: fixed PST re
 - **Known limitations:** Node does not execute Google Sheets formulas or prove hosted trigger timing. The runner works within rather than disables Apps Script's execution limit, so each individual spreadsheet operation must still finish inside one execution. The installer intentionally does not change visual formatting. A hosted approximately 5k+5k run is required before deployment promotion, and missing Handled cases used by Offered Handled ASA intentionally retain lookup-error visibility from the legacy baseline.
 - **Blockers:** None for repository delivery. Hosted DEV/UAT evidence is the promotion gate.
 - **Next-packet inputs:** CXP-08 may consume the canonical copied raw fields and use a separate native installer for AHT/Auxes/Staff. CXP-09 should aggregate `_CALC_HANDLED` and `_CALC_OFFERED` rather than recreating their row rules. CXP-11 should compare identical source bundles and classify only the DEC-025 eight-hour alignment as the approved expected variance.
+
+## CXP-08 completion handoff
+
+- **Delivery version:** `CXP-08-v1`
+- **Branch:** `cursor/cxp08-aht-auxes-staff-native-transforms` / `cursor/dev-control-workbook-bootstrap` (DEV bootstrap + control-header seeding landed on the bootstrap branch)
+- **Commit:** Not consolidated to `main` in this record; the packet-specified commit message is `feat: rebuild aht auxes and staff native transformations`.
+- **Repository status:** Complete and locally verified. Hosted DEV UAT passed the standard runbook path on August 28, 2026; Step 05 peak flush remains deferred.
+- **Architecture:** `initializeCxp08AhtAuxesStaffTransformations()` opens only the configured target workbook and executes a checkpointed 74-step install plan for `_CALC_AHT`, `_CALC_AUXES`, and `_CALC_STAFF`. Script Properties persist the cursor; continuation and safety-trigger behavior mirror CXP-07.
+- **AHT layer:** Seven calculated fields (Date, Interval, Count, Service Level, ASA Total, CC, Request Interval) plus canonical raw columns; fixed-PST bucketing per DEC-025.
+- **Auxes layer:** Four calculated fields (Date, Interval, Available Messaging in Hours, Concluding in Hours) plus canonical raw columns.
+- **Staff layer:** 48 interval overlap columns plus documented BE:BF summary block and business-day anchor.
+- **Vectorization:** Bounded spill anchors; constant grouped formula writes independent of row count; no per-row fill-down.
+- **Parity fixture:** `tests/fixtures/cxp08/aht-auxes-staff-parity.json` — synthetic AHT/Auxes/Staff rows with DEC-025 boundary cases.
+- **Focused tests:** `npm run test:cxp08` covers 9 cases: reference-model parity, bounded installation, 74-step retry-safe plan (synthetic 3-step test double), configured target-only setup, checkpoint/resume, schema drift rejection, idempotent reinstall, and hosted parity display normalization.
+- **DEV bootstrap:** `DevWorkbookBootstrap.js` creates/registers `DEV_TARGET_WORKBOOK` + `DEV_SYSTEM_CONTROL_WORKBOOK`, seeds `_RAW_*` and control headers, and supports folder-based Script Property registration (`registerCxpDevWorkbooksFromFolderAndSeed`).
+- **Acceptance results:**
+  - **Local suite:** Pass — `npm run test:cxp08`, `npm run test:bootstrap`, `npm run test:control-headers`.
+  - **Hosted install:** Pass — `74/74` `COMPLETE` on DEV target.
+  - **Hosted parity:** Pass — Step 04 `pass: true` after display-value normalization fix.
+  - **Hosted refresh/reinstall:** Pass — Step 06 second bundle; Step 07/08 promotion gate `pass: true`.
+  - **Hosted peak (Step 05):** Not run — optional follow-up via CXP-06 peak ingest.
+- **Files created:** `src/transformations/AhtAuxesStaffFormulaCatalog.js`, `src/transformations/AhtAuxesStaffReferenceModel.js`, `src/services/AhtAuxesStaffTransformationService.js`, `src/main/Cxp08Setup.js`, `src/main/Cxp08UatEntrypoints.js`, `src/main/ControlWorkbookHeaders.js`, `src/main/DevWorkbookBootstrap.js`, `tests/cxp08-native-transformations.test.cjs`, `tests/cxp08-parity-uat.test.cjs`, `tests/cxp-dev-workbook-bootstrap.test.cjs`, `tests/cxp-control-workbook-headers.test.cjs`, CXP-08 fixture, plan, runbook, harness, and transformation contract docs.
+- **Files updated:** `package.json`, `docs/packet-status.md`, `docs/testing.md`, `docs/configuration.md`, `docs/cxp08-uat-runbook.md`, `docs/cxp08-uat-harness.md`.
+- **Known limitations:** Node does not execute Google Sheets formulas. Step 05 peak evidence was not collected in the August 28 hosted run. `_STG_*` sheets are not used by CXP-08 UAT helpers (CXP-06 ingestion only).
+- **Blockers:** None for repository delivery. Step 05 peak timing is the remaining optional hosted gate for production-volume claims.
+- **Next-packet inputs:** CXP-09 should aggregate `_CALC_AHT`, `_CALC_AUXES`, and `_CALC_STAFF` without recreating their row rules. CXP-11 should compare identical source bundles using the same DEC-025 alignment protocol as CXP-07/CXP-08 parity fixtures.
