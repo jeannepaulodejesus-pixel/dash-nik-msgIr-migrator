@@ -32,9 +32,13 @@ Persisted install state key (delete to reset):
 |---|---|
 | `CXP10UatStep01Install` | Install / resume via initialize |
 | `CXP10UatStep02InspectTopology` | Topology diagnostic |
+| `CXP10UatStep03LoadParityFixture` | Seed aggregation + MOM calendar inputs + anchors |
+| `CXP10UatStep03RunParity` | Load fixture, flush, compare Interval View |
+| `CXP10UatStep04RecordParityOutputs` | Compare Interval View to embedded fixture |
+| `CXP10UatStep05WeeklyRollover` | Advance Interval View `AA2` and MOM `B3` by seven days |
+| `CXP10UatStep06SecondBundleRefresh` | Refresh raw bundle via CXP-09 helper |
+| `CXP10UatStep07ReinstallTopology` | Re-run report-surface installer |
 | `CXP10UatStep08PromotionGate` | Aggregate install/topology promotion checklist |
-
-Steps 03–07 (parity fixture load, parity record, weekly rollover, second-bundle refresh, reinstall) remain planned.
 
 ## Evidence
 

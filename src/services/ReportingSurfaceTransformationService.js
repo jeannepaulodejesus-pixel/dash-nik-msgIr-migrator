@@ -45,6 +45,7 @@ var ReportingSurfaceTransformationService = (function () {
   function buildInstallSteps(specs) {
     var steps = [{ kind: 'PREFLIGHT', label: 'PREFLIGHT' }];
     var intervalView = specs.intervalView;
+    steps.push({ kind: 'INTERVAL_CHROME', label: 'Interval View:CHROME' });
     steps.push({ kind: 'INTERVAL_HEADERS', label: 'Interval View:HEADERS' });
     intervalView.axisFormulas.forEach(function (entry, index) {
       steps.push({
@@ -68,12 +69,22 @@ var ReportingSurfaceTransformationService = (function () {
       });
     });
 
-    steps.push({ kind: 'MOM_STAGING_HEADERS', label: 'MOM:STAGING_HEADERS' });
-    specs.mom.weekHeaderFormulas.forEach(function (entry, index) {
+    steps.push({ kind: 'MOM_CALENDAR', label: 'MOM:CALENDAR' });
+    specs.mom.weekDateFormulas.forEach(function (entry, index) {
+      if (!entry.formula) {
+        return;
+      }
       steps.push({
         anchor: entry,
-        kind: 'MOM_WEEK_HEADER',
-        label: 'MOM:WEEK_HEADER:' + (index + 1),
+        kind: 'MOM_WEEK_DATE',
+        label: 'MOM:WEEK_DATE:' + (index + 1),
+      });
+    });
+    specs.mom.dayNameFormulas.forEach(function (entry, index) {
+      steps.push({
+        anchor: entry,
+        kind: 'MOM_DAY_NAME',
+        label: 'MOM:DAY_NAME:' + (index + 1),
       });
     });
 
@@ -85,6 +96,39 @@ var ReportingSurfaceTransformationService = (function () {
       sheetName: specs.forecastBridge.aggregationSheetName,
     });
     return steps;
+  }
+
+  function installMomCalendar(momSheet, mom) {
+    momSheet.clear();
+    momSheet.getRange(1, 1).setValue(mom.titleMnl);
+    momSheet.getRange(1, 25).setValue(mom.titleLv);
+    mom.sectionLabels.forEach(function (entry) {
+      momSheet.getRange(2, entry.column).setValue(entry.label);
+    });
+    mom.pstLabels.forEach(function (column) {
+      momSheet.getRange(3, column).setValue('PST');
+    });
+    mom.timeLabels.forEach(function (column) {
+      momSheet.getRange(4, column).setValue('Time');
+    });
+    mom.timeAxisColumns.forEach(function (column) {
+      momSheet.getRange(mom.firstTimeRow, column).setFormula(mom.timeAxisFormula);
+    });
+  }
+
+  function installIntervalChrome(intervalSheet, intervalView) {
+    // Clear legacy WB0817 block (rows 112+) and Band-Aid report area before rewrite.
+    intervalSheet.getRange(112, 1, 40, 28).clearContent();
+    intervalSheet.getRange(15, 1, 51, 26).clearContent();
+    intervalSheet.getRange(1, intervalView.businessDayAnchor.column).setValue(
+      intervalView.viewDateLabel,
+    );
+    intervalSheet.getRange(1, 3).setValue('Date');
+    intervalSheet.getRange(2, 3).setFormula('=$AA$2');
+    intervalView.sectionLabels.forEach(function (entry) {
+      intervalSheet.getRange(intervalView.sectionRow, entry.column).setValue(entry.label);
+    });
+    intervalSheet.getRange(intervalView.totalRow, 1).setValue(intervalView.totalLabel);
   }
 
   function installStep(spreadsheet, stepIndex) {
@@ -102,9 +146,16 @@ var ReportingSurfaceTransformationService = (function () {
       return Object.freeze({ label: step.label });
     }
 
-    if (step.kind === 'INTERVAL_HEADERS') {
+    if (step.kind === 'INTERVAL_CHROME') {
+      installIntervalChrome(
+        requireSheet(spreadsheet, specs.intervalView.reportSheetName),
+        specs.intervalView,
+      );
+    } else if (step.kind === 'INTERVAL_HEADERS') {
       var intervalSheet = requireSheet(spreadsheet, specs.intervalView.reportSheetName);
-      intervalSheet.getRange(specs.intervalView.headerRow, 1, 1, 2).setValues([['Date', 'Interval']]);
+      intervalSheet.getRange(specs.intervalView.headerRow, 1).setValue(
+        specs.intervalView.pstHeader,
+      );
       intervalSheet.getRange(
         specs.intervalView.headerRow,
         specs.intervalView.headerStartColumn,
@@ -121,11 +172,12 @@ var ReportingSurfaceTransformationService = (function () {
       totalSheet.getRange(step.anchor.anchorRow, step.anchor.anchorColumn).setFormula(
         step.anchor.formula,
       );
-    } else if (step.kind === 'MOM_STAGING_HEADERS') {
-      var momSheet = requireSheet(spreadsheet, specs.mom.reportSheetName);
-      momSheet.getRange(specs.mom.stagingHeaderRow, 1, 1, specs.mom.stagingHeaders.length)
-        .setValues([specs.mom.stagingHeaders.slice()]);
-    } else if (step.kind === 'MOM_WEEK_HEADER') {
+    } else if (step.kind === 'MOM_CALENDAR') {
+      installMomCalendar(
+        requireSheet(spreadsheet, specs.mom.reportSheetName),
+        specs.mom,
+      );
+    } else if (step.kind === 'MOM_WEEK_DATE' || step.kind === 'MOM_DAY_NAME') {
       var momWeekSheet = requireSheet(spreadsheet, specs.mom.reportSheetName);
       momWeekSheet.getRange(step.anchor.anchorRow, step.anchor.anchorColumn).setFormula(
         step.anchor.formula,
@@ -149,7 +201,9 @@ var ReportingSurfaceTransformationService = (function () {
       formulaAnchorCount: specs.intervalView.metricFormulas.length +
         specs.intervalView.axisFormulas.length +
         specs.intervalView.totalFormulas.length +
-        specs.mom.weekHeaderFormulas.length +
+        specs.mom.weekDateFormulas.length +
+        specs.mom.dayNameFormulas.length +
+        specs.mom.timeAxisColumns.length +
         1,
       metricCount: specs.intervalView.headers.length,
       reportSheetCount: 2,

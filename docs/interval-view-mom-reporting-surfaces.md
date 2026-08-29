@@ -19,30 +19,34 @@ Interval View reads **only** CXP-09 aggregation tables:
 | Allocation, Cumulative Allocation | `_AGG_ALLOCATION` | `SUMIFS` across BPO rows at interval grain |
 | Abandoned, SL %, forecast ratios, hours, variances | Same-row Interval View columns | Preserves CXP-01 formula families |
 
-MOM is the RTA-facing weekly input calendar. Manual values in `MOM!A13:E50` (Date, Interval, Site, Type, Value) feed `_AGG_FORECAST` through a bridge QUERY installed at `A2`, replacing the CXP-09 self-referential forecast passthrough.
+MOM is the RTA-facing weekly input calendar matching the Band-Aid Step 1 skeleton: `CHAT MNL` (`A:X`) and `CHAT LV` (`Y:AV`), with Required FTE / Forecasted Volume / Forecast AHT section grids, editable week-start at `B3`, day headers `B3:H3` (+ mirrors), and 48 half-hour rows via `SEQUENCE` at `A5` (`00:00`–`23:30`). Manual Required/Forecast values unpivot into `_AGG_FORECAST` through a spill bridge at `A2` (PH←MNL, LAS←LV). Forecast AHT grids stay RTA-visible only and are not bridged.
 
 ## Combined block layout
 
-The contract surface is Interval View `C112:AB151`:
+The contract surface is Band-Aid Internal View layout on the `Interval View` sheet (`A16:Z65`):
 
-- `D112:AB112` — exact 25-metric registry from `config/metric-lineage-contract.json`
-- `A113:B150` — fixed-PST date and 30-minute interval axis (38 rows)
-- `D113:AB150` — combined PH+LAS metrics at date + interval grain
-- Row `151` — summary totals/averages per metric-lineage contract
+- `AA2` — View Date anchor (RTA-editable); `C2` mirrors `=$AA$2`
+- `A16` — `PST`; `B16:Z16` — exact 25-metric registry from `config/metric-lineage-contract.json`
+- `A17:A54` — `SEQUENCE` of 38 half-hours from `AA2+04:00` through `22:30`
+- `B17:Z54` — combined PH+LAS metrics keyed by `INT(A)` date + `MOD(A,1)` interval against `_AGG_*`
+- Row `65` — Grand Total summary
+
+(Sheet name stays `Interval View` per CXP-02; Band-Aid Excel names the same surface Internal View.)
 
 Columns `A` and `B` hold the lookup keys; column `C` remains available for legacy-compatible interval labels.
 
 ## Contract anomalies preserved
 
-1. **Handled zero/blank:** rows 113–121 return numeric zero; rows 122–150 return blank when PH+LAS handled sum is zero.
-2. **AHT (Session) divisor:** interval rows divide aggregated session AHT by 63; summary row `O151` divides by 60.
-3. **Scheduled-to-Required:** interval rows divide directly; summary `AB151` wraps in `IFERROR`.
+1. **Handled zero/blank:** rows 17–25 return numeric zero; rows 26–54 return blank when PH+LAS handled sum is zero.
+2. **AHT (Session) divisor:** interval rows divide aggregated session AHT by 63; summary row `M65` divides by 60.
+3. **Scheduled-to-Required:** interval rows divide directly; summary `Z65` wraps in `IFERROR`.
 
 ## Business-day and weekly rollover
 
-- Interval View `A1` is the intraday business-day anchor RTAs set when opening a daily workbook.
-- MOM `A1` is the week-start anchor; `B4:H4` roll seven day headers via `=$A$1+n`.
-- RTAs update `A1` / MOM `A1` at weekly rollover; report formulas refresh from aggregation dependency alone.
+- Interval View `AA2` is the View Date anchor. Axis keys are `$AA$2 + 04:00 + n×30 minutes` for 38 slots (`04:00`–`22:30`).
+- MOM `B3` is the editable week-start anchor; `C3:H3` advance as `=B3+1`… and volume/AHT/LV date rows mirror `=$B$3`…`=$H$3`.
+- RTAs update Interval View `AA2` and MOM `B3` at weekly rollover; report formulas refresh from aggregation dependency alone.
+- Hosted parity compares fixture grains on the `04:00`–`22:30` axis when present; otherwise requires a full 38-row axis page.
 
 ## Verification boundary
 

@@ -25,6 +25,10 @@ class FakeRange {
     this.columnCount = columnCount;
   }
 
+  getDisplayValue() {
+    return this.getValue();
+  }
+
   getDisplayValues() {
     return this.getValues();
   }
@@ -33,11 +37,25 @@ class FakeRange {
     return this.sheet.formulas.get(`${this.row}:${this.column}`) || '';
   }
 
+  getValue() {
+    return this.sheet.values.get(`${this.row}:${this.column}`) ?? '';
+  }
+
   getValues() {
-    if (this.row === 1 && this.rowCount === 1) {
-      return [this.sheet.headers.slice(this.column - 1, this.column - 1 + this.columnCount)];
+    const values = [];
+    for (let rowOffset = 0; rowOffset < this.rowCount; rowOffset += 1) {
+      const rowValues = [];
+      for (let colOffset = 0; colOffset < this.columnCount; colOffset += 1) {
+        const key = `${this.row + rowOffset}:${this.column + colOffset}`;
+        if (this.row + rowOffset === 1 && this.sheet.headers.length > 0) {
+          rowValues.push(this.sheet.headers[this.column + colOffset - 1] ?? '');
+        } else {
+          rowValues.push(this.sheet.values.get(key) ?? '');
+        }
+      }
+      values.push(rowValues);
     }
-    return [[]];
+    return values;
   }
 
   setFormula(formula) {
@@ -46,20 +64,50 @@ class FakeRange {
     return this;
   }
 
+  clearContent() {
+    for (let rowOffset = 0; rowOffset < this.rowCount; rowOffset += 1) {
+      for (let colOffset = 0; colOffset < this.columnCount; colOffset += 1) {
+        const key = `${this.row + rowOffset}:${this.column + colOffset}`;
+        this.sheet.values.delete(key);
+        this.sheet.formulas.delete(key);
+      }
+    }
+    return this;
+  }
+
+  setValue(value) {
+    this.sheet.values.set(`${this.row}:${this.column}`, value);
+    this.sheet.valueWriteCount += 1;
+    if (this.row === 1 && this.column === 1) {
+      this.sheet.headers[0] = value;
+    }
+    return this;
+  }
+
   setValues(values) {
-    if (this.row === 1 && this.rowCount === 1) {
-      this.sheet.headers = values[0].slice();
-    }
-    if (this.row === ReportingSurfaceFormulaCatalog.HEADER_ROW && this.column === 4) {
-      this.sheet.metricHeaders = values[0].slice();
-    }
+    values.forEach((row, rowOffset) => {
+      row.forEach((value, colOffset) => {
+        const absoluteRow = this.row + rowOffset;
+        const absoluteColumn = this.column + colOffset;
+        this.sheet.values.set(`${absoluteRow}:${absoluteColumn}`, value);
+        if (absoluteRow === 1) {
+          this.sheet.headers[absoluteColumn - 1] = value;
+        }
+        if (
+          absoluteRow === ReportingSurfaceFormulaCatalog.HEADER_ROW &&
+          absoluteColumn === 4
+        ) {
+          this.sheet.metricHeaders = row.slice();
+        }
+      });
+    });
     this.sheet.valueWriteCount += 1;
     return this;
   }
 }
 
 class FakeSheet {
-  constructor(name, headers = [], maxRows = 200, maxColumns = 30) {
+  constructor(name, headers = [], maxRows = 200, maxColumns = 60) {
     this.name = name;
     this.headers = headers.slice();
     this.metricHeaders = [];
@@ -68,7 +116,16 @@ class FakeSheet {
     this.formulaWriteCount = 0;
     this.valueWriteCount = 0;
     this.formulas = new Map();
+    this.values = new Map();
     this.lastRow = 2;
+  }
+
+  clear() {
+    this.formulas.clear();
+    this.values.clear();
+    this.headers = [];
+    this.metricHeaders = [];
+    return this;
   }
 
   getLastRow() {
@@ -174,11 +231,27 @@ test('CXP-10 installs Interval View, MOM, and forecast bridge formulas', () => {
   const intervalView = harness.sheets.get('Interval View');
   const mom = harness.sheets.get('MOM');
   const forecast = harness.sheets.get('_AGG_FORECAST');
-  assert.match(intervalView.formulas.get('113:5'), /SUMIFS/);
-  assert.match(intervalView.formulas.get('113:5'), /_AGG_INTERVAL/);
-  assert.match(intervalView.formulas.get('113:4'), /_AGG_FORECAST/);
-  assert.match(forecast.formulas.get('2:1'), /QUERY\(MOM!/);
-  assert.equal(mom.formulas.get('4:2'), '=IF($A$1="","",$A$1+0)');
+  assert.match(intervalView.formulas.get('17:3'), /SUMIFS/);
+  assert.match(intervalView.formulas.get('17:3'), /_AGG_INTERVAL/);
+  assert.match(intervalView.formulas.get('17:2'), /_AGG_FORECAST/);
+  assert.match(intervalView.formulas.get('17:1'), /SEQUENCE\(38/);
+  assert.match(intervalView.formulas.get('17:1'), /TIME\(4,0,0\)/);
+  // Col I = % of Forecast Offered (anchorColumn 9)
+  assert.match(intervalView.formulas.get('17:9'), /IF\(OR\(B17:B54=0/);
+  // Col V = Scheduled Hours (anchorColumn 22)
+  assert.match(intervalView.formulas.get('17:22'), /R17:R54=""/);
+  assert.equal(intervalView.values.get('16:1'), 'PST');
+  assert.equal(intervalView.values.get('1:27'), 'View Date');
+  assert.equal(intervalView.formulas.get('2:3'), '=$AA$2');
+  assert.match(forecast.formulas.get('2:1'), /LET\(/);
+  assert.match(forecast.formulas.get('2:1'), /MOM!\$A\$5:\$A\$52/);
+  assert.equal(mom.values.get('1:1'), 'CHAT MNL');
+  assert.equal(mom.values.get('1:25'), 'CHAT LV');
+  assert.equal(mom.values.get('2:1'), 'Required FTE at Plan');
+  assert.match(mom.formulas.get('5:1'), /SEQUENCE\(48,1,0,TIME\(0,30,0\)\)/);
+  assert.equal(mom.formulas.get('3:3'), '=B3+1');
+  assert.equal(mom.formulas.get('3:10'), '=$B$3');
+  assert.equal(mom.formulas.get('4:2'), '=TEXT(B3,"ddd")');
 });
 
 test('CXP-10 exposes the report installation as retry-safe bounded steps', () => {
@@ -197,7 +270,8 @@ test('CXP-10 exposes the report installation as retry-safe bounded steps', () =>
   }
 
   assert.equal(labels[0], 'PREFLIGHT');
-  assert.equal(labels[1], 'Interval View:HEADERS');
+  assert.equal(labels[1], 'Interval View:CHROME');
+  assert.equal(labels[2], 'Interval View:HEADERS');
   assert.equal(labels.at(-1), 'Forecast Bridge:FORMULA');
 });
 

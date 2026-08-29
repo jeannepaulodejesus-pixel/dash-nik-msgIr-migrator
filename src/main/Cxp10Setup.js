@@ -618,6 +618,9 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
   if (!intervalSheet) {
     report.intervalView.present = false;
   } else {
+    var pstHeader = String(
+      intervalSheet.getRange(intervalSpec.headerRow, 1).getDisplayValue() || '',
+    ).trim();
     var metricHeaders = intervalSheet.getRange(
       intervalSpec.headerRow,
       intervalSpec.headerStartColumn,
@@ -640,6 +643,10 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
         metricAnchorsMissing.push(entry.anchorColumn);
       }
     });
+    var axisFormula = intervalSheet.getRange(
+      intervalSpec.firstDataRow,
+      1,
+    ).getFormula() || '';
     var legacyPivotDetected = false;
     intervalSpec.metricFormulas.forEach(function (entry) {
       var formula = intervalSheet.getRange(intervalSpec.firstDataRow, entry.anchorColumn).getFormula();
@@ -658,6 +665,9 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
       metricAnchorsMissing: metricAnchorsMissing,
       metricCount: intervalSpec.headers.length,
       present: true,
+      pstHeaderOk: pstHeader === intervalSpec.pstHeader,
+      timeAxisFormulaOk: axisFormula.indexOf('SEQUENCE') >= 0,
+      viewDateAnchorColumn: intervalSpec.businessDayAnchor.column,
     };
   }
 
@@ -665,16 +675,17 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
   if (!momSheet) {
     report.mom.present = false;
   } else {
-    var stagingHeaders = momSheet.getRange(
-      momSpec.stagingHeaderRow,
-      1,
-      1,
-      momSpec.stagingHeaders.length,
-    ).getDisplayValues()[0];
+    var titleMnl = String(momSheet.getRange(1, 1).getDisplayValue() || '').trim();
+    var sectionRequired = String(momSheet.getRange(2, 1).getDisplayValue() || '').trim();
+    var timeAxisFormula = momSheet.getRange(momSpec.firstTimeRow, 1).getFormula() || '';
     report.mom = {
       present: true,
-      stagingHeaderCountOk: stagingHeaders.join('\u001f') === momSpec.stagingHeaders.join('\u001f'),
-      weekHeaderFormulaCount: momSpec.weekHeaderFormulas.length,
+      titleMnlOk: titleMnl === momSpec.titleMnl,
+      sectionLabelOk: sectionRequired === 'Required FTE at Plan',
+      timeAxisFormulaOk: timeAxisFormula.indexOf('SEQUENCE') >= 0,
+      weekStartAnchorColumn: momSpec.weekStartAnchor.column,
+      weekDateFormulaCount: momSpec.weekDateFormulas.length,
+      dayNameFormulaCount: momSpec.dayNameFormulas.length,
     };
   }
 

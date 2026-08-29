@@ -22,32 +22,32 @@
 
 ```text
 _AGG_INTERVAL ----\
-_AGG_FORECAST -----+--> Interval View (C112:AB151 combined block)
+_AGG_FORECAST -----+--> Interval View Band-Aid layout (A16:Z65)
 _AGG_ALLOCATION --/
 
-MOM manual inputs --> MOM staging (A13:E50) --> _AGG_FORECAST bridge (A2 QUERY)
+MOM Band-Aid calendar (CHAT MNL + CHAT LV grids) --> _AGG_FORECAST bridge (A2 LET/FILTER unpivot)
 ```
 
 - Separate packet-owned checkpointed installer (mirror CXP-09): aggregation preflight, bounded report-range writes, Script Property cursor, four-minute cooperative budget, safety trigger, constant anchor write shape.
-- Interval View formulas use `SUMIFS` / same-row derivations keyed by Date + Interval columns `A113:B150`.
-- MOM provides the RTA weekly forecast calendar; a bridge QUERY on `_AGG_FORECAST` replaces the CXP-09 self-referential forecast passthrough.
+- Interval View formulas use `SUMIFS` / same-row derivations keyed by `INT(A17:A54)` date + `MOD(A17:A54,1)` interval.
+- MOM matches the Band-Aid Step 1 dual-site weekly calendar; a spill bridge on `_AGG_FORECAST` unpivots Required/Forecast grids (PH←MNL, LAS←LV) and replaces the CXP-09 self-referential forecast passthrough.
 - Preserve CXP-01 contract anomalies in derived formulas (Handled zero/blank split, AHT Session divisor 63 vs 60, Scheduled-to-Required IFERROR guard on total row only).
 
 ## Sheet topology
 
 | Surface | Range | Role |
 |---|---|---|
-| `Interval View` | `A1` | Business-day anchor (RTA-editable) |
-| `Interval View` | `A112:B112` | Date / Interval axis headers |
-| `Interval View` | `D112:AB112` | 25-metric registry headers |
-| `Interval View` | `A113:B150` | 38 half-hour axis keys |
-| `Interval View` | `D113:AB150` | Combined-block metric spills |
-| `Interval View` | `D151:AB151` | Summary row |
-| `MOM` | `A1` | Week-start date (rollover anchor) |
-| `MOM` | `B4:H4` | Seven-day date header row |
-| `MOM` | `A12:E12` | Staging column headers |
-| `MOM` | `A13:E50` | Manual forecast/required/staffing inputs |
-| `_AGG_FORECAST` | `A2` | Bridge QUERY reading MOM staging |
+| `Interval View` | `AA2` | View Date anchor (RTA-editable) |
+| `Interval View` | `A16` / `B16:Z16` | PST + 25-metric registry headers |
+| `Interval View` | `A17:A54` | 38 half-hour PST datetime axis (`04:00`–`22:30`) |
+| `Interval View` | `B17:Z54` | Combined-block metric spills |
+| `Interval View` | `A65:Z65` | Grand Total row |
+| `MOM` | `A1` / `Y1` | `CHAT MNL` / `CHAT LV` titles |
+| `MOM` | `B3` | Week-start date (rollover anchor) |
+| `MOM` | `C3:H3` (+ mirrors) | Seven-day date headers |
+| `MOM` | `A5:A52` (+ section axes) | 48 half-hour `SEQUENCE` times |
+| `MOM` | FTE/Volume/AHT grids | Manual RTA inputs by day × interval |
+| `_AGG_FORECAST` | `A2` | Calendar unpivot bridge |
 
 ## Verification boundary
 
