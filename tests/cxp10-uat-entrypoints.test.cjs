@@ -106,29 +106,37 @@ test('CXP-10 parity fixture is embedded in hosted UAT module', () => {
   assert.equal(Cxp10ParityUat.FIXTURE.businessDay, parityFixture.businessDay);
 });
 
-test('Interval View axis formulas emit Band-Aid SEQUENCE from AA2 + 04:00', () => {
+test('Interval View axis formulas emit SEQUENCE from AA2 midnight with lookup keys', () => {
   const spec = ReportingSurfaceFormulaCatalog.intervalViewSpec();
   const pstFormula = spec.axisFormulas.find((entry) => entry.anchorColumn === 1).formula;
+  const dateKey = spec.axisFormulas.find((entry) => entry.anchorColumn === 28).formula;
+  const timeKey = spec.axisFormulas.find((entry) => entry.anchorColumn === 29).formula;
   assert.match(pstFormula, /SEQUENCE\(38/);
-  assert.match(pstFormula, /\$AA\$2\+TIME\(4,0,0\)/);
-  assert.equal(spec.axisFormulas.length, 1);
+  assert.match(pstFormula, /\$AA\$2\+TIME\(0,0,0\)/);
+  assert.match(dateKey, /INT\(A17:A54\)/);
+  assert.match(timeKey, /\*30\)\/1440/);
+  assert.doesNotMatch(timeKey, /MOD\(/);
+  assert.equal(spec.axisFormulas.length, 3);
   assert.equal(spec.businessDayAnchor.column, 27);
   assert.equal(spec.headerRow, 16);
 });
 
-test('recordParityOutputs passes when Interval View axis is complete', () => {
+test('recordParityOutputs passes when Interval View rows match on-axis fixture grains', () => {
   const catalog = ReportingSurfaceFormulaCatalog;
   const intervalSheet = new FakeSheet('Interval View');
-  // Band-Aid axis is 04:00–22:30; fixture midnight grains are off-axis, so seed a
-  // full axis page and require axis-complete pass.
-  const epoch = Date.UTC(1899, 11, 30);
-  const businessSerial =
-    (Date.UTC(2026, 7, 18) - epoch) / 86400000;
-  for (let index = 0; index < catalog.INTERVAL_COUNT; index += 1) {
-    const targetRow = catalog.FIRST_DATA_ROW + index;
-    const minutes = catalog.AXIS_START_HOUR * 60 + index * 30;
-    intervalSheet.setCell(targetRow, 1, businessSerial + minutes / 1440);
-  }
+  const onAxisExpected = parityFixture.expected.intervalView.filter(
+    (row) => row.Date === parityFixture.businessDay,
+  );
+  assert.ok(onAxisExpected.length >= 1);
+  onAxisExpected.forEach((expectedRow) => {
+    const [hours, minutes] = String(expectedRow.Interval).split(':').map(Number);
+    const slot = (hours * 60 + minutes - catalog.AXIS_START_HOUR * 60) / 30;
+    const targetRow = catalog.FIRST_DATA_ROW + slot;
+    const values = buildIntervalViewRow(expectedRow);
+    values.forEach((value, columnIndex) => {
+      intervalSheet.setCell(targetRow, columnIndex + 1, value);
+    });
+  });
 
   const originalOpen = global.SpreadsheetApp;
   global.SpreadsheetApp = {
@@ -158,8 +166,7 @@ test('recordParityOutputs passes when Interval View axis is complete', () => {
     const report = Cxp10ParityUat.recordParityOutputs('target-id');
     assert.equal(report.pass, true);
     assert.equal(report.diffCount, 0);
-    assert.equal(report.expectedOnAxisCount, 0);
-    assert.equal(report.rowsRead, catalog.INTERVAL_COUNT);
+    assert.equal(report.expectedOnAxisCount, onAxisExpected.length);
   } finally {
     global.SpreadsheetApp = originalOpen;
     delete global.Config;

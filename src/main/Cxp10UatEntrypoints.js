@@ -431,7 +431,7 @@ var Cxp10ParityUat = (function () {
     return String(row.Date) + '\u001d' + String(row.Interval);
   }
 
-  // Band-Aid axis: 38 half-hours from View Date + 04:00 through 22:30.
+  // Interval View axis: 38 half-hours from View Date midnight through 18:30.
   function buildAxisGrainKeys(businessDayIso) {
     var catalog = resolveCatalog();
     var keys = [];
@@ -489,8 +489,7 @@ var Cxp10ParityUat = (function () {
       catalog,
       metricOrder,
     );
-    // Aggregation fixture spans prior-day 23:30 (DEC-025); Interval View A1 is a
-    // single business-day page (00:00–18:30). Compare only grains on that axis.
+    // Fixture prior-day 23:30 is off this page; business-day 00:00 is on-axis.
     var axisKeySet = Object.create(null);
     buildAxisGrainKeys(FIXTURE.businessDay).forEach(function (key) {
       axisKeySet[key] = true;
@@ -518,7 +517,7 @@ var Cxp10ParityUat = (function () {
           '-' + catalog.LAST_DATA_ROW + ' blank Handled on zero',
         ahtSessionDivisor: 'interval /63 vs summary /60',
         scheduledToRequiredSummary: 'Z65 uses IFERROR guard',
-        axisWindow: 'Interval View AA2 + 04:00, 38 half-hours through 22:30',
+        axisWindow: 'Interval View AA2 midnight + 38 half-hours through 18:30',
       }),
     });
     uatLog(prefix + '.result', {

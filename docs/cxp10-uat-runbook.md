@@ -56,7 +56,7 @@ Record sanitized counts, timings, execution outcome, and formula-error **kinds**
 **Helper:** `CXP10UatStep02InspectTopology`
 
 1. Confirm Interval View `B16:Z16` declares all 25 registry headers in contract order; `A16`=`PST`.
-2. Confirm formula anchors exist at `A17` (`SEQUENCE` from `AA2+04:00`), metric columns `B17` through `Z17`, and Grand Total row `65` — no GETPIVOTDATA or legacy pivot references.
+2. Confirm formula anchors exist at `A17` (`SEQUENCE` from `AA2` midnight), helper keys `AB17`/`AC17`, metric columns `B17` through `Z17`, and Grand Total row `65` — no GETPIVOTDATA or legacy pivot references.
 3. Confirm MOM matches Band-Aid: `A1`=`CHAT MNL`, `Y1`=`CHAT LV`, section labels on row 2, editable week-start `B3`, day-name row 4, and `SEQUENCE(48,…)` time axes at `A5`/`I5`/`Q5`/`Y5`/`AG5`/`AO5`.
 4. Confirm `_AGG_FORECAST!A2` bridge references `MOM!$A$5:$A$52` (calendar unpivot), not a staging QUERY.
 5. Confirm report formulas reference `_AGG_INTERVAL`, `_AGG_FORECAST`, and `_AGG_ALLOCATION` only — not `_CALC_*` or `_RAW_*`.
@@ -72,7 +72,7 @@ Load aggregation inputs via the CXP-09 parity path, write fixture values into th
 **Helper:** `CXP10UatStep04RecordParityOutputs`
 
 1. Read combined-block outputs from Interval View `B17:Z54` and Grand Total row `65`.
-2. Compare to fixture grains that fall on the Band-Aid axis (`04:00`–`22:30`). Midnight / prior-day `23:30` grains are off this page.
+2. Compare to fixture grains that fall on the Interval View axis (`00:00`–`18:30`). Prior-day `23:30` grains are off this page.
 3. Confirm contract anomalies remain intentional (Handled zero/blank split, AHT Session divisor, Scheduled-to-Required summary guard).
 4. Record pass or a documented CXP-01-rooted delta.
 

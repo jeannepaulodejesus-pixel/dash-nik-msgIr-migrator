@@ -235,11 +235,20 @@ test('CXP-10 installs Interval View, MOM, and forecast bridge formulas', () => {
   assert.match(intervalView.formulas.get('17:3'), /_AGG_INTERVAL/);
   assert.match(intervalView.formulas.get('17:2'), /_AGG_FORECAST/);
   assert.match(intervalView.formulas.get('17:1'), /SEQUENCE\(38/);
-  assert.match(intervalView.formulas.get('17:1'), /TIME\(4,0,0\)/);
+  assert.match(intervalView.formulas.get('17:1'), /TIME\(0,0,0\)/);
+  assert.match(intervalView.formulas.get('17:3'), /MAP\(/);
+  assert.match(intervalView.formulas.get('17:3'), /LAMBDA\(d,t/);
+  assert.match(intervalView.formulas.get('17:3'), /SUMIFS\([^)]*!A:A,d/);
+  assert.match(intervalView.formulas.get('17:28'), /INT\(A17:A54\)/);
+  assert.match(intervalView.formulas.get('17:29'), /\*30\)\/1440/);
+  assert.doesNotMatch(intervalView.formulas.get('17:3'), /A:A,'Interval View'!AB/);
   // Col I = % of Forecast Offered (anchorColumn 9)
   assert.match(intervalView.formulas.get('17:9'), /IF\(OR\(B17:B54=0/);
   // Col V = Scheduled Hours (anchorColumn 22)
   assert.match(intervalView.formulas.get('17:22'), /R17:R54=""/);
+  // Col U / Z — blank when Required empty (no spurious 0 / #DIV/0!)
+  assert.match(intervalView.formulas.get('17:21'), /IF\(S17:S54="","",T17:T54-S17:S54\)/);
+  assert.match(intervalView.formulas.get('17:26'), /IFERROR\(R17:R54\/S17:S54/);
   assert.equal(intervalView.values.get('16:1'), 'PST');
   assert.equal(intervalView.values.get('1:27'), 'View Date');
   assert.equal(intervalView.formulas.get('2:3'), '=$AA$2');

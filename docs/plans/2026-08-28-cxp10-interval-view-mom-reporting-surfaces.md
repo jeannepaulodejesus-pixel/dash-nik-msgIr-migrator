@@ -39,7 +39,8 @@ MOM Band-Aid calendar (CHAT MNL + CHAT LV grids) --> _AGG_FORECAST bridge (A2 LE
 |---|---|---|
 | `Interval View` | `AA2` | View Date anchor (RTA-editable) |
 | `Interval View` | `A16` / `B16:Z16` | PST + 25-metric registry headers |
-| `Interval View` | `A17:A54` | 38 half-hour PST datetime axis (`04:00`–`22:30`) |
+| `Interval View` | `A17:A54` | 38 half-hour PST datetime axis (`00:00`–`18:30`) |
+| `Interval View` | `AB17:AC54` | Date / Interval helper keys for `_AGG_*` lookups |
 | `Interval View` | `B17:Z54` | Combined-block metric spills |
 | `Interval View` | `A65:Z65` | Grand Total row |
 | `MOM` | `A1` / `Y1` | `CHAT MNL` / `CHAT LV` titles |

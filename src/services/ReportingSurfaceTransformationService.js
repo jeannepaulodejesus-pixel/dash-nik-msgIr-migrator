@@ -119,7 +119,7 @@ var ReportingSurfaceTransformationService = (function () {
   function installIntervalChrome(intervalSheet, intervalView) {
     // Clear legacy WB0817 block (rows 112+) and Band-Aid report area before rewrite.
     intervalSheet.getRange(112, 1, 40, 28).clearContent();
-    intervalSheet.getRange(15, 1, 51, 26).clearContent();
+    intervalSheet.getRange(15, 1, 51, 29).clearContent();
     intervalSheet.getRange(1, intervalView.businessDayAnchor.column).setValue(
       intervalView.viewDateLabel,
     );

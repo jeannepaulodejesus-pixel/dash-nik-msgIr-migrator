@@ -27,8 +27,9 @@ The contract surface is Band-Aid Internal View layout on the `Interval View` she
 
 - `AA2` — View Date anchor (RTA-editable); `C2` mirrors `=$AA$2`
 - `A16` — `PST`; `B16:Z16` — exact 25-metric registry from `config/metric-lineage-contract.json`
-- `A17:A54` — `SEQUENCE` of 38 half-hours from `AA2+04:00` through `22:30`
-- `B17:Z54` — combined PH+LAS metrics keyed by `INT(A)` date + `MOD(A,1)` interval against `_AGG_*`
+- `A17:A54` — `SEQUENCE` of 38 half-hours from `AA2` midnight through `18:30` (Band-Aid Excel starts at 04:00; CXP-10 keeps midnight so early DEC-025 intervals remain on-page)
+- `AB17:AC54` — Date / Interval helper keys for `_AGG_*` `SUMIFS`
+- `B17:Z54` — combined PH+LAS metrics keyed by helpers against `_AGG_*`
 - Row `65` — Grand Total summary
 
 (Sheet name stays `Interval View` per CXP-02; Band-Aid Excel names the same surface Internal View.)
@@ -43,10 +44,10 @@ Columns `A` and `B` hold the lookup keys; column `C` remains available for legac
 
 ## Business-day and weekly rollover
 
-- Interval View `AA2` is the View Date anchor. Axis keys are `$AA$2 + 04:00 + n×30 minutes` for 38 slots (`04:00`–`22:30`).
+- Interval View `AA2` is the View Date anchor. Axis keys are `$AA$2 + n×30 minutes` for 38 slots (`00:00`–`18:30`).
 - MOM `B3` is the editable week-start anchor; `C3:H3` advance as `=B3+1`… and volume/AHT/LV date rows mirror `=$B$3`…`=$H$3`.
 - RTAs update Interval View `AA2` and MOM `B3` at weekly rollover; report formulas refresh from aggregation dependency alone.
-- Hosted parity compares fixture grains on the `04:00`–`22:30` axis when present; otherwise requires a full 38-row axis page.
+- Hosted parity compares fixture grains on the current `AA2` axis page only (prior-day `23:30` remains CXP-09 evidence).
 
 ## Verification boundary
 
