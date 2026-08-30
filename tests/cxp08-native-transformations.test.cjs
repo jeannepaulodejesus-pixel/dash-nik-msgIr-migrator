@@ -25,6 +25,12 @@ class FakeRange {
 
   clearContent() {
     this.sheet.clearCount += 1;
+    this.sheet.clearedRanges.push({
+      row: this.row,
+      column: this.column,
+      rowCount: this.rowCount,
+      columnCount: this.columnCount,
+    });
     return this;
   }
 
@@ -65,6 +71,7 @@ class FakeSheet {
     this.maxRows = maxRows;
     this.maxColumns = maxColumns;
     this.clearCount = 0;
+    this.clearedRanges = [];
     this.formulaWriteCount = 0;
     this.valueWriteCount = 0;
     this.formulas = new Map();
@@ -232,6 +239,9 @@ test('CXP-08 installs bounded native spill formulas with constant write shape', 
   assert.match(aht.formulas.get('2:8'), /_RAW_AHT'!A2:AA15001/);
   assert.match(auxes.formulas.get('2:5'), /_RAW_AUXES'!A2:X7501/);
   assert.match(staff.formulas.get('2:1'), /\$BE\$1/);
+  assert.match(staff.formulas.get('2:1'), /IF\(end<bucketEndAt,end,bucketEndAt\)/);
+  assert.match(staff.formulas.get('2:1'), /IF\(start>bucketStartAt,start,bucketStartAt\)/);
+  assert.doesNotMatch(staff.formulas.get('2:1'), /MAX\(|MIN\(/);
   assert.match(staff.formulas.get('2:49'), /_RAW_STAFF'!A2:E2001/);
   assert.match(staff.formulas.get('3:55'), /SUMIF\(/);
 });
@@ -333,7 +343,7 @@ test('CXP-08 hosted setup checkpoints before timeout and resumes without replayi
   assert.equal(first.nextStep, 2);
   assert.equal(first.continuationScheduled, true);
   assert.deepEqual(completedSteps, [0, 1]);
-  assert.equal(Cxp08Setup.STATE_KEY, 'CXP08_AHT_AUXES_STAFF_INSTALL_STATE');
+  assert.equal(Cxp08Setup.STATE_KEY, 'CXP08_AHT_AUXES_STAFF_INSTALL_STATE_V2');
   assert.equal(
     Cxp08Setup.CONTINUATION_HANDLER,
     'continueCxp08AhtAuxesStaffTransformations',
@@ -364,4 +374,18 @@ test('CXP-08 install is idempotent on reinstall', () => {
   AhtAuxesStaffTransformationService.install(harness.spreadsheet);
   assert.equal(harness.sheets.get('_CALC_AHT').formulas.size, firstFormulas);
   assert.equal(harness.sheets.get('_CALC_AHT').clearCount, 2);
+});
+
+test('CXP-08 reinstall preserves the Staff business-day anchor cell', () => {
+  const harness = createFormulaHarness();
+  AhtAuxesStaffTransformationService.install(harness.spreadsheet);
+
+  const staff = harness.sheets.get('_CALC_STAFF');
+  assert.equal(
+    staff.clearedRanges.some((range) =>
+      range.row <= 1 && range.row + range.rowCount - 1 >= 1 &&
+      range.column <= 57 && range.column + range.columnCount - 1 >= 57
+    ),
+    false,
+  );
 });

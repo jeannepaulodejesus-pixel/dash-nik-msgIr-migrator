@@ -69,31 +69,8 @@
         "After Conversation Work Actual Time": 15
       }
     ],
-    "auxesRows": [
-      {
-        "Name": "P1",
-        "User Presence ID": "UP-1",
-        "Status Start Date": "2026-08-18T07:45:00.000Z",
-        "Service Presence Status: Status Name": "Available - Messaging",
-        "Sign On Time (hours)": 1.5
-      },
-      {
-        "Name": "P2",
-        "User Presence ID": "UP-2",
-        "Status Start Date": "2026-08-18T08:05:00.000Z",
-        "Service Presence Status: Status Name": "Concluding",
-        "Sign On Time (hours)": 0.25
-      }
-    ],
-    "staffRows": [
-      {
-        "Status Start Date": "2026-08-18T08:00:00.000Z",
-        "Status End Date": "2026-08-18T09:00:00.000Z",
-        "Athlete Display Name": "Agent A",
-        "Athlete Site": "INT-LAS",
-        "Athlete Profile": "Messaging"
-      }
-    ],
+    "auxesRows": [],
+    "staffRows": [],
     "forecastInputs": [
       {
         "Date": "2026-08-17",
@@ -112,80 +89,64 @@
     ]
   },
   "expected": {
-    "aggInterval": [
+    "intervalView": [
       {
         "Date": "2026-08-17",
         "Interval": "23:30",
-        "Site": "PH",
+        "Forecast": 10,
         "Offered": 1,
         "Handled": 1,
         "Chats in SL": 1,
-        "SL TTC": 1,
-        "AHT (Session)": 300,
+        "Abandoned": 0,
+        "SL % Total": 1,
+        "SL (Time To Connect)": 1,
+        "% of Forecast Offered": 0.1,
+        "% of Forecast Handled": 0.1,
+        "Allocation": 1,
+        "Cumulative Allocation": 1,
+        "AHT (Session)": 4.761904761904762,
         "AHT": 150,
         "ACW": 35,
-        "ASA": 75,
+        "ASA in Seconds": 75,
         "Concurrency": 1.25,
-        "SL TTC Count": 1,
-        "AHT (Session) Count": 1,
-        "AHT Count": 2,
-        "ACW Count": 2,
-        "ASA Count": 2,
-        "Concurrency Count": 2
+        "Scheduled": "",
+        "Required": "",
+        "Actual (SO)": "",
+        "Actual vs Required": "",
+        "Scheduled Hours": "",
+        "Required Hours": "",
+        "Actual": "",
+        "Actual to Required": "",
+        "Scheduled to Required": ""
       },
       {
         "Date": "2026-08-18",
         "Interval": "04:00",
-        "Site": "LAS",
+        "Forecast": 0,
         "Offered": 1,
         "Handled": 0,
         "Chats in SL": 0,
-        "SL TTC": 0,
-        "AHT (Session)": 90,
+        "Abandoned": 1,
+        "SL % Total": 0,
+        "SL (Time To Connect)": 0,
+        "% of Forecast Offered": 1,
+        "% of Forecast Handled": " ",
+        "Allocation": 1,
+        "Cumulative Allocation": 1,
+        "AHT (Session)": 1.4285714285714286,
         "AHT": 90,
         "ACW": 15,
-        "ASA": 105,
+        "ASA in Seconds": 105,
         "Concurrency": 1.5,
-        "SL TTC Count": 1,
-        "AHT (Session) Count": 1,
-        "AHT Count": 1,
-        "ACW Count": 1,
-        "ASA Count": 1,
-        "Concurrency Count": 1
-      }
-    ],
-    "aggForecast": [
-      {
-        "Date": "2026-08-17",
-        "Interval": "23:30",
-        "Site": "PH",
-        "Type": "Forecast",
-        "Value": 10
-      },
-      {
-        "Date": "2026-08-18",
-        "Interval": "04:00",
-        "Site": "LAS",
-        "Type": "Required",
-        "Value": 5
-      }
-    ],
-    "aggAllocation": [
-      {
-        "Date": "2026-08-17",
-        "Interval": "23:30",
-        "Site": "PH",
-        "BPO": "INT",
-        "Offered Count": 1,
-        "Allocation Share": 1
-      },
-      {
-        "Date": "2026-08-18",
-        "Interval": "04:00",
-        "Site": "LAS",
-        "BPO": "INT",
-        "Offered Count": 1,
-        "Allocation Share": 1
+        "Scheduled": "",
+        "Required": 5,
+        "Actual (SO)": "",
+        "Actual vs Required": -5,
+        "Scheduled Hours": "",
+        "Required Hours": 0.10416666666666667,
+        "Actual": "",
+        "Actual to Required": "",
+        "Scheduled to Required": 0
       }
     ]
   }

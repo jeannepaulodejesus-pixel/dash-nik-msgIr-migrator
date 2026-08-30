@@ -10,8 +10,22 @@ var SchemaRegistry = (function () {
   });
   var EMPTY_VALUE_POLICY = Object.freeze({
     blankNormalization: 'trim_then_null',
+    coalescedErrorTokens: Object.freeze([
+      '#N/A',
+      '#REF!',
+      '#DIV/0!',
+      '#VALUE!',
+      '#NAME?',
+      '#NUM!',
+      '#NULL!',
+      '#ERROR!',
+    ]),
+    errorTokenComparison: 'case_insensitive_exact_token',
+    errorTokenFallback: null,
     keyFieldsMustBeNonblank: true,
+    // Backward-compatible alias for callers that inspect the validator guard.
     rejectedErrorTokenPattern: '^#',
+    unrecognizedErrorTokenPattern: '^#',
     synthesizeDefaults: false,
     treatNaAsNull: false,
   });

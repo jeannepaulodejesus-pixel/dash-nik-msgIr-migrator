@@ -16,5 +16,8 @@ The approved architecture is defined in `CODEX_HANDOFF.md`. This index gives lat
 | ADR-010 | Accepted | Separate DEV, UAT, and PROD configuration outside source code. |
 | ADR-011 | Accepted | Abstract logical datasets from unresolved physical file packaging. |
 | ADR-012 | Accepted | Use hidden run-scoped backup sheets for recoverable five-dataset raw replacement. |
+| ADR-013 | Accepted | Treat the hash-bound control workbook report surface as a versioned layout contract rendered separately from metric formulas. |
+| ADR-014 | Accepted | Give `_AGG_FORECAST!A2` one formula owner: CXP-10; CXP-09 owns only its schema and exact legacy cleanup. |
+| ADR-015 | Accepted | Own report and Staff dates through one validated business-context service and generate Staff summary formulas from a versioned routing contract. |
 
 Implementation-level decisions made by CXP-00 through CXP-06, including the later GMT-extraction clarification, are recorded in the [decision log](decision-log.md).

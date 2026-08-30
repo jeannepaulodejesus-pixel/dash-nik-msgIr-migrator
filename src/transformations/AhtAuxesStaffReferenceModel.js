@@ -136,15 +136,47 @@ var AhtAuxesStaffReferenceModel = (function () {
     });
   }
 
+  function resolveRoutingConfig() {
+    if (typeof StaffSummaryRoutingConfig !== 'undefined') {
+      return StaffSummaryRoutingConfig;
+    }
+    return require('../config/StaffSummaryRoutingConfig.js');
+  }
+
+  function staffSummary(rows, transformedRows) {
+    var headers = resolveCatalog().halfHourHeaders();
+    var routing = resolveRoutingConfig();
+    return headers.map(function (_header, bucketIndex) {
+      var route = routing.forBucket(bucketIndex);
+      var que = 0;
+      var las = 0;
+      rows.forEach(function (row, rowIndex) {
+        var fte = transformedRows[rowIndex][headers[bucketIndex]] * 48;
+        if (row['Athlete Site'] === route.queSite) que += fte;
+        if (row['Athlete Site'] === route.lasSite) las += fte;
+      });
+      return {
+        Interval: String(Math.floor(bucketIndex / 2)).padStart(2, '0') + ':' +
+          (bucketIndex % 2 ? '30' : '00'),
+        'Que Summary': Math.round(que * 1e9) / 1e9,
+        'LAS Summary': Math.round(las * 1e9) / 1e9,
+      };
+    }).filter(function (row) {
+      return row['Que Summary'] !== 0 || row['LAS Summary'] !== 0;
+    });
+  }
+
   function transform(input) {
     var ahtRows = requireRows(input, 'ahtRows');
     var auxesRows = requireRows(input, 'auxesRows');
     var staffRows = requireRows(input, 'staffRows');
     var businessDay = input.businessDay || '2026-08-18';
+    var transformedStaff = transformStaff(staffRows, businessDay);
     return {
       aht: transformAht(ahtRows),
       auxes: transformAuxes(auxesRows),
-      staff: transformStaff(staffRows, businessDay),
+      staff: transformedStaff,
+      staffSummary: staffSummary(staffRows, transformedStaff),
     };
   }
 

@@ -16,10 +16,10 @@ Valid states are `Not started`, `In progress`, `Blocked`, and `Complete`. A pack
 | CXP-05 — Drive/XLSX Input Adapters and Duplicate Fingerprinting | Complete | Delivery `CXP-05-v1` |
 | CXP-06 — Staging, Two-Phase Commit, Rollback, and Raw Replacement | Complete | Delivery `CXP-06-v1` |
 | CXP-07 — Native Transformations: Handled and Offered | Completed | Delivery `CXP-07-v1` |
-| CXP-08 — Native Transformations: AHT, Auxes, and Staff | Complete | Delivery `CXP-08-v1` |
-| CXP-09 — Stable Aggregation and Domain Model | Not started | Requires CXP-01, CXP-07, and CXP-08 complete |
-| CXP-10 — Interval View and MOM Reporting Surfaces | Not started | Requires CXP-01 and CXP-09 complete |
-| CXP-11 — Excel-vs-Google-Sheets Parity Harness and Source-Error Ledger | Not started | Requires CXP-07 through CXP-10 complete |
+| CXP-08 — Native Transformations: AHT, Auxes, and Staff | Complete | Delivery `CXP-08-v2`; hosted DEV promotion passed 2026-08-31 |
+| CXP-09 — Stable Aggregation and Domain Model | Complete | Delivery `CXP-09-v1`; hosted DEV promotion passed 2026-08-31 |
+| CXP-10 — Interval View and MOM Reporting Surfaces | Complete | Delivery `CXP-10-v2`; hosted DEV promotion passed 2026-08-31 |
+| CXP-11 — Excel-vs-Google-Sheets Parity Harness and Source-Error Ledger | Not started | Dependencies CXP-07 through CXP-10 are complete; ready to start |
 | CXP-12 — Weekly Workbook Lifecycle, Scheduling, and Environment Promotion | Not started | Requires CXP-02, CXP-04, CXP-06, and CXP-10 complete |
 | CXP-13 — RTA Intake Surface and Operational Status | Not started | Requires CXP-04 through CXP-06 and CXP-12 complete |
 | CXP-14 — Performance Hardening, UAT, Cutover, and Production Runbook | Not started | Requires CXP-00 through CXP-13 complete |
@@ -227,7 +227,7 @@ Superseded by `CXP-01-v3` only for source timestamp interpretation: fixed PST re
 - **Header contract:** Input order may vary, but names remain case-sensitive and must resolve to exactly one of every required canonical header. Missing, extra, duplicate/alias-colliding, blank, or unknown-dataset inputs fail with deterministic codes; output returns to registry order.
 - **Payload contract:** Every adapter supplies dataset name, source headers/rows, a registered packaging locator, and run metadata. The factory emits immutable canonical records and stamps schema version `1.0.0` into both the payload and copied run metadata.
 - **Packaging contracts:** `single_dataset` identifies one artifact per payload; `multi_sheet_workbook` identifies the source sheet per payload. CXP-03 deliberately does not choose the final packaging.
-- **Value contract:** Whitespace becomes null without defaults; key nulls and raw `#...` error tokens fail; `NA` stays text; strict numbers, GMT/UTC datetimes, and unshifted date-only labels normalize to stable JavaScript/ISO values.
+- **Value contract:** Whitespace and the eight allowlisted spreadsheet error tokens become null without synthesized defaults; unknown `#...` tokens fail, key nulls still fail, and `NA` stays text. Strict numbers, GMT/UTC datetimes, and unshifted date-only labels normalize to stable JavaScript/ISO values.
 - **TDD evidence:** The initial direct focused command exited 1 with 0/7 while the public modules were absent; the decisive assertion reported `undefined` instead of the required registry function. Four later cases cascaded to missing-module `TypeError`, so the red evidence is claimed for the absent public contract, not as a clean per-case red for every branch. The identical command then exited 0 with 7/7 after implementation.
 - **Repository checks:** `npm run test:cxp03` exited 0 with 7/7. Preliminary `npm run verify` exited 0 with 28/28 tests, 18 JavaScript files syntax-checked, and 48 text files scanned by guardrails; `git diff --check` exited 0. A fresh final gate is run after this completion record is added.
 - **Acceptance results:**
@@ -370,3 +370,36 @@ Superseded by `CXP-01-v3` only for source timestamp interpretation: fixed PST re
 - **Known limitations:** Node does not execute Google Sheets formulas. Step 05 peak evidence was not collected in the August 28 hosted run. `_STG_*` sheets are not used by CXP-08 UAT helpers (CXP-06 ingestion only).
 - **Blockers:** None for repository delivery. Step 05 peak timing is the remaining optional hosted gate for production-volume claims.
 - **Next-packet inputs:** CXP-09 should aggregate `_CALC_AHT`, `_CALC_AUXES`, and `_CALC_STAFF` without recreating their row rules. CXP-11 should compare identical source bundles using the same DEC-025 alignment protocol as CXP-07/CXP-08 parity fixtures.
+
+## CXP-08 V2 corrective revalidation status
+
+- **Repository status:** The DEC-051 business-context boundary, reinstall-safe `BE1` ownership, versioned Staff routing, expanded overlap/summary fixture, and promotion-root diagnostics are implemented and locally verified.
+- **Local evidence:** `npm run verify` passed with 198 tests and zero failures on 2026-08-31.
+- **Hosted evidence:** The V2 reinstall completed 74/74 steps. AHT, Auxes, Staff-overlap, and Staff-summary parity all returned zero differences; the promotion helper returned `pass: true` and `installComplete: true`.
+- **Packet status:** **Complete**, delivery `CXP-08-v2`.
+- **Evidence:** [`docs/cxp08-hosted-uat-results-v2-2026-08-31.md`](cxp08-hosted-uat-results-v2-2026-08-31.md).
+- **Blockers:** None for CXP-08. Step 05 peak timing remains optional for production-volume performance claims.
+
+## CXP-09 implementation and acceptance status
+
+- **Delivery version:** `CXP-09-v1` with installer state contract V3.
+- **Repository status:** Stable `_AGG_INTERVAL`, `_AGG_FORECAST`, and `_AGG_ALLOCATION` ownership, circular-query cleanup, count statistics, retry-safe install, fixture refresh, and parity helpers are implemented.
+- **Local evidence:** `npm run test:cxp09` passed 9/9; the latest full `npm run verify` run passed 198 tests with zero failures.
+- **Hosted integration evidence:** CXP-10 final hosted parity consumed the CXP-09 aggregation tables successfully at `2026-08-18 04:00`, including Offered, Handled, allocation, AHT, ACW, ASA, Concurrency, and zero-valued service-level metrics.
+- **Hosted CXP-09 evidence:** All aggregation headers and required formula anchors passed. The final authoritative installer state was `COMPLETE` at 23/23 with last step `Allocation:FORMULA:2`; Step 08 returned `pass: true`, `installComplete: true`. The earlier `IDLE` result remains negative evidence that topology alone does not satisfy promotion.
+- **Packet status:** **Complete**, delivery `CXP-09-v1`.
+- **Evidence:** [`docs/cxp09-hosted-uat-results-2026-08-31.md`](cxp09-hosted-uat-results-2026-08-31.md).
+- **Blockers:** None for CXP-09.
+- **Next-packet inputs:** CXP-11 may now consume the completed CXP-07 through CXP-10 transformation, aggregation, and reporting contracts.
+
+## CXP-10 completion handoff
+
+- **Delivery version:** `CXP-10-v2`.
+- **Repository status:** Complete and locally verified.
+- **Hosted DEV acceptance:** Pass on 2026-08-31. Installation completed 139/139 steps; the business context passed; all topology/layout checks passed; formula errors were zero; and `CXP10UatStep04` returned `pass: true`, `diffCount: 0`, and 38 axis rows.
+- **Promotion result:** The recorded gate inputs deterministically produce `promotionReady: true`.
+- **Corrective findings closed:** Fixture-context drift, duration normalization, floating-point interval equality, allocation-fixture BPO alignment, and zero-versus-blank metric semantics.
+- **Evidence:** [`docs/cxp10-hosted-uat-results-2026-08-31.md`](cxp10-hosted-uat-results-2026-08-31.md).
+- **Known limitations:** DEV acceptance does not change UAT/PROD configuration.
+- **Blockers:** None for CXP-10.
+- **Next-packet inputs:** CXP-11 may consume the completed CXP-07 through CXP-10 contracts; CXP-12 may consume the validated business-context and rollover APIs subject to its other dependencies.

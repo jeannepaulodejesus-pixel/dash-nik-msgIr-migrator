@@ -81,7 +81,7 @@ Plus canonical copy of all 24 CXP-03 Auxes raw headers.
 
 | Item | Value |
 |---|---|
-| Script Property | `CXP08_AHT_AUXES_STAFF_INSTALL_STATE` |
+| Script Property | `CXP08_AHT_AUXES_STAFF_INSTALL_STATE_V2` |
 | Initialize | `initializeCxp08AhtAuxesStaffTransformations` |
 | Continue | `continueCxp08AhtAuxesStaffTransformations` |
 | Status | `getCxp08AhtAuxesStaffTransformationStatus` |

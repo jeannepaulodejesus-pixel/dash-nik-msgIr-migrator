@@ -51,7 +51,7 @@ The raw files and control share the 0817 date but not the extraction cutoff. Raw
 - Consume all five files as one hourly bundle and replace the prior full export after validation.
 - Require the exact canonical header set after the AHT alias; accept reordered valid headers, normalize to registry order, and reject missing, extra, duplicate, multiple-table, or ragged deliveries.
 - Collapse only rows identical in required-header order after HTML entity decoding and before type coercion. Reject divergent rows sharing an authoritative key.
-- Normalize empty/whitespace cells to null without defaults. Accept no raw error token: reject any trimmed value beginning with `#`; treat `NA` as ordinary text.
+- Normalize empty/whitespace cells to null without defaults. At ingestion, coalesce the exact case-insensitive tokens `#N/A`, `#REF!`, `#DIV/0!`, `#VALUE!`, `#NAME?`, `#NUM!`, `#NULL!`, and `#ERROR!` to null before deduplication and type coercion. Unknown `#...` tokens fail; coalesced key fields fail as missing; `NA` remains ordinary text.
 - Parse `M/d/yyyy h:mm AM/PM` source datetime text strictly as GMT/UTC (`Etc/UTC`) and preserve the raw UTC timestamp. Parse date-only `M/d/yyyy` as a calendar label and never timezone-shift it.
 - Convert each UTC source/acquisition datetime by −480 minutes to fixed PST (`UTC−08:00`, ZoneId `Etc/GMT+8`) before deriving the business date or interval. No DST adjustment applies.
 - Bucket the converted business timestamp to `[00,30)` and `[30,60)` intervals using `TIME(HOUR(businessTimestamp),FLOOR(MINUTE(businessTimestamp),30),0)`.

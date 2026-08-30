@@ -345,9 +345,60 @@ test('DatasetAdapter parses the constrained ISO-8859-1 HTML table and collapses 
   ]);
   assert.equal(payload.rowCount, 1);
   assert.equal(payload.source.duplicateRowsCollapsed, 1);
+  assert.equal(payload.source.errorTokensCoalesced, 0);
   assert.equal(payload.records[0]['Athlete Display Name'], 'Sample\u00a0Athlete');
   assert.equal(payload.records[0]['Athlete Profile'], 'RTA & Ops');
   assert.equal(payload.records[0]['Status Start Date'], '2026-08-17T04:00:00.000Z');
+});
+
+test('DatasetAdapter coalesces recognized error tokens before type validation and deduplication', () => {
+  const DatasetAdapter = loadModule('../src/ingestion/DatasetAdapter.js');
+  const values = tableFor('Staff');
+  const headers = values[0];
+  const tokenRow = values[1].slice();
+  const blankRow = values[1].slice();
+  tokenRow[headers.indexOf('Status End Date')] = ' #n/A ';
+  blankRow[headers.indexOf('Status End Date')] = null;
+  values.splice(1, 1, tokenRow, blankRow);
+
+  const payload = DatasetAdapter.fromTable({
+    datasetName: 'Staff',
+    runMetadata: runMetadata(),
+    source: { artifactId: 'staff-id', kind: 'single_dataset' },
+    values,
+  });
+
+  assert.equal(payload.rowCount, 1);
+  assert.equal(payload.records[0]['Status End Date'], null);
+  assert.equal(payload.source.errorTokensCoalesced, 1);
+  assert.equal(payload.source.duplicateRowsCollapsed, 1);
+});
+
+test('DatasetAdapter keeps key integrity and rejects unrecognized hash tokens', () => {
+  const DatasetAdapter = loadModule('../src/ingestion/DatasetAdapter.js');
+  const keyValues = tableFor('Handled');
+  keyValues[1][keyValues[0].indexOf('Messaging Session Name')] = '#REF!';
+  assert.throws(
+    () => DatasetAdapter.fromTable({
+      datasetName: 'Handled',
+      runMetadata: runMetadata(),
+      source: { artifactId: 'handled-key-id', kind: 'single_dataset' },
+      values: keyValues,
+    }),
+    (error) => error.code === 'DATASET_MISSING_KEY',
+  );
+
+  const unknownValues = tableFor('Handled');
+  unknownValues[1][unknownValues[0].indexOf('Status')] = '#UNKNOWN!';
+  assert.throws(
+    () => DatasetAdapter.fromTable({
+      datasetName: 'Handled',
+      runMetadata: runMetadata(),
+      source: { artifactId: 'handled-unknown-id', kind: 'single_dataset' },
+      values: unknownValues,
+    }),
+    (error) => error.code === 'DATASET_ERROR_TOKEN',
+  );
 });
 
 // Defect caught: multiple tables or ragged rows are silently truncated into a plausible dataset.
@@ -442,8 +493,10 @@ test('WorkbookBundleAdapter emits one normalized payload for every mapped sheet'
   const WorkbookBundleAdapter = loadModule('../src/ingestion/WorkbookBundleAdapter.js');
   assert.equal(typeof WorkbookBundleAdapter?.toPayloads, 'function');
   const source = descriptor();
+  const datasetTables = allDatasetTables();
+  datasetTables.Staff[1][datasetTables.Staff[0].indexOf('Status End Date')] = '#DIV/0!';
   const workbook = {
-    sheets: Object.entries(allDatasetTables()).map(([name, values]) => ({ name, values })),
+    sheets: Object.entries(datasetTables).map(([name, values]) => ({ name, values })),
   };
 
   const payloads = WorkbookBundleAdapter.toPayloads({
@@ -462,6 +515,9 @@ test('WorkbookBundleAdapter emits one normalized payload for every mapped sheet'
   ]);
   assert.equal(payloads.every((payload) => payload.contract === 'DatasetPayload'), true);
   assert.equal(payloads.every((payload) => payload.source.kind === 'multi_sheet_workbook'), true);
+  const staffPayload = payloads.find((payload) => payload.datasetName === 'Staff');
+  assert.equal(staffPayload.records[0]['Status End Date'], null);
+  assert.equal(staffPayload.source.errorTokensCoalesced, 1);
   assert.throws(
     () => WorkbookBundleAdapter.toPayloads({
       bundleFingerprint: 'sha256:bundle',

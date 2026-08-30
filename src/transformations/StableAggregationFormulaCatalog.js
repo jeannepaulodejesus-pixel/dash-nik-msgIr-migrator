@@ -39,6 +39,44 @@ var StableAggregationFormulaCatalog = (function () {
     '))';
   }
 
+  function ahtMetricCountLookupFormula(metricExpr) {
+    var rowEnd = ROW_CAPACITY + 1;
+    return '=ARRAYFORMULA(IF(A2:A' + rowEnd + '="","",' +
+      'LET(' +
+        'calcDate,\'_CALC_AHT\'!A2:A' + AHT_LAST_ROW + ',' +
+        'aggKey,IF(calcDate="","",TEXT(calcDate,"yyyy-mm-dd")&CHAR(29)&' +
+          'TEXT(\'_CALC_AHT\'!B2:B' + AHT_LAST_ROW + ',"hh:mm")&CHAR(29)&' +
+          '\'_CALC_AHT\'!J2:J' + AHT_LAST_ROW + '),' +
+        'metric,' + metricExpr + ',' +
+        'agg,QUERY({aggKey,metric},' +
+          '"select Col1, count(Col2) where Col1 is not null group by Col1 ' +
+          'label count(Col2) \'\'",0),' +
+        'rowKey,TEXT(A2:A' + rowEnd + ',"yyyy-mm-dd")&CHAR(29)&' +
+          'TEXT(B2:B' + rowEnd + ',"hh:mm")&CHAR(29)&C2:C' + rowEnd + ',' +
+        'IFNA(VLOOKUP(rowKey,agg,2,FALSE),0)' +
+      ')' +
+    '))';
+  }
+
+  function offeredMetricCountFormula(metricRange) {
+    var rowEnd = ROW_CAPACITY + 1;
+    return '=ARRAYFORMULA(IF(A2:A' + rowEnd + '="","",' +
+      'LET(' +
+        'calcDate,\'_CALC_OFFERED\'!A2:A' + OFFERED_LAST_ROW + ',' +
+        'aggKey,IF(calcDate="","",TEXT(calcDate,"yyyy-mm-dd")&CHAR(29)&' +
+          'TEXT(\'_CALC_OFFERED\'!B2:B' + OFFERED_LAST_ROW + ',"hh:mm")&CHAR(29)&' +
+          '\'_CALC_OFFERED\'!C2:C' + OFFERED_LAST_ROW + '),' +
+        'metric,\'_CALC_OFFERED\'!' + metricRange + '2:' + metricRange + OFFERED_LAST_ROW + ',' +
+        'agg,QUERY({aggKey,metric},' +
+          '"select Col1, count(Col2) where Col1 is not null group by Col1 ' +
+          'label count(Col2) \'\'",0),' +
+        'rowKey,TEXT(A2:A' + rowEnd + ',"yyyy-mm-dd")&CHAR(29)&' +
+          'TEXT(B2:B' + rowEnd + ',"hh:mm")&CHAR(29)&C2:C' + rowEnd + ',' +
+        'IFNA(VLOOKUP(rowKey,agg,2,FALSE),0)' +
+      ')' +
+    '))';
+  }
+
   function ahtTimingLookupFormulas() {
     var lastRow = AHT_LAST_ROW;
     var calc = '\'_CALC_AHT\'!';
@@ -77,10 +115,18 @@ var StableAggregationFormulaCatalog = (function () {
     return Object.freeze({
       aggregationFormulas: Object.freeze([
         offeredVolumeQuery(),
-      ].concat(ahtTimingLookupFormulas())),
+      ].concat(ahtTimingLookupFormulas()).concat([
+        offeredMetricCountFormula('D'),
+        offeredMetricCountFormula('N'),
+        ahtMetricCountLookupFormula("'_CALC_AHT'!Q2:Q" + AHT_LAST_ROW),
+        ahtMetricCountLookupFormula("'_CALC_AHT'!R2:R" + AHT_LAST_ROW),
+        ahtMetricCountLookupFormula("'_CALC_AHT'!T2:T" + AHT_LAST_ROW +
+          "+'_CALC_AHT'!AB2:AB" + AHT_LAST_ROW),
+        ahtMetricCountLookupFormula("'_CALC_AHT'!F2:F" + AHT_LAST_ROW),
+      ])),
       aggregationSheetName: '_AGG_INTERVAL',
       datasetName: 'Interval Metrics',
-      formulaAnchors: Object.freeze([1, 9, 10, 11, 12]),
+      formulaAnchors: Object.freeze([1, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
       headers: Object.freeze([
         'Date',
         'Interval',
@@ -94,6 +140,12 @@ var StableAggregationFormulaCatalog = (function () {
         'ACW',
         'ASA',
         'Concurrency',
+        'SL TTC Count',
+        'AHT (Session) Count',
+        'AHT Count',
+        'ACW Count',
+        'ASA Count',
+        'Concurrency Count',
       ]),
       requiredCalcSheets: Object.freeze([
         '_CALC_OFFERED',
@@ -120,9 +172,15 @@ var StableAggregationFormulaCatalog = (function () {
         'Type',
         'Value',
       ]),
-      requiredCalcSheets: Object.freeze([
-        '_CALC_STAFF',
-      ]),
+      // CXP-10 exclusively owns the A2 spill bridge. CXP-09 owns the schema
+      // and removes only its legacy self-referential QUERY during migration.
+      legacyFormulaCleanup: Object.freeze({
+        column: 1,
+        formula: forecastInputQuery(),
+        row: 2,
+      }),
+      preserveBody: true,
+      requiredCalcSheets: Object.freeze([]),
       rowCapacity: ROW_CAPACITY,
     });
   }

@@ -1,5 +1,7 @@
 # CXP-09 Hosted UAT Runbook
 
+Latest DEV result: **Pass**, August 31, 2026. The installer completed 23/23 steps and the promotion gate returned `pass: true`. See [`cxp09-hosted-uat-results-2026-08-31.md`](cxp09-hosted-uat-results-2026-08-31.md).
+
 **Planned contract** for operator succession; install + UAT helpers are landed for Steps 01, 02, and 08. Parity, peak, and refresh helpers remain planned. Contract authority: [`CODEX_HANDOFF.md`](../CODEX_HANDOFF.md) (CXP-09), [`docs/metric-lineage.md`](metric-lineage.md), [`config/metric-lineage-contract.json`](../config/metric-lineage-contract.json), [`docs/dependency-map.md`](dependency-map.md). Harness: [`docs/cxp09-uat-harness.md`](cxp09-uat-harness.md). Pattern reference: [`docs/cxp08-uat-runbook.md`](cxp08-uat-runbook.md).
 
 ## Succession naming
@@ -35,7 +37,7 @@ Fresh DEV pair (optional): set Script Property `CXP_DEV_BOOTSTRAP_FOLDER_ID` to 
 | Entrypoint | Purpose |
 |---|---|
 | `initializeCxp09StableAggregationModel` | Start or resume checkpointed aggregation install on the configured target |
-| `continueCxp09StableAggregationModel` | Time-driven or manual continuation from `CXP09_AGGREGATION_INSTALL_STATE` |
+| `continueCxp09StableAggregationModel` | Time-driven or manual continuation from `CXP09_AGGREGATION_INSTALL_STATE_V3` |
 | `getCxp09StableAggregationStatus` | Sanitized status (`IDLE` / `RUNNING` / `COMPLETE` / `FAILED`) |
 | `resetCxp09StableAggregationInstallationState` | Clear stuck or wrong-target `RUNNING` state |
 | `diagnoseCxp09RunbookChecks` | Aggregation header/grain/measure diagnostic |

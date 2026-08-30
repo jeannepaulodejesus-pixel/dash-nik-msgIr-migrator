@@ -5,7 +5,7 @@ var Cxp08Setup = (function () {
   var CONTINUATION_DELAY_MS = 1000;
   var DEFAULT_MAX_RUNTIME_MS = 240000;
   var WATCHDOG_DELAY_MS = 420000;
-  var STATE_KEY = 'CXP08_AHT_AUXES_STAFF_INSTALL_STATE';
+  var STATE_KEY = 'CXP08_AHT_AUXES_STAFF_INSTALL_STATE_V2';
   var STATE_VERSION = 1;
 
   function resolveConfig() {
@@ -595,13 +595,28 @@ function diagnoseCxp08RunbookChecks(spreadsheetId) {
     id = Config.load().targetSpreadsheetId;
   }
   var ss = SpreadsheetApp.openById(id);
+  var ContextRef = typeof BusinessContextService !== 'undefined'
+    ? BusinessContextService
+    : null;
   var report = {
     spreadsheetId: id,
     title: ss.getName(),
     status: null,
     rawSchema: {},
     calc: {},
+    businessContext: null,
   };
+  if (ContextRef) {
+    report.businessContext = ContextRef.read(ss);
+    if (!report.businessContext.pass) {
+      report.rootError = {
+        code: ContextRef.ERROR_CODES.anchorInvalid,
+        invalidAnchors: report.businessContext.invalidAnchors.map(function (entry) {
+          return entry.anchor;
+        }),
+      };
+    }
+  }
   try {
     report.status = Cxp08Setup.getStatus();
   } catch (statusError) {

@@ -1,13 +1,14 @@
-var Cxp09Setup = (function () {
+var Cxp10Setup = (function () {
   'use strict';
 
-  var CONTINUATION_HANDLER = 'continueCxp09StableAggregationModel';
+  var CONTINUATION_HANDLER = 'continueCxp10ReportingSurfaces';
   var CONTINUATION_DELAY_MS = 1000;
   var DEFAULT_MAX_RUNTIME_MS = 240000;
   var WATCHDOG_DELAY_MS = 420000;
-  // V3 removes CXP-09 ownership of the CXP-10 forecast bridge anchor.
-  var STATE_KEY = 'CXP09_AGGREGATION_INSTALL_STATE_V3';
-  var STATE_VERSION = 3;
+  // V2 changes the install-step topology. A distinct key prevents a v1 cursor
+  // from resuming at the wrong presentation/formula step after deployment.
+  var STATE_KEY = 'CXP10_REPORTING_INSTALL_STATE_V2';
+  var STATE_VERSION = 2;
 
   function resolveConfig() {
     if (typeof Config !== 'undefined') {
@@ -20,10 +21,10 @@ var Cxp09Setup = (function () {
     if (services && services.transformationService) {
       return services.transformationService;
     }
-    if (typeof StableAggregationTransformationService !== 'undefined') {
-      return StableAggregationTransformationService;
+    if (typeof ReportingSurfaceTransformationService !== 'undefined') {
+      return ReportingSurfaceTransformationService;
     }
-    return require('../services/StableAggregationTransformationService.js');
+    return require('../services/ReportingSurfaceTransformationService.js');
   }
 
   function resolveServices(services) {
@@ -49,7 +50,7 @@ var Cxp09Setup = (function () {
     ) {
       return PropertiesService.getScriptProperties();
     }
-    throw new Error('Script Properties are required for CXP-09 initialization.');
+    throw new Error('Script Properties are required for CXP-10 initialization.');
   }
 
   function now(dependencies) {
@@ -58,7 +59,7 @@ var Cxp09Setup = (function () {
       : new Date();
     var date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) {
-      throw new Error('The CXP-09 runtime clock returned an invalid value.');
+      throw new Error('The CXP-10 runtime clock returned an invalid value.');
     }
     return date;
   }
@@ -72,10 +73,10 @@ var Cxp09Setup = (function () {
     try {
       state = JSON.parse(raw);
     } catch (error) {
-      throw new Error('The persisted CXP-09 installation state is invalid.');
+      throw new Error('The persisted CXP-10 installation state is invalid.');
     }
     if (!state || state.version !== STATE_VERSION) {
-      throw new Error('The persisted CXP-09 installation state is unsupported.');
+      throw new Error('The persisted CXP-10 installation state is unsupported.');
     }
     return state;
   }
@@ -90,7 +91,7 @@ var Cxp09Setup = (function () {
       typeof scriptApp.getProjectTriggers !== 'function' ||
       typeof scriptApp.deleteTrigger !== 'function'
     ) {
-      throw new Error('ScriptApp trigger management is required for CXP-09 continuation.');
+      throw new Error('ScriptApp trigger management is required for CXP-10 continuation.');
     }
     scriptApp.getProjectTriggers().forEach(function (trigger) {
       if (
@@ -135,7 +136,7 @@ var Cxp09Setup = (function () {
       !dependencies.lockService ||
       typeof dependencies.lockService.getScriptLock !== 'function'
     ) {
-      throw new Error('LockService is required for CXP-09 continuation.');
+      throw new Error('LockService is required for CXP-10 continuation.');
     }
     var lock = dependencies.lockService.getScriptLock();
     if (
@@ -144,7 +145,7 @@ var Cxp09Setup = (function () {
       typeof lock.releaseLock !== 'function' ||
       !lock.tryLock(5000)
     ) {
-      throw new Error('Another CXP-09 installation step is already running.');
+      throw new Error('Another CXP-10 installation step is already running.');
     }
     return lock;
   }
@@ -170,13 +171,13 @@ var Cxp09Setup = (function () {
       state.targetSpreadsheetId !== targetId
     ) {
       throw new Error(
-        'The active CXP-09 installation targets a different environment or spreadsheet. ' +
+        'The active CXP-10 installation targets a different environment or spreadsheet. ' +
           'activeTarget=' + (state.targetSpreadsheetId || 'null') +
           ' configuredTarget=' + targetId +
           ' activeEnv=' + (state.environment || 'null') +
           ' configuredEnv=' + configuration.environment +
           '. If no install is RUNNING, delete Script Property ' + STATE_KEY +
-          ' or run resetCxp07StableAggregationInstallationState().',
+          ' or run resetCxp10ReportingInstallationState().',
       );
     }
   }
@@ -214,7 +215,7 @@ var Cxp09Setup = (function () {
       typeof transformationService.getInstallStepCount !== 'function' ||
       typeof transformationService.installStep !== 'function'
     ) {
-      throw new Error('The CXP-09 transformation service is not resumable.');
+      throw new Error('The CXP-10 transformation service is not resumable.');
     }
     var lock = requireLock(dependencies);
     try {
@@ -276,7 +277,7 @@ var Cxp09Setup = (function () {
       }
 
       scheduleContinuation(dependencies.scriptApp, WATCHDOG_DELAY_MS);
-      emitLog('CXP09_INSTALL', {
+      emitLog('CXP10_INSTALL', {
         event: continueOnly ? 'CONTINUE' : 'INITIALIZE',
         environment: configuration.environment,
         targetSpreadsheetId: targetId,
@@ -300,7 +301,7 @@ var Cxp09Setup = (function () {
           state.nextStep += 1;
           state.updatedAtUtc = now(dependencies).toISOString();
           saveState(properties, state);
-          emitLog('CXP09_STEP', {
+          emitLog('CXP10_STEP', {
             stepIndex: stepIndex,
             label: stepResult.label,
             nextStep: state.nextStep,
@@ -311,7 +312,7 @@ var Cxp09Setup = (function () {
             state.nextStep < state.stepCount &&
             now(dependencies).getTime() - invocationStartedMs >= maxRuntimeMs
           ) {
-            emitLog('CXP09_INSTALL', {
+            emitLog('CXP10_INSTALL', {
               event: 'CHECKPOINT',
               nextStep: state.nextStep,
               stepCount: state.stepCount,
@@ -324,10 +325,10 @@ var Cxp09Setup = (function () {
       } catch (error) {
         removeContinuationTriggers(dependencies.scriptApp);
         state.status = 'FAILED';
-        state.lastError = error && error.message ? String(error.message) : 'CXP-09 step failed.';
+        state.lastError = error && error.message ? String(error.message) : 'CXP-10 step failed.';
         state.updatedAtUtc = now(dependencies).toISOString();
         saveState(properties, state);
-        emitLog('CXP09_INSTALL', {
+        emitLog('CXP10_INSTALL', {
           event: 'FAILED',
           nextStep: state.nextStep,
           stepCount: state.stepCount,
@@ -344,7 +345,7 @@ var Cxp09Setup = (function () {
         state.updatedAtUtc = state.completedAtUtc;
         saveState(properties, state);
         var completeResult = publicResult(state, false);
-        emitLog('CXP09_INSTALL', {
+        emitLog('CXP10_INSTALL', {
           event: 'COMPLETE',
           status: completeResult.status,
           nextStep: completeResult.nextStep,
@@ -362,7 +363,7 @@ var Cxp09Setup = (function () {
       state.updatedAtUtc = now(dependencies).toISOString();
       saveState(properties, state);
       var runningResult = publicResult(state, true);
-      emitLog('CXP09_INSTALL', {
+      emitLog('CXP10_INSTALL', {
         event: 'RUNNING',
         status: runningResult.status,
         nextStep: runningResult.nextStep,
@@ -399,7 +400,7 @@ var Cxp09Setup = (function () {
         configModule.propertyKey(
           configuration.environment,
           configModule.CONFIGURATION_KEYS.targetSpreadsheetId,
-        ) + ' is required for CXP-09 initialization.',
+        ) + ' is required for CXP-10 initialization.',
       );
     }
     var dependencies = resolveServices(services);
@@ -408,7 +409,7 @@ var Cxp09Setup = (function () {
       typeof dependencies.spreadsheetApp.openById !== 'function'
     ) {
       throw new Error(
-        'A SpreadsheetApp adapter with openById is required for CXP-09 initialization.',
+        'A SpreadsheetApp adapter with openById is required for CXP-10 initialization.',
       );
     }
     if (supportsResumableRuntime(dependencies)) {
@@ -435,7 +436,7 @@ var Cxp09Setup = (function () {
       ? configuration.targetSpreadsheetId.trim()
       : '';
     if (!targetId) {
-      throw new Error('The configured CXP-09 target spreadsheet ID is required.');
+      throw new Error('The configured CXP-10 target spreadsheet ID is required.');
     }
     var dependencies = resolveServices(services);
     return runResumable(
@@ -488,9 +489,9 @@ var Cxp09Setup = (function () {
   });
 })();
 
-function logCxp09Public(tag, payload) {
-  if (typeof Cxp09Setup !== 'undefined' && typeof Cxp09Setup.emitLog === 'function') {
-    Cxp09Setup.emitLog(tag, payload);
+function logCxp10Public(tag, payload) {
+  if (typeof Cxp10Setup !== 'undefined' && typeof Cxp10Setup.emitLog === 'function') {
+    Cxp10Setup.emitLog(tag, payload);
     return;
   }
   var line = tag + ' ' + JSON.stringify(payload || {});
@@ -502,11 +503,11 @@ function logCxp09Public(tag, payload) {
   }
 }
 
-function initializeCxp09StableAggregationModel() {
-  logCxp09Public('CXP09_INSTALL', { event: 'START', mode: 'initialize' });
+function initializeCxp10ReportingSurfaces() {
+  logCxp10Public('CXP10_INSTALL', { event: 'START', mode: 'initialize' });
   try {
-    var result = Cxp09Setup.initializeConfigured();
-    logCxp09Public('CXP09_INSTALL', {
+    var result = Cxp10Setup.initializeConfigured();
+    logCxp10Public('CXP10_INSTALL', {
       event: 'RETURN',
       mode: 'initialize',
       status: result.status,
@@ -518,7 +519,7 @@ function initializeCxp09StableAggregationModel() {
     });
     return result;
   } catch (error) {
-    logCxp09Public('CXP09_INSTALL', {
+    logCxp10Public('CXP10_INSTALL', {
       event: 'ERROR',
       mode: 'initialize',
       message: error && error.message ? String(error.message) : String(error),
@@ -527,11 +528,11 @@ function initializeCxp09StableAggregationModel() {
   }
 }
 
-function continueCxp09StableAggregationModel() {
-  logCxp09Public('CXP09_INSTALL', { event: 'START', mode: 'continue' });
+function continueCxp10ReportingSurfaces() {
+  logCxp10Public('CXP10_INSTALL', { event: 'START', mode: 'continue' });
   try {
-    var result = Cxp09Setup.continueConfigured();
-    logCxp09Public('CXP09_INSTALL', {
+    var result = Cxp10Setup.continueConfigured();
+    logCxp10Public('CXP10_INSTALL', {
       event: 'RETURN',
       mode: 'continue',
       status: result.status,
@@ -543,7 +544,7 @@ function continueCxp09StableAggregationModel() {
     });
     return result;
   } catch (error) {
-    logCxp09Public('CXP09_INSTALL', {
+    logCxp10Public('CXP10_INSTALL', {
       event: 'ERROR',
       mode: 'continue',
       message: error && error.message ? String(error.message) : String(error),
@@ -552,17 +553,17 @@ function continueCxp09StableAggregationModel() {
   }
 }
 
-function getCxp09StableAggregationStatus() {
-  var status = Cxp09Setup.getStatus();
-  logCxp09Public('CXP09_STATUS', status);
+function getCxp10ReportingSurfaceStatus() {
+  var status = Cxp10Setup.getStatus();
+  logCxp10Public('CXP10_STATUS', status);
   return status;
 }
 
-function resetCxp09StableAggregationInstallationState() {
-  logCxp09Public('CXP09_INSTALL', { event: 'START', mode: 'reset' });
+function resetCxp10ReportingInstallationState() {
+  logCxp10Public('CXP10_INSTALL', { event: 'START', mode: 'reset' });
   try {
-    var result = Cxp09Setup.resetConfigured();
-    logCxp09Public('CXP09_INSTALL', {
+    var result = Cxp10Setup.resetConfigured();
+    logCxp10Public('CXP10_INSTALL', {
       event: 'RETURN',
       mode: 'reset',
       cleared: result.cleared,
@@ -571,7 +572,7 @@ function resetCxp09StableAggregationInstallationState() {
     });
     return result;
   } catch (error) {
-    logCxp09Public('CXP09_INSTALL', {
+    logCxp10Public('CXP10_INSTALL', {
       event: 'ERROR',
       mode: 'reset',
       message: error && error.message ? String(error.message) : String(error),
@@ -581,85 +582,215 @@ function resetCxp09StableAggregationInstallationState() {
 }
 
 /**
- * CXP-09 runbook install/inspect diagnostic for a target workbook.
+ * CXP-10 runbook install/inspect diagnostic for a target workbook.
  * Pass a spreadsheet ID string, or omit to use the configured target.
  */
-function diagnoseCxp09RunbookChecks(spreadsheetId) {
-  var CatalogRef = typeof StableAggregationFormulaCatalog !== 'undefined'
-    ? StableAggregationFormulaCatalog
+function diagnoseCxp10RunbookChecks(spreadsheetId) {
+  var CatalogRef = typeof ReportingSurfaceFormulaCatalog !== 'undefined'
+    ? ReportingSurfaceFormulaCatalog
     : null;
   if (!CatalogRef) {
-    throw new Error('StableAggregationFormulaCatalog is required.');
+    throw new Error('ReportingSurfaceFormulaCatalog is required.');
   }
   var id = spreadsheetId;
   if (!id || typeof id !== 'string') {
     id = Config.load().targetSpreadsheetId;
   }
   var ss = SpreadsheetApp.openById(id);
+  var ContextRef = typeof BusinessContextService !== 'undefined'
+    ? BusinessContextService
+    : null;
+  var intervalSpec = CatalogRef.intervalViewSpec();
+  var momSpec = CatalogRef.momSpec();
+  var bridgeSpec = CatalogRef.forecastBridgeSpec();
   var report = {
     spreadsheetId: id,
     title: ss.getName(),
     status: null,
-    aggregation: {},
+    intervalView: {},
+    mom: {},
+    forecastBridge: {},
+    businessContext: null,
   };
+  if (ContextRef) {
+    report.businessContext = ContextRef.read(ss);
+    if (!report.businessContext.pass) {
+      report.rootError = {
+        code: ContextRef.ERROR_CODES.anchorInvalid,
+        invalidAnchors: report.businessContext.invalidAnchors.map(function (entry) {
+          return entry.anchor;
+        }),
+      };
+    }
+  }
   try {
-    report.status = Cxp09Setup.getStatus();
+    report.status = Cxp10Setup.getStatus();
   } catch (statusError) {
     report.statusError = statusError && statusError.message
       ? statusError.message
       : String(statusError);
   }
 
-  CatalogRef.list().forEach(function (spec) {
-    var sheet = ss.getSheetByName(spec.aggregationSheetName);
-    if (!sheet) {
-      report.aggregation[spec.aggregationSheetName] = { present: false };
-      return;
-    }
-    var headers = sheet.getRange(1, 1, 1, spec.headers.length).getDisplayValues()[0];
+  var intervalSheet = ss.getSheetByName(intervalSpec.reportSheetName);
+  if (!intervalSheet) {
+    report.intervalView.present = false;
+  } else {
+    var pstHeader = String(
+      intervalSheet.getRange(intervalSpec.headerRow, 3).getDisplayValue() || '',
+    ).trim();
+    var remarksHeader = String(
+      intervalSheet.getRange(intervalSpec.headerRow, 2).getDisplayValue() || '',
+    ).trim();
+    var metricHeaders = intervalSheet.getRange(
+      intervalSpec.headerRow,
+      intervalSpec.headerStartColumn,
+      1,
+      intervalSpec.headers.length,
+    ).getDisplayValues()[0];
     var headerDiffs = [];
-    var index;
-    for (index = 0; index < spec.headers.length; index += 1) {
-      if (headers[index] !== spec.headers[index]) {
+    var headerIndex;
+    for (headerIndex = 0; headerIndex < intervalSpec.headers.length; headerIndex += 1) {
+      if (metricHeaders[headerIndex] !== intervalSpec.headers[headerIndex]) {
         headerDiffs.push({
-          col: index + 1,
-          actual: headers[index],
-          expected: spec.headers[index],
+          actual: metricHeaders[headerIndex],
+          expected: intervalSpec.headers[headerIndex],
         });
       }
     }
-    var formulaAnchors = [];
-    var formulaMissing = [];
-    spec.formulaAnchors.forEach(function (column) {
-      var formula = sheet.getRange(2, column).getFormula();
-      var colLetter = column <= 26
-        ? String.fromCharCode(64 + column)
-        : 'A' + String.fromCharCode(64 + column - 26);
-      if (formula) {
-        formulaAnchors.push(colLetter + '2');
-        if (formula.indexOf('GETPIVOTDATA') >= 0) {
-          report.aggregation[spec.aggregationSheetName] = report.aggregation[spec.aggregationSheetName] || {};
-          report.aggregation[spec.aggregationSheetName].getPivotDataDetected = true;
-        }
-      } else {
-        formulaMissing.push(colLetter + '2');
+    var metricAnchorsMissing = [];
+    intervalSpec.metricFormulas.forEach(function (entry) {
+      if (!intervalSheet.getRange(intervalSpec.firstDataRow, entry.anchorColumn).getFormula()) {
+        metricAnchorsMissing.push(entry.anchorColumn);
       }
     });
-    report.aggregation[spec.aggregationSheetName] = Object.assign(
-      report.aggregation[spec.aggregationSheetName] || {},
-      {
-        present: true,
-        headerCount: headers.length,
-        headerCountOk: headerDiffs.length === 0,
-        headerDiffs: headerDiffs,
-        formulaAnchorsPresent: formulaAnchors,
-        formulaAnchorsMissing: formulaMissing,
-        formulaAnchorCountOk: formulaMissing.length === 0,
-        measureColumnCount: spec.headers.length,
-        lastRow: sheet.getLastRow(),
-      },
+    var axisFormula = intervalSheet.getRange(
+      intervalSpec.firstDataRow,
+      3,
+    ).getFormula() || '';
+    var axisValues = intervalSheet.getRange(
+      intervalSpec.firstDataRow,
+      3,
+      intervalSpec.intervalCount,
+      1,
+    ).getDisplayValues();
+    var axisValueCount = 0;
+    axisValues.forEach(function (row) {
+      if (String(row[0] || '').trim()) axisValueCount += 1;
+    });
+    var formulaScanSkipped = !!report.rootError;
+    var formulaErrorCount = formulaScanSkipped ? null : 0;
+    var formulaErrors = [];
+    if (!formulaScanSkipped) {
+      var operationalValues = intervalSheet.getRange(
+        intervalSpec.firstDataRow,
+        3,
+        intervalSpec.totalRow - intervalSpec.firstDataRow + 1,
+        26,
+      ).getDisplayValues();
+      operationalValues.forEach(function (row, rowOffset) {
+        row.forEach(function (value, columnOffset) {
+          var text = String(value || '').trim();
+          if (/^#(?:REF!|DIV\/0!|VALUE!|NAME\?|N\/A|NUM!|NULL!)/.test(text)) {
+            formulaErrorCount += 1;
+            if (formulaErrors.length < 20) {
+              formulaErrors.push({
+                column: columnOffset + 3,
+                error: text,
+                row: rowOffset + intervalSpec.firstDataRow,
+              });
+            }
+          }
+        });
+      });
+    }
+    var totalFormulaCount = 0;
+    var totalRange = intervalSheet.getRange(
+      intervalSpec.totalRow,
+      intervalSpec.headerStartColumn,
+      1,
+      intervalSpec.headers.length,
     );
-  });
+    if (typeof totalRange.getFormulas === 'function') {
+      totalRange.getFormulas()[0].forEach(function (formula) {
+        if (formula) totalFormulaCount += 1;
+      });
+    }
+    var title = String(intervalSheet.getRange(102, 11).getDisplayValue() || '').trim();
+    var operationsSection = String(
+      intervalSheet.getRange(intervalSpec.sectionRow, 3).getDisplayValue() || '',
+    ).trim();
+    var staffingSection = String(
+      intervalSheet.getRange(intervalSpec.sectionRow, 20).getDisplayValue() || '',
+    ).trim();
+    var legacyPivotDetected = false;
+    intervalSpec.metricFormulas.forEach(function (entry) {
+      var formula = intervalSheet.getRange(intervalSpec.firstDataRow, entry.anchorColumn).getFormula();
+      if (formula && formula.indexOf('GETPIVOTDATA') >= 0) {
+        legacyPivotDetected = true;
+      }
+      if (formula && (formula.indexOf('_CALC_') >= 0 || formula.indexOf('_RAW_') >= 0)) {
+        legacyPivotDetected = true;
+      }
+    });
+    report.intervalView = {
+      headerCountOk: headerDiffs.length === 0,
+      headerDiffs: headerDiffs,
+      axisComplete: axisValueCount === intervalSpec.intervalCount,
+      axisValueCount: axisValueCount,
+      formulaErrorCount: formulaErrorCount,
+      formulaErrors: formulaErrors,
+      formulaErrorScanSkipped: formulaScanSkipped,
+      hiddenRemarksColumnOk: typeof intervalSheet.isColumnHiddenByUser !== 'function' ||
+        intervalSheet.isColumnHiddenByUser(2),
+      layoutContractOk: title === 'INT - MESSAGING' &&
+        operationsSection === 'Operational Metrics' && staffingSection === 'Staffing',
+      legacyBackendReferenceDetected: legacyPivotDetected,
+      metricAnchorCountOk: metricAnchorsMissing.length === 0,
+      metricAnchorsMissing: metricAnchorsMissing,
+      metricCount: intervalSpec.headers.length,
+      present: true,
+      pstHeaderOk: pstHeader === intervalSpec.pstHeader,
+      remarksHeaderOk: remarksHeader === 'Remarks',
+      timeAxisFormulaOk: axisFormula.indexOf('SEQUENCE(38') >= 0 &&
+        axisFormula.indexOf('TIME(4,0,0)') >= 0,
+      totalFormulaCount: totalFormulaCount,
+      totalFormulasComplete: totalFormulaCount === intervalSpec.headers.length,
+      viewDateAnchorColumn: intervalSpec.businessDayAnchor.column,
+    };
+  }
+
+  var momSheet = ss.getSheetByName(momSpec.reportSheetName);
+  if (!momSheet) {
+    report.mom.present = false;
+  } else {
+    var titleMnl = String(momSheet.getRange(1, 1).getDisplayValue() || '').trim();
+    var sectionRequired = String(momSheet.getRange(2, 1).getDisplayValue() || '').trim();
+    var timeAxisFormula = momSheet.getRange(momSpec.firstTimeRow, 1).getFormula() || '';
+    report.mom = {
+      present: true,
+      titleMnlOk: titleMnl === momSpec.titleMnl,
+      sectionLabelOk: sectionRequired === 'Required FTE at Plan',
+      timeAxisFormulaOk: timeAxisFormula.indexOf('SEQUENCE') >= 0,
+      weekStartAnchorColumn: momSpec.weekStartAnchor.column,
+      weekDateFormulaCount: momSpec.weekDateFormulas.length,
+      dayNameFormulaCount: momSpec.dayNameFormulas.length,
+    };
+  }
+
+  var forecastSheet = ss.getSheetByName(bridgeSpec.aggregationSheetName);
+  if (!forecastSheet) {
+    report.forecastBridge.present = false;
+  } else {
+    var bridgeFormula = forecastSheet.getRange(
+      bridgeSpec.formulaAnchor.row,
+      bridgeSpec.formulaAnchor.column,
+    ).getFormula();
+    report.forecastBridge = {
+      bridgeFormulaPresent: Boolean(bridgeFormula),
+      momReferenceDetected: bridgeFormula ? bridgeFormula.indexOf('MOM!') >= 0 : false,
+      present: true,
+    };
+  }
 
   if (typeof Logger !== 'undefined' && typeof Logger.log === 'function') {
     Logger.log(JSON.stringify(report));
@@ -668,5 +799,5 @@ function diagnoseCxp09RunbookChecks(spreadsheetId) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = Cxp09Setup;
+  module.exports = Cxp10Setup;
 }

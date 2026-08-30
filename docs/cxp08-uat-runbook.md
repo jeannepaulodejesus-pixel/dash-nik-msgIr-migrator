@@ -1,5 +1,7 @@
 # CXP-08 Hosted UAT Runbook
 
+Latest V2 DEV result: **Pass**, August 31, 2026. See [`cxp08-hosted-uat-results-v2-2026-08-31.md`](cxp08-hosted-uat-results-v2-2026-08-31.md).
+
 Operator succession for hosted DEV/UAT. Implementation is landed for install, UAT helpers, and DEV workbook bootstrap. See [`docs/aht-auxes-staff-native-transformations.md`](aht-auxes-staff-native-transformations.md), [`docs/cxp08-uat-harness.md`](cxp08-uat-harness.md), and hosted sign-off [`docs/cxp08-hosted-uat-results-2026-08-28.md`](cxp08-hosted-uat-results-2026-08-28.md).
 
 Packet plan: [`docs/plans/2026-08-27-cxp08-aht-auxes-staff-native-transformations.md`](plans/2026-08-27-cxp08-aht-auxes-staff-native-transformations.md). Pattern reference: [`docs/cxp07-uat-runbook.md`](cxp07-uat-runbook.md).
@@ -32,7 +34,7 @@ The backend/environment owner selects **small** or **peak** by wiring the approv
 
 Use a disposable DEV or UAT target initialized by CXP-02. Never point `CXP_ENV` at PROD for this run. Configure the environment's target spreadsheet ID in Script Properties; do not record the ID in repository evidence.
 
-Confirm `_RAW_AHT`, `_RAW_AUXES`, `_RAW_STAFF`, `_CALC_AHT`, `_CALC_AUXES`, and `_CALC_STAFF` exist. Load raw sheets with exact CXP-03 headers. Preserve AHT within its 15,000-row bound, Auxes within 7,500, and Staff within 2,000. Representative peak evidence uses approximately 7,000 AHT, 3,000 Auxes, and 300 Staff rows.
+Confirm `_RAW_AHT`, `_RAW_AUXES`, `_RAW_STAFF`, `_CALC_AHT`, `_CALC_AUXES`, `_CALC_STAFF`, `Interval View`, and `MOM` exist. The validated business context owns `Interval View!AA2`, `MOM!B3`, and `_CALC_STAFF!BE1`; snapshot those three values before rollout. Load raw sheets with exact CXP-03 headers. Preserve AHT within its 15,000-row bound, Auxes within 7,500, and Staff within 2,000. Representative peak evidence uses approximately 7,000 AHT, 3,000 Auxes, and 300 Staff rows.
 
 Fresh DEV pair (optional): set Script Property `CXP_DEV_BOOTSTRAP_FOLDER_ID` to a writable Drive folder, then run `bootstrapCxpDevWorkbooksForceReplace()` (new files) or `registerCxpDevWorkbooksFromFolderAndSeed()` (existing files in folder). That creates or registers `DEV_TARGET_WORKBOOK` + `DEV_SYSTEM_CONTROL_WORKBOOK`, stores both spreadsheet IDs, runs CXP-02 init, seeds `_RAW_*` headers, and seeds all seven control tabs. See [`docs/configuration.md`](configuration.md).
 
@@ -41,7 +43,7 @@ Fresh DEV pair (optional): set Script Property `CXP_DEV_BOOTSTRAP_FOLDER_ID` to 
 | Entrypoint | Purpose |
 |---|---|
 | `initializeCxp08AhtAuxesStaffTransformations` | Start or resume checkpointed AHT/Auxes/Staff install on the configured target |
-| `continueCxp08AhtAuxesStaffTransformations` | Time-driven or manual continuation from `CXP08_AHT_AUXES_STAFF_INSTALL_STATE` |
+| `continueCxp08AhtAuxesStaffTransformations` | Time-driven or manual continuation from `CXP08_AHT_AUXES_STAFF_INSTALL_STATE_V2` |
 | `getCxp08AhtAuxesStaffTransformationStatus` | Sanitized status (`IDLE` / `RUNNING` / `COMPLETE` / `FAILED`) |
 | `resetCxp08AhtAuxesStaffInstallationState` | Clear stuck or wrong-target `RUNNING` state |
 
@@ -56,7 +58,7 @@ For every step, record sanitized counts, timings, execution outcome, and formula
 **Helper:** `CXP08UatStep01Install` (or run initialize/continue/status directly).
 
 1. Push the verified `src/` tree to the non-production Apps Script project.
-2. Run `initializeCxp08AhtAuxesStaffTransformations()` once.
+2. Run `resetCxp08AhtAuxesStaffInstallationState()` once when upgrading from the unversioned installer, then run `initializeCxp08AhtAuxesStaffTransformations()`.
 3. If the result is `RUNNING`, allow the time-driven continuation to proceed. Poll `getCxp08AhtAuxesStaffTransformationStatus()` until `COMPLETE`. Do not launch parallel initializers. On `Service timed out: Spreadsheets`, run `continueCxp08AhtAuxesStaffTransformations()` (or re-run initialize on the same target) to resume. Use `resetCxp08AhtAuxesStaffInstallationState()` only for stuck or wrong-target `RUNNING` state.
 4. Confirm Executions show successful continuation invocations and no remaining continue trigger after completion.
 
@@ -86,14 +88,14 @@ Clear/write `_RAW_AUXES` from the fixture Auxes rows.
 
 ### CXP08UatStep03.3 — WriteStaffRaw
 
-Clear/write `_RAW_STAFF` from the fixture Staff rows; set the Staff business-day anchor per fixture contract.
+Clear/write `_RAW_STAFF` from the fixture Staff rows. The helper applies the complete validated context: business day, derived Monday week start, and Staff day.
 
 ## CXP08UatStep04 — RecordParityOutputs
 
 **Helper:** `CXP08UatStep04RecordParityOutputs`
 
 1. Read calculated outputs from `_CALC_AHT`, `_CALC_AUXES`, and `_CALC_STAFF` for the fixture keys.
-2. Compare to literal expected values in the fixture.
+2. Compare AHT/Auxes rows, both Staff overlap rows, and the early-CNX/late-INT BC:BD summary values to the literal fixture expectations.
 3. Confirm DEC-025: UTC timestamps that cross the fixed-PST day boundary land on the prior business date / correct 30-minute bucket (same rule family as CXP-07).
 4. Record pass or a documented CXP-01-rooted delta (no invented formula changes).
 
@@ -121,7 +123,7 @@ Clear/write `_RAW_STAFF` from the fixture Staff rows; set the Staff business-day
 
 1. Re-run the installer (`initializeCxp08AhtAuxesStaffTransformations` after `COMPLETE` starts a clean reinstall).
 2. Wait for `COMPLETE` (resume with continue on Sheets timeouts).
-3. Re-run topology checks from `CXP08UatStep02` and confirm headers/anchors/bounds restore without adding rows or columns beyond declared capacities.
+3. Re-run topology checks from `CXP08UatStep02` and confirm headers/bounds restore without adding rows or columns beyond declared capacities; `_CALC_STAFF!BE1` must retain its pre-reinstall Staff day.
 
 ## CXP08UatStep08 — PromotionGate
 
@@ -135,5 +137,11 @@ Promotion requires all of the following:
 4. Second-bundle refresh without reinstall (`CXP08UatStep06`).
 5. Clean reinstall topology (`CXP08UatStep07`).
 6. Every individual installation step within the current Apps Script execution limit.
+
+Because Step 06 replaces the parity bundle, rerun `CXP08UatStep03RunParity` after Step 07 and immediately before the promotion helper. The gate requires valid business-context anchors and passing AHT, Auxes, Staff-overlap, and Staff-summary parity; sheet presence alone is insufficient.
+
+If the raw row counts still match the Step 06 refresh bundle instead of the Step 03 fixture, the promotion helper returns one skipped parity result with reason `FIXTURE_STATE_MISMATCH` and the bounded expected/actual row counts. It does not enumerate propagated AHT, Auxes, Staff, and summary differences.
+
+Recovery: invalid or missing anchors fail with `BUSINESS_CONTEXT_ANCHOR_INVALID` before formula parity. Reapply the approved business day through the fixture/lifecycle helper; do not type independent anchor values. Rollback restores the snapshotted `AA2`, `B3`, and `BE1` values after reverting code/state.
 
 Attach sanitized counts/timings only. Never attach source rows, spreadsheet IDs, user emails, or formula error values containing business data.

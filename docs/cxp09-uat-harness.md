@@ -15,7 +15,7 @@ Persisted install state key (delete to reset):
 
 | Script Property | Cleared by |
 |---|---|
-| `CXP09_AGGREGATION_INSTALL_STATE` | `resetCxp09StableAggregationInstallationState` or manual delete |
+| `CXP09_AGGREGATION_INSTALL_STATE_V3` | `resetCxp09StableAggregationInstallationState` or manual delete |
 
 ## Install / resume entrypoints (`Cxp09Setup.js`)
 

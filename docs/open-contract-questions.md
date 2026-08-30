@@ -17,7 +17,7 @@
 | Replacement scope | Replace the full export on every hourly RTA cycle. |
 | Keys | Handled/Offered: `Messaging Session Name`; AHT: `Agent Work ID`; Aux: `User Presence ID`; Staff: canonical full-row hash because no stable business key was observed. |
 | Duplicates | Collapse exact canonical row duplicates only; reject divergent rows sharing an authoritative key. |
-| Required/blank/error rules | Every ordered header is required. Empty/whitespace cells normalize to null, authoritative keys must be nonblank, and no raw error token is accepted: any trimmed value beginning with `#` is rejected. `NA` is ordinary text. |
+| Required/blank/error rules | Every ordered header is required. Empty/whitespace cells normalize to null. The eight allowlisted spreadsheet error tokens coalesce to null at ingestion; unknown `#...` tokens fail, and authoritative keys remain mandatory. `NA` is ordinary text. |
 | Formula/error anomalies | AHT `/63`, Handled zero/blank, Scheduled/Required guard behavior, broken names/references, and cached errors are intentional legacy behavior. |
 | Data manual inputs | RTA pastes Staff-derived values into Data B, D, F, M, R, and X; Staff BE:BF is copied into Data. |
 | Aux Productive pivot | Required operational dependency even without a formula path to Interval View. |

@@ -65,6 +65,12 @@ test('registry defines one active, position-independent contract for all five da
     'MULTI_SHEET_WORKBOOK',
     'SINGLE_DATASET',
   ]);
+  assert.deepEqual(SchemaRegistry.EMPTY_VALUE_POLICY.coalescedErrorTokens, [
+    '#N/A', '#REF!', '#DIV/0!', '#VALUE!', '#NAME?', '#NUM!', '#NULL!', '#ERROR!',
+  ]);
+  assert.equal(SchemaRegistry.EMPTY_VALUE_POLICY.errorTokenFallback, null);
+  assert.equal(SchemaRegistry.EMPTY_VALUE_POLICY.rejectedErrorTokenPattern, '^#');
+  assert.equal(SchemaRegistry.EMPTY_VALUE_POLICY.unrecognizedErrorTokenPattern, '^#');
 });
 
 // Defect caught: a missing required column reaches downstream code as an undefined value.
@@ -167,7 +173,7 @@ test('all five adapters can emit the same normalized DatasetPayload contract', (
   }
 });
 
-// Defect caught: source datetimes drift from GMT, date labels shift, or blank/error/key rules diverge.
+// Defect caught: source datetimes drift from GMT, date labels shift, or direct-validator rules diverge.
 test('payload normalization enforces UTC dates, nulls, keys, types, and error tokens', () => {
   const DatasetPayload = loadModule('../src/ingestion/DatasetPayload.js');
   assert.equal(typeof DatasetPayload?.create, 'function');

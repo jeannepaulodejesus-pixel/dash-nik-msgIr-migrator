@@ -51,7 +51,7 @@ _CALC_AHT / _CALC_AUXES / _CALC_STAFF --+--> _AGG_INTERVAL / _AGG_FORECAST / _AG
 | Sheet | Headers | Formula anchors | Row capacity |
 |---|---|---:|---:|
 | `_AGG_INTERVAL` | Date, Interval, Site + 9 measures | A2 (offered QUERY), I2 (AHT QUERY) | 50 |
-| `_AGG_FORECAST` | Date, Interval, Site, Type, Value | manual input rows A2:E51 | 50 |
+| `_AGG_FORECAST` | Date, Interval, Site, Type, Value | Header only; CXP-10 owns the A2 MOM bridge | 50 |
 | `_AGG_ALLOCATION` | Date, Interval, Site, BPO, Offered Count, Allocation Share | A2 (count QUERY), F2 (share ARRAYFORMULA) | 50 |
 
 Install step count: **15** (`PREFLIGHT` + 3 sheets × [ENSURE_CAPACITY, CLEAR, HEADERS, formulas]).
@@ -60,7 +60,7 @@ Install step count: **15** (`PREFLIGHT` + 3 sheets × [ENSURE_CAPACITY, CLEAR, H
 
 | Item | Value |
 |---|---|
-| Script Property | `CXP09_AGGREGATION_INSTALL_STATE` |
+| Script Property | `CXP09_AGGREGATION_INSTALL_STATE_V3` (v3 removes the circular forecast anchor and preserves CXP-10 ownership) |
 | Initialize | `initializeCxp09StableAggregationModel` |
 | Continue | `continueCxp09StableAggregationModel` |
 | Status | `getCxp09StableAggregationStatus` |
