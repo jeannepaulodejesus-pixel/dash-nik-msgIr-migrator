@@ -130,6 +130,30 @@ var AhtAuxesStaffTransformationService = (function () {
     });
   }
 
+  function clearOwnedContent(sheet, spec) {
+    var rowCount = spec.rowCapacity + 1;
+    var columnCount = requiredColumnsFor(spec);
+    var anchor = spec.businessDayCell;
+    if (!anchor) {
+      sheet.getRange(1, 1, rowCount, columnCount).clearContent();
+      return;
+    }
+    if (anchor.column > 1) {
+      sheet.getRange(1, 1, 1, anchor.column - 1).clearContent();
+    }
+    if (anchor.column < columnCount) {
+      sheet.getRange(
+        1,
+        anchor.column + 1,
+        1,
+        columnCount - anchor.column,
+      ).clearContent();
+    }
+    if (rowCount > 1) {
+      sheet.getRange(2, 1, rowCount - 1, columnCount).clearContent();
+    }
+  }
+
   function installStep(spreadsheet, stepIndex) {
     var specs = resolveCatalog().list();
     var steps = buildInstallSteps(specs);
@@ -152,7 +176,7 @@ var AhtAuxesStaffTransformationService = (function () {
     if (step.kind === 'ENSURE_CAPACITY') {
       ensureCapacity(sheet, spec.rowCapacity + 1, requiredColumnsFor(spec));
     } else if (step.kind === 'CLEAR') {
-      sheet.getDataRange().clearContent();
+      clearOwnedContent(sheet, spec);
     } else if (step.kind === 'HEADERS') {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     } else if (step.kind === 'CALCULATED_FORMULA') {
@@ -182,7 +206,7 @@ var AhtAuxesStaffTransformationService = (function () {
       var sheet = entry.calculationSheet;
       var headers = spec.calculatedHeaders.concat(spec.rawHeaders);
       ensureCapacity(sheet, spec.rowCapacity + 1, requiredColumnsFor(spec));
-      sheet.getDataRange().clearContent();
+      clearOwnedContent(sheet, spec);
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
       sheet.getRange(
         2,

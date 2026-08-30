@@ -5,8 +5,10 @@ var Cxp10Setup = (function () {
   var CONTINUATION_DELAY_MS = 1000;
   var DEFAULT_MAX_RUNTIME_MS = 240000;
   var WATCHDOG_DELAY_MS = 420000;
-  var STATE_KEY = 'CXP10_REPORTING_INSTALL_STATE';
-  var STATE_VERSION = 1;
+  // V2 changes the install-step topology. A distinct key prevents a v1 cursor
+  // from resuming at the wrong presentation/formula step after deployment.
+  var STATE_KEY = 'CXP10_REPORTING_INSTALL_STATE_V2';
+  var STATE_VERSION = 2;
 
   function resolveConfig() {
     if (typeof Config !== 'undefined') {
@@ -175,7 +177,7 @@ var Cxp10Setup = (function () {
           ' activeEnv=' + (state.environment || 'null') +
           ' configuredEnv=' + configuration.environment +
           '. If no install is RUNNING, delete Script Property ' + STATE_KEY +
-          ' or run resetCxp07ReportingSurfaceInstallationState().',
+          ' or run resetCxp10ReportingInstallationState().',
       );
     }
   }
@@ -595,6 +597,9 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
     id = Config.load().targetSpreadsheetId;
   }
   var ss = SpreadsheetApp.openById(id);
+  var ContextRef = typeof BusinessContextService !== 'undefined'
+    ? BusinessContextService
+    : null;
   var intervalSpec = CatalogRef.intervalViewSpec();
   var momSpec = CatalogRef.momSpec();
   var bridgeSpec = CatalogRef.forecastBridgeSpec();
@@ -605,7 +610,19 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
     intervalView: {},
     mom: {},
     forecastBridge: {},
+    businessContext: null,
   };
+  if (ContextRef) {
+    report.businessContext = ContextRef.read(ss);
+    if (!report.businessContext.pass) {
+      report.rootError = {
+        code: ContextRef.ERROR_CODES.anchorInvalid,
+        invalidAnchors: report.businessContext.invalidAnchors.map(function (entry) {
+          return entry.anchor;
+        }),
+      };
+    }
+  }
   try {
     report.status = Cxp10Setup.getStatus();
   } catch (statusError) {
@@ -619,7 +636,10 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
     report.intervalView.present = false;
   } else {
     var pstHeader = String(
-      intervalSheet.getRange(intervalSpec.headerRow, 1).getDisplayValue() || '',
+      intervalSheet.getRange(intervalSpec.headerRow, 3).getDisplayValue() || '',
+    ).trim();
+    var remarksHeader = String(
+      intervalSheet.getRange(intervalSpec.headerRow, 2).getDisplayValue() || '',
     ).trim();
     var metricHeaders = intervalSheet.getRange(
       intervalSpec.headerRow,
@@ -645,8 +665,63 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
     });
     var axisFormula = intervalSheet.getRange(
       intervalSpec.firstDataRow,
-      1,
+      3,
     ).getFormula() || '';
+    var axisValues = intervalSheet.getRange(
+      intervalSpec.firstDataRow,
+      3,
+      intervalSpec.intervalCount,
+      1,
+    ).getDisplayValues();
+    var axisValueCount = 0;
+    axisValues.forEach(function (row) {
+      if (String(row[0] || '').trim()) axisValueCount += 1;
+    });
+    var formulaScanSkipped = !!report.rootError;
+    var formulaErrorCount = formulaScanSkipped ? null : 0;
+    var formulaErrors = [];
+    if (!formulaScanSkipped) {
+      var operationalValues = intervalSheet.getRange(
+        intervalSpec.firstDataRow,
+        3,
+        intervalSpec.totalRow - intervalSpec.firstDataRow + 1,
+        26,
+      ).getDisplayValues();
+      operationalValues.forEach(function (row, rowOffset) {
+        row.forEach(function (value, columnOffset) {
+          var text = String(value || '').trim();
+          if (/^#(?:REF!|DIV\/0!|VALUE!|NAME\?|N\/A|NUM!|NULL!)/.test(text)) {
+            formulaErrorCount += 1;
+            if (formulaErrors.length < 20) {
+              formulaErrors.push({
+                column: columnOffset + 3,
+                error: text,
+                row: rowOffset + intervalSpec.firstDataRow,
+              });
+            }
+          }
+        });
+      });
+    }
+    var totalFormulaCount = 0;
+    var totalRange = intervalSheet.getRange(
+      intervalSpec.totalRow,
+      intervalSpec.headerStartColumn,
+      1,
+      intervalSpec.headers.length,
+    );
+    if (typeof totalRange.getFormulas === 'function') {
+      totalRange.getFormulas()[0].forEach(function (formula) {
+        if (formula) totalFormulaCount += 1;
+      });
+    }
+    var title = String(intervalSheet.getRange(102, 11).getDisplayValue() || '').trim();
+    var operationsSection = String(
+      intervalSheet.getRange(intervalSpec.sectionRow, 3).getDisplayValue() || '',
+    ).trim();
+    var staffingSection = String(
+      intervalSheet.getRange(intervalSpec.sectionRow, 20).getDisplayValue() || '',
+    ).trim();
     var legacyPivotDetected = false;
     intervalSpec.metricFormulas.forEach(function (entry) {
       var formula = intervalSheet.getRange(intervalSpec.firstDataRow, entry.anchorColumn).getFormula();
@@ -660,13 +735,26 @@ function diagnoseCxp10RunbookChecks(spreadsheetId) {
     report.intervalView = {
       headerCountOk: headerDiffs.length === 0,
       headerDiffs: headerDiffs,
+      axisComplete: axisValueCount === intervalSpec.intervalCount,
+      axisValueCount: axisValueCount,
+      formulaErrorCount: formulaErrorCount,
+      formulaErrors: formulaErrors,
+      formulaErrorScanSkipped: formulaScanSkipped,
+      hiddenRemarksColumnOk: typeof intervalSheet.isColumnHiddenByUser !== 'function' ||
+        intervalSheet.isColumnHiddenByUser(2),
+      layoutContractOk: title === 'INT - MESSAGING' &&
+        operationsSection === 'Operational Metrics' && staffingSection === 'Staffing',
       legacyBackendReferenceDetected: legacyPivotDetected,
       metricAnchorCountOk: metricAnchorsMissing.length === 0,
       metricAnchorsMissing: metricAnchorsMissing,
       metricCount: intervalSpec.headers.length,
       present: true,
       pstHeaderOk: pstHeader === intervalSpec.pstHeader,
-      timeAxisFormulaOk: axisFormula.indexOf('SEQUENCE') >= 0,
+      remarksHeaderOk: remarksHeader === 'Remarks',
+      timeAxisFormulaOk: axisFormula.indexOf('SEQUENCE(38') >= 0 &&
+        axisFormula.indexOf('TIME(4,0,0)') >= 0,
+      totalFormulaCount: totalFormulaCount,
+      totalFormulasComplete: totalFormulaCount === intervalSpec.headers.length,
       viewDateAnchorColumn: intervalSpec.businessDayAnchor.column,
     };
   }

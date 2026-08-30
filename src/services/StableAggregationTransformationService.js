@@ -88,6 +88,24 @@ var StableAggregationTransformationService = (function () {
     }
   }
 
+  function clearOwnedContent(sheet, spec) {
+    if (spec.preserveBody === true) {
+      var cleanup = spec.legacyFormulaCleanup;
+      if (!cleanup) {
+        return;
+      }
+      var anchor = sheet.getRange(cleanup.row, cleanup.column);
+      if (
+        typeof anchor.getFormula === 'function' &&
+        anchor.getFormula() === cleanup.formula
+      ) {
+        anchor.clearContent();
+      }
+      return;
+    }
+    sheet.getDataRange().clearContent();
+  }
+
   function buildInstallSteps(specs) {
     var steps = [{ kind: 'PREFLIGHT', label: 'PREFLIGHT' }];
     specs.forEach(function (spec, specIndex) {
@@ -144,7 +162,7 @@ var StableAggregationTransformationService = (function () {
     if (step.kind === 'ENSURE_CAPACITY') {
       ensureCapacity(sheet, spec.rowCapacity + 1, spec.headers.length);
     } else if (step.kind === 'CLEAR') {
-      sheet.getDataRange().clearContent();
+      clearOwnedContent(sheet, spec);
     } else if (step.kind === 'HEADERS') {
       sheet.getRange(1, 1, 1, spec.headers.length).setValues([spec.headers.slice()]);
     } else if (step.kind === 'AGGREGATION_FORMULA') {
@@ -165,7 +183,7 @@ var StableAggregationTransformationService = (function () {
       var spec = entry.spec;
       var sheet = entry.aggregationSheet;
       ensureCapacity(sheet, spec.rowCapacity + 1, spec.headers.length);
-      sheet.getDataRange().clearContent();
+      clearOwnedContent(sheet, spec);
       sheet.getRange(1, 1, 1, spec.headers.length).setValues([spec.headers.slice()]);
       spec.aggregationFormulas.forEach(function (formula, formulaIndex) {
         sheet.getRange(2, spec.formulaAnchors[formulaIndex]).setFormula(formula);

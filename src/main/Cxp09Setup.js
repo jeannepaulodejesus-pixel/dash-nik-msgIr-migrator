@@ -5,8 +5,9 @@ var Cxp09Setup = (function () {
   var CONTINUATION_DELAY_MS = 1000;
   var DEFAULT_MAX_RUNTIME_MS = 240000;
   var WATCHDOG_DELAY_MS = 420000;
-  var STATE_KEY = 'CXP09_AGGREGATION_INSTALL_STATE';
-  var STATE_VERSION = 1;
+  // V3 removes CXP-09 ownership of the CXP-10 forecast bridge anchor.
+  var STATE_KEY = 'CXP09_AGGREGATION_INSTALL_STATE_V3';
+  var STATE_VERSION = 3;
 
   function resolveConfig() {
     if (typeof Config !== 'undefined') {

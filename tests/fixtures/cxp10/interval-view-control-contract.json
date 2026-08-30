@@ -1,0 +1,39 @@
+{
+  "contractVersion": "2.0.0",
+  "sourceSha256": "CD8F8EC6F68FBEC85841CD64C251616FCECD0AD67DE4714EFB244F648548E65A",
+  "sheet": "Interval View",
+  "ownedRange": "B97:AB151",
+  "headerRange": "C112:AB112",
+  "bodyRange": "C113:AB150",
+  "totalRange": "C151:AB151",
+  "axis": {
+    "column": 3,
+    "firstRow": 113,
+    "lastRow": 150,
+    "count": 38,
+    "startHour": 4,
+    "end": "22:30"
+  },
+  "headers": {
+    "remarks": "B112",
+    "pst": "C112",
+    "firstMetric": "D112",
+    "lastMetric": "AB112",
+    "metricCount": 25
+  },
+  "requiredMerges": [
+    "K102:X102", "C103:I103", "C104:C105", "C107:C108",
+    "K103:L103", "K104:L109", "M103:N103", "M104:N109",
+    "O103:P103", "O104:P109", "Q103:R103", "Q104:R109",
+    "S103:T103", "S104:T109", "U103:V103", "U104:V109",
+    "W103:X103", "W104:X109", "C111:S111", "T111:AB111"
+  ],
+  "numberFormats": {
+    "C113:C150": "h:mm AM/PM",
+    "I113:N151": "0.00%",
+    "O113:S151": "0.00",
+    "X113:Z151": "[h]:mm:ss",
+    "AA113:AB151": "0.00%"
+  },
+  "hiddenColumns": [2]
+}

@@ -30,7 +30,7 @@ var Cxp10ParityUat = (function () {
       }),
       Object.freeze({
         Date: '2026-08-18',
-        Interval: '00:00',
+        Interval: '04:00',
         Site: 'LAS',
         Type: 'Required',
         Value: 5,
@@ -69,7 +69,7 @@ var Cxp10ParityUat = (function () {
         }),
         Object.freeze({
           Date: '2026-08-18',
-          Interval: '00:00',
+          Interval: '04:00',
           Forecast: 0,
           Offered: 1,
           Handled: 0,
@@ -117,6 +117,13 @@ var Cxp10ParityUat = (function () {
     throw new Error('ReportingSurfaceFormulaCatalog is required.');
   }
 
+  function resolveBusinessContextService() {
+    if (typeof BusinessContextService !== 'undefined') {
+      return BusinessContextService;
+    }
+    return require('../services/BusinessContextService.js');
+  }
+
   function resolveMetricOrder() {
     if (typeof ReportingSurfaceReferenceModel !== 'undefined') {
       return ReportingSurfaceReferenceModel.METRIC_ORDER;
@@ -148,23 +155,6 @@ var Cxp10ParityUat = (function () {
       throw new Error('Required sheet missing: ' + name);
     }
     return sheet;
-  }
-
-  function excelSerialFromIsoDateOnly(isoDate) {
-    var parts = String(isoDate).slice(0, 10).split('-').map(Number);
-    var utc = Date.UTC(parts[0], parts[1] - 1, parts[2]);
-    return (utc - Date.UTC(1899, 11, 30)) / 86400000;
-  }
-
-  function isoDateFromSerial(serial) {
-    if (typeof serial !== 'number' || !Number.isFinite(serial)) {
-      return null;
-    }
-    var utcMs = Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000;
-    var date = new Date(utcMs);
-    return date.getUTCFullYear() +
-      '-' + String(date.getUTCMonth() + 1).padStart(2, '0') +
-      '-' + String(date.getUTCDate()).padStart(2, '0');
   }
 
   function addDaysToIsoDate(isoDate, days) {
@@ -263,22 +253,15 @@ var Cxp10ParityUat = (function () {
   }
 
   function setReportAnchors(spreadsheetId, businessDayIso, weekStartIso) {
-    var catalog = resolveCatalog();
-    var mom = catalog.momSpec();
-    var intervalAnchor = catalog.intervalViewSpec().businessDayAnchor;
     var ss = openTarget(spreadsheetId);
-    requireSheet(ss, 'Interval View').getRange(
-      intervalAnchor.row,
-      intervalAnchor.column,
-    ).setValue(excelSerialFromIsoDateOnly(businessDayIso));
-    requireSheet(ss, 'MOM').getRange(
-      mom.weekStartAnchor.row,
-      mom.weekStartAnchor.column,
-    ).setValue(excelSerialFromIsoDateOnly(weekStartIso));
-    var result = Object.freeze({
-      businessDay: businessDayIso,
-      weekStart: weekStartIso,
-    });
+    var service = resolveBusinessContextService();
+    var resolved = service.resolve({ businessDay: businessDayIso });
+    if (weekStartIso !== undefined && weekStartIso !== resolved.weekStart) {
+      var mismatch = new Error('weekStart must equal the Monday derived from businessDay.');
+      mismatch.code = service.ERROR_CODES.invalid;
+      throw mismatch;
+    }
+    var result = service.write(ss, { businessDay: businessDayIso });
     uatLog('CXP10UatStep03.anchors', result);
     return result;
   }
@@ -378,6 +361,18 @@ var Cxp10ParityUat = (function () {
       }
       return display;
     }
+    if (
+      (header === 'Scheduled Hours' || header === 'Required Hours' || header === 'Actual') &&
+      isDateObject(rawValue)
+    ) {
+      var durationText = String(displayValue || '').trim();
+      var durationMatch = durationText.match(/^(-)?(\d+):([0-5]\d)(?::([0-5]\d(?:\.\d+)?))?$/);
+      if (durationMatch) {
+        var durationSeconds = Number(durationMatch[2]) * 3600 +
+          Number(durationMatch[3]) * 60 + Number(durationMatch[4] || 0);
+        return (durationMatch[1] ? -1 : 1) * durationSeconds / 86400;
+      }
+    }
     if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
       return rawValue;
     }
@@ -393,24 +388,19 @@ var Cxp10ParityUat = (function () {
     return asText;
   }
 
-  function readIntervalViewBlock(sheet, catalog, metricOrder) {
+  function readIntervalViewBlock(sheet, catalog, metricOrder, businessDayIso) {
     var firstRow = catalog.FIRST_DATA_ROW;
     var rowCount = catalog.LAST_DATA_ROW - firstRow + 1;
     var columnCount = catalog.METRIC_COLUMNS['Scheduled to Required'];
-    var range = sheet.getRange(firstRow, 1, rowCount, columnCount);
+    var range = sheet.getRange(firstRow, 3, rowCount, columnCount - 2);
     var displayValues = range.getDisplayValues();
     var rawValues = range.getValues();
     return displayValues.map(function (row, rowIndex) {
       var pstRaw = rawValues[rowIndex][0];
       var pstDisplay = row[0];
-      var dateSerial = pstRaw;
       var intervalRaw = pstRaw;
-      if (typeof pstRaw === 'number' && Number.isFinite(pstRaw)) {
-        dateSerial = Math.floor(pstRaw);
-        intervalRaw = pstRaw - dateSerial;
-      }
       var out = {
-        Date: normalizeField('Date', dateSerial, pstDisplay),
+        Date: businessDayIso,
         Interval: normalizeField('Interval', intervalRaw, pstDisplay),
       };
       metricOrder.forEach(function (header, index) {
@@ -423,7 +413,7 @@ var Cxp10ParityUat = (function () {
       });
       return out;
     }).filter(function (row) {
-      return row.Date !== '' && row.Date !== null && row.Date !== undefined;
+      return row.Interval !== '' && row.Interval !== null && row.Interval !== undefined;
     });
   }
 
@@ -431,7 +421,7 @@ var Cxp10ParityUat = (function () {
     return String(row.Date) + '\u001d' + String(row.Interval);
   }
 
-  // Interval View axis: 38 half-hours from View Date midnight through 18:30.
+  // Control axis: 38 half-hours from 04:00 through 22:30.
   function buildAxisGrainKeys(businessDayIso) {
     var catalog = resolveCatalog();
     var keys = [];
@@ -488,8 +478,9 @@ var Cxp10ParityUat = (function () {
       requireSheet(ss, 'Interval View'),
       catalog,
       metricOrder,
+      FIXTURE.businessDay,
     );
-    // Fixture prior-day 23:30 is off this page; business-day 00:00 is on-axis.
+    // Fixture prior-day 23:30 is off this page; business-day 04:00 is on-axis.
     var axisKeySet = Object.create(null);
     buildAxisGrainKeys(FIXTURE.businessDay).forEach(function (key) {
       axisKeySet[key] = true;
@@ -506,7 +497,7 @@ var Cxp10ParityUat = (function () {
     var sampleActualKeys = actualRows.slice(0, 5).map(grainKey);
     var axisComplete = actualRows.length === catalog.INTERVAL_COUNT;
     var report = Object.freeze({
-      pass: diffs.length === 0 && (expectedOnAxis.length > 0 || axisComplete),
+      pass: diffs.length === 0 && expectedOnAxis.length > 0 && axisComplete,
       diffCount: diffs.length,
       diffs: diffs.slice(0, 15),
       expectedOnAxisCount: expectedOnAxis.length,
@@ -516,8 +507,8 @@ var Cxp10ParityUat = (function () {
         handledZeroBlank: 'rows ' + catalog.HANDLED_BLANK_FROM_ROW +
           '-' + catalog.LAST_DATA_ROW + ' blank Handled on zero',
         ahtSessionDivisor: 'interval /63 vs summary /60',
-        scheduledToRequiredSummary: 'Z65 uses IFERROR guard',
-        axisWindow: 'Interval View AA2 midnight + 38 half-hours through 18:30',
+        scheduledToRequiredSummary: 'AB151 uses IFERROR guard',
+        axisWindow: 'Interval View AA2 date + 38 half-hours from 04:00 through 22:30',
       }),
     });
     uatLog(prefix + '.result', {
@@ -547,36 +538,32 @@ var Cxp10ParityUat = (function () {
 
   function weeklyRollover(spreadsheetId) {
     var prefix = 'CXP10UatStep05';
-    var catalog = resolveCatalog();
-    var momAnchor = catalog.momSpec().weekStartAnchor;
-    var intervalAnchor = catalog.intervalViewSpec().businessDayAnchor;
     var ss = openTarget(spreadsheetId);
-    var intervalSheet = requireSheet(ss, 'Interval View');
-    var momSheet = requireSheet(ss, 'MOM');
-    var intervalBefore = intervalSheet.getRange(
-      intervalAnchor.row,
-      intervalAnchor.column,
-    ).getValue();
-    var momBefore = momSheet.getRange(momAnchor.row, momAnchor.column).getValue();
-    var intervalIso = isoDateFromSerial(Number(intervalBefore)) || FIXTURE.businessDay;
-    var momIso = isoDateFromSerial(Number(momBefore)) || FIXTURE.weekStart;
-    var intervalAfterIso = addDaysToIsoDate(intervalIso, 7);
-    var momAfterIso = addDaysToIsoDate(momIso, 7);
-    intervalSheet.getRange(intervalAnchor.row, intervalAnchor.column).setValue(
-      excelSerialFromIsoDateOnly(intervalAfterIso),
-    );
-    momSheet.getRange(momAnchor.row, momAnchor.column).setValue(
-      excelSerialFromIsoDateOnly(momAfterIso),
-    );
+    var service = resolveBusinessContextService();
+    var before = service.read(ss);
+    if (!before.pass) {
+      var invalid = new Error('Business context anchors are invalid.');
+      invalid.code = service.ERROR_CODES.anchorInvalid;
+      invalid.details = { invalidAnchors: before.invalidAnchors };
+      throw invalid;
+    }
+    var after = service.write(ss, {
+      businessDay: service.addDays(before.context.businessDay, 7),
+      staffDay: service.addDays(before.context.staffDay, 7),
+    });
     SpreadsheetApp.flush();
     var report = Object.freeze({
       intervalView: Object.freeze({
-        after: intervalAfterIso,
-        before: intervalIso,
+        after: after.businessDay,
+        before: before.context.businessDay,
       }),
       mom: Object.freeze({
-        after: momAfterIso,
-        before: momIso,
+        after: after.weekStart,
+        before: before.context.weekStart,
+      }),
+      staff: Object.freeze({
+        after: after.staffDay,
+        before: before.context.staffDay,
       }),
     });
     uatLog(prefix + '.result', report);
@@ -612,38 +599,71 @@ var Cxp10ParityUat = (function () {
     var topology = typeof diagnoseCxp10RunbookChecks === 'function'
       ? diagnoseCxp10RunbookChecks(spreadsheetId)
       : { intervalView: {}, mom: {}, forecastBridge: {} };
+    var parity;
+    var actualContext = topology.businessContext && topology.businessContext.context;
+    var fixtureContextMatches = actualContext &&
+      actualContext.businessDay === FIXTURE.businessDay &&
+      actualContext.weekStart === FIXTURE.weekStart &&
+      actualContext.staffDay === FIXTURE.businessDay;
+    if (topology.rootError) {
+      parity = Object.freeze({
+        pass: false,
+        skipped: true,
+        reason: 'INVALID_BUSINESS_CONTEXT',
+      });
+    } else if (!fixtureContextMatches) {
+      parity = Object.freeze({
+        pass: false,
+        skipped: true,
+        reason: 'FIXTURE_CONTEXT_MISMATCH',
+        expectedContext: Object.freeze({
+          businessDay: FIXTURE.businessDay,
+          weekStart: FIXTURE.weekStart,
+          staffDay: FIXTURE.businessDay,
+        }),
+        actualContext: actualContext || null,
+      });
+    } else {
+      try {
+        parity = recordParityOutputs(spreadsheetId);
+      } catch (parityError) {
+        parity = Object.freeze({
+          error: parityError && parityError.message ? parityError.message : String(parityError),
+          pass: false,
+        });
+      }
+    }
+    var intervalReady = topology.intervalView &&
+      topology.intervalView.present === true &&
+      topology.intervalView.headerCountOk === true &&
+      topology.intervalView.metricAnchorCountOk === true &&
+      topology.intervalView.pstHeaderOk === true &&
+      topology.intervalView.remarksHeaderOk === true &&
+      topology.intervalView.timeAxisFormulaOk === true &&
+      topology.intervalView.axisComplete === true &&
+      topology.intervalView.layoutContractOk === true &&
+      topology.intervalView.totalFormulasComplete === true &&
+      topology.intervalView.formulaErrorCount === 0 &&
+      topology.intervalView.legacyBackendReferenceDetected !== true;
+    var momReady = topology.mom &&
+      topology.mom.present === true &&
+      topology.mom.titleMnlOk === true &&
+      topology.mom.sectionLabelOk === true &&
+      topology.mom.timeAxisFormulaOk === true;
+    var forecastBridgeReady = topology.forecastBridge &&
+      topology.forecastBridge.present === true &&
+      topology.forecastBridge.bridgeFormulaPresent === true &&
+      topology.forecastBridge.momReferenceDetected === true;
+    var installComplete = status.status === 'COMPLETE' && status.nextStep === status.stepCount;
     return Object.freeze({
-      forecastBridgeReady: topology.forecastBridge &&
-        topology.forecastBridge.present === true &&
-        topology.forecastBridge.bridgeFormulaPresent === true &&
-        topology.forecastBridge.momReferenceDetected === true,
-      installComplete: status.status === 'COMPLETE' && status.nextStep === status.stepCount,
-      intervalViewReady: topology.intervalView &&
-        topology.intervalView.present === true &&
-        topology.intervalView.headerCountOk === true &&
-        topology.intervalView.metricAnchorCountOk === true &&
-        topology.intervalView.pstHeaderOk === true &&
-        topology.intervalView.timeAxisFormulaOk === true &&
-        topology.intervalView.legacyBackendReferenceDetected !== true,
-      momReady: topology.mom &&
-        topology.mom.present === true &&
-        topology.mom.titleMnlOk === true &&
-        topology.mom.sectionLabelOk === true &&
-        topology.mom.timeAxisFormulaOk === true,
-      promotionReady: status.status === 'COMPLETE' &&
-        topology.intervalView &&
-        topology.intervalView.present === true &&
-        topology.intervalView.headerCountOk === true &&
-        topology.intervalView.metricAnchorCountOk === true &&
-        topology.intervalView.pstHeaderOk === true &&
-        topology.intervalView.timeAxisFormulaOk === true &&
-        topology.intervalView.legacyBackendReferenceDetected !== true &&
-        topology.mom &&
-        topology.mom.present === true &&
-        topology.mom.titleMnlOk === true &&
-        topology.mom.timeAxisFormulaOk === true &&
-        topology.forecastBridge &&
-        topology.forecastBridge.bridgeFormulaPresent === true,
+      forecastBridgeReady: forecastBridgeReady,
+      installComplete: installComplete,
+      intervalViewReady: intervalReady,
+      momReady: momReady,
+      parity: parity,
+      rootError: topology.rootError || null,
+      promotionReady: installComplete && intervalReady && momReady &&
+        forecastBridgeReady && parity.pass === true,
       status: status,
       topology: topology,
     });

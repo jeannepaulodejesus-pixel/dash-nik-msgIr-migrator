@@ -62,7 +62,9 @@ Neither contract chooses the final physical packaging. HTML/XLS signature detect
 ## Value normalization
 
 - `null`, `undefined`, empty strings, and whitespace-only strings normalize to `null`; defaults are never synthesized.
-- Any trimmed string beginning with `#` fails as `DATASET_ERROR_TOKEN`; `NA` remains ordinary text.
+- At the ingestion-adapter boundary, the exact spreadsheet tokens `#N/A`, `#REF!`, `#DIV/0!`, `#VALUE!`, `#NAME?`, `#NUM!`, `#NULL!`, and `#ERROR!` coalesce case-insensitively to `null`. Unknown trimmed `#...` tokens still fail as `DATASET_ERROR_TOKEN`; `NA` remains ordinary text.
+- Coalescing occurs before canonical exact-row deduplication and type coercion. A coalesced authoritative key still fails as `DATASET_MISSING_KEY`.
+- Direct callers that bypass `DatasetAdapter` remain fail-closed: `SchemaValidator` rejects raw `#...` tokens. Normalized payload source metadata reports only `errorTokensCoalesced`, never token values or source rows.
 - Authoritative keys must be non-null after normalization or fail as `DATASET_MISSING_KEY`.
 - Numbers accept finite numeric values or strict numeric strings and normalize to JavaScript numbers.
 - Source datetimes accept strict `M/d/yyyy h:mm AM/PM`, interpret the value as GMT/UTC, validate the calendar/time components, and normalize to an ISO-8601 `Z` value.

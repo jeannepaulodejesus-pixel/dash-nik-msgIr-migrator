@@ -123,6 +123,12 @@ var StableAggregationReferenceModel = (function () {
         ACW: averageField(bucket.ACW),
         ASA: averageField(bucket.ASA),
         Concurrency: averageField(bucket.Concurrency),
+        'SL TTC Count': bucket['SL TTC'].count,
+        'AHT (Session) Count': bucket['AHT (Session)'].count,
+        'AHT Count': bucket.AHT.count,
+        'ACW Count': bucket.ACW.count,
+        'ASA Count': bucket.ASA.count,
+        'Concurrency Count': bucket.Concurrency.count,
       };
     });
   }

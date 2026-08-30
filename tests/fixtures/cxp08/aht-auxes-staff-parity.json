@@ -57,6 +57,13 @@
         "Status Start Date": "2026-08-18T08:00:00.000Z",
         "Status End Date": "2026-08-18T09:00:00.000Z",
         "Athlete Display Name": "Agent A",
+        "Athlete Site": "CNX-CR1",
+        "Athlete Profile": "Messaging"
+      },
+      {
+        "Status Start Date": "2026-08-18T20:00:00.000Z",
+        "Status End Date": "2026-08-18T21:00:00.000Z",
+        "Athlete Display Name": "Agent B",
         "Athlete Site": "INT-LAS",
         "Athlete Profile": "Messaging"
       }
@@ -156,7 +163,63 @@
         "10:30 PM": 0,
         "11:00 PM": 0,
         "11:30 PM": 0
+      },
+      {
+        "12:00 AM": 0,
+        "12:30 AM": 0,
+        "1:00 AM": 0,
+        "1:30 AM": 0,
+        "2:00 AM": 0,
+        "2:30 AM": 0,
+        "3:00 AM": 0,
+        "3:30 AM": 0,
+        "4:00 AM": 0,
+        "4:30 AM": 0,
+        "5:00 AM": 0,
+        "5:30 AM": 0,
+        "6:00 AM": 0,
+        "6:30 AM": 0,
+        "7:00 AM": 0,
+        "7:30 AM": 0,
+        "8:00 AM": 0,
+        "8:30 AM": 0,
+        "9:00 AM": 0,
+        "9:30 AM": 0,
+        "10:00 AM": 0,
+        "10:30 AM": 0,
+        "11:00 AM": 0,
+        "11:30 AM": 0,
+        "12:00 PM": 0.020833333336,
+        "12:30 PM": 0.020833333328,
+        "1:00 PM": 0,
+        "1:30 PM": 0,
+        "2:00 PM": 0,
+        "2:30 PM": 0,
+        "3:00 PM": 0,
+        "3:30 PM": 0,
+        "4:00 PM": 0,
+        "4:30 PM": 0,
+        "5:00 PM": 0,
+        "5:30 PM": 0,
+        "6:00 PM": 0,
+        "6:30 PM": 0,
+        "7:00 PM": 0,
+        "7:30 PM": 0,
+        "8:00 PM": 0,
+        "8:30 PM": 0,
+        "9:00 PM": 0,
+        "9:30 PM": 0,
+        "10:00 PM": 0,
+        "10:30 PM": 0,
+        "11:00 PM": 0,
+        "11:30 PM": 0
       }
+    ],
+    "staffSummary": [
+      { "Interval": "00:00", "Que Summary": 0, "LAS Summary": 1 },
+      { "Interval": "00:30", "Que Summary": 0, "LAS Summary": 1 },
+      { "Interval": "12:00", "Que Summary": 0, "LAS Summary": 1 },
+      { "Interval": "12:30", "Que Summary": 0, "LAS Summary": 1 }
     ]
   }
 }

@@ -15,7 +15,7 @@ Persisted install state key (delete to reset):
 
 | Script Property | Cleared by |
 |---|---|
-| `CXP08_AHT_AUXES_STAFF_INSTALL_STATE` | `resetCxp08AhtAuxesStaffInstallationState` or manual delete |
+| `CXP08_AHT_AUXES_STAFF_INSTALL_STATE_V2` | `resetCxp08AhtAuxesStaffInstallationState` or manual delete |
 
 ## Install / resume entrypoints (`Cxp08Setup.js`)
 

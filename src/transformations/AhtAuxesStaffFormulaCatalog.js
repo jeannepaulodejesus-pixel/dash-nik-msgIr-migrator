@@ -4,19 +4,18 @@ var AhtAuxesStaffFormulaCatalog = (function () {
   var AHT_ROW_CAPACITY = 15000;
   var AUXES_ROW_CAPACITY = 7500;
   var STAFF_ROW_CAPACITY = 2000;
-  var STAFF_SUMMARY_SITES = Object.freeze({
-    earlyQue: 'CNX-Que',
-    earlyLas: 'CNX-CR1',
-    lateQue: 'INT-Que',
-    lateLas: 'INT-LAS',
-    earlyBucketCount: 8,
-  });
-
   function resolveSchemaRegistry() {
     if (typeof SchemaRegistry !== 'undefined') {
       return SchemaRegistry;
     }
     return require('../ingestion/SchemaRegistry.js');
+  }
+
+  function resolveStaffSummaryRouting() {
+    if (typeof StaffSummaryRoutingConfig !== 'undefined') {
+      return StaffSummaryRoutingConfig;
+    }
+    return require('../config/StaffSummaryRoutingConfig.js');
   }
 
   function columnLetter(index) {
@@ -165,8 +164,11 @@ var AhtAuxesStaffFormulaCatalog = (function () {
       'endIso,\'_RAW_STAFF\'!B2:B' + lastRow + ',' +
       'start,IF(startIso="",,' + parseIsoUtc('startIso') + '-8/24),' +
       'end,IF(endIso="",,' + parseIsoUtc('endIso') + '-8/24),' +
-      'IF(startIso="",,MAX(0,MIN(end,day+' + bucketEnd +
-        ')-MAX(start,day+' + bucketStart + ')))))';
+      'bucketStartAt,day+' + bucketStart + ',' +
+      'bucketEndAt,day+' + bucketEnd + ',' +
+      'overlap,IF(end<bucketEndAt,end,bucketEndAt)-' +
+        'IF(start>bucketStartAt,start,bucketStartAt),' +
+      'IF(startIso="",,IF(overlap>0,overlap,0))))';
   }
 
   function staffSummaryFormula(bucketIndex, site) {
@@ -188,21 +190,16 @@ var AhtAuxesStaffFormulaCatalog = (function () {
     var summaryFormulas = [];
     var bucketIndex;
     for (bucketIndex = 0; bucketIndex < 48; bucketIndex += 1) {
-      var queSite = bucketIndex < STAFF_SUMMARY_SITES.earlyBucketCount
-        ? STAFF_SUMMARY_SITES.earlyQue
-        : STAFF_SUMMARY_SITES.lateQue;
-      var lasSite = bucketIndex < STAFF_SUMMARY_SITES.earlyBucketCount
-        ? STAFF_SUMMARY_SITES.earlyLas
-        : STAFF_SUMMARY_SITES.lateLas;
+      var route = resolveStaffSummaryRouting().forBucket(bucketIndex);
       // Excel BE = Que, BF = LAS/CR1; place after the 53-column table at BC:BD.
       summaryFormulas.push({
         column: 55,
-        formula: staffSummaryFormula(bucketIndex, queSite),
+        formula: staffSummaryFormula(bucketIndex, route.queSite),
         row: bucketIndex + 3,
       });
       summaryFormulas.push({
         column: 56,
-        formula: staffSummaryFormula(bucketIndex, lasSite),
+        formula: staffSummaryFormula(bucketIndex, route.lasSite),
         row: bucketIndex + 3,
       });
     }
@@ -234,7 +231,9 @@ var AhtAuxesStaffFormulaCatalog = (function () {
     AHT_ROW_CAPACITY: AHT_ROW_CAPACITY,
     AUXES_ROW_CAPACITY: AUXES_ROW_CAPACITY,
     STAFF_ROW_CAPACITY: STAFF_ROW_CAPACITY,
-    STAFF_SUMMARY_SITES: STAFF_SUMMARY_SITES,
+    staffSummaryRouting: function () {
+      return resolveStaffSummaryRouting().get();
+    },
     halfHourHeaders: halfHourHeaders,
     list: list,
   });

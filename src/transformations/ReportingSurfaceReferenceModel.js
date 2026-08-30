@@ -60,16 +60,18 @@ var ReportingSurfaceReferenceModel = (function () {
     }, 0);
   }
 
-  function avgIntervalMetric(rows, date, interval, field) {
-    var sum = 0;
+  function weightedIntervalMetric(rows, date, interval, field) {
+    var weightedSum = 0;
     var count = 0;
+    var countField = field + ' Count';
     rows.forEach(function (row) {
       if (row.Date === date && row.Interval === interval && row[field] !== '' && row[field] != null) {
-        sum += numeric(row[field]);
-        count += 1;
+        var rowCount = numeric(row[countField]);
+        weightedSum += numeric(row[field]) * rowCount;
+        count += rowCount;
       }
     });
-    return count ? sum / count : '';
+    return count ? weightedSum / count : '';
   }
 
   function sumForecastType(rows, date, interval, typeName) {
@@ -81,13 +83,18 @@ var ReportingSurfaceReferenceModel = (function () {
     }, 0);
   }
 
-  function sumAllocation(rows, date, interval, field) {
-    return rows.reduce(function (total, row) {
-      if (row.Date === date && row.Interval === interval) {
-        return total + numeric(row[field]);
-      }
-      return total;
-    }, 0);
+  function allocationRatio(rows, date, interval, cumulative) {
+    var numerator = 0;
+    var denominator = 0;
+    rows.forEach(function (row) {
+      var inWindow = row.Date === date &&
+        (cumulative ? String(row.Interval) <= String(interval) : row.Interval === interval);
+      if (!inWindow) return;
+      var count = numeric(row['Offered Count']);
+      denominator += count;
+      if (String(row.BPO || '').toUpperCase() === 'INT') numerator += count;
+    });
+    return denominator ? numerator / denominator : '';
   }
 
   function blankIfZero(value, rowIndex, metricName) {
@@ -108,15 +115,15 @@ var ReportingSurfaceReferenceModel = (function () {
     var required = sumForecastType(aggForecast, date, interval, 'Required');
     var scheduled = sumForecastType(aggForecast, date, interval, 'Scheduled');
     var actualSo = sumForecastType(aggForecast, date, interval, 'Actual (SO)');
-    var slTtc = avgIntervalMetric(aggInterval, date, interval, 'SL TTC');
-    var ahtSessionRaw = avgIntervalMetric(aggInterval, date, interval, 'AHT (Session)');
+    var slTtc = weightedIntervalMetric(aggInterval, date, interval, 'SL TTC');
+    var ahtSessionRaw = weightedIntervalMetric(aggInterval, date, interval, 'AHT (Session)');
     var ahtSession = ahtSessionRaw === '' ? '' : ahtSessionRaw / 63;
-    var aht = avgIntervalMetric(aggInterval, date, interval, 'AHT');
-    var acw = avgIntervalMetric(aggInterval, date, interval, 'ACW');
-    var asa = avgIntervalMetric(aggInterval, date, interval, 'ASA');
-    var concurrency = avgIntervalMetric(aggInterval, date, interval, 'Concurrency');
-    var allocation = sumAllocation(aggAllocation, date, interval, 'Offered Count');
-    var cumulativeAllocation = sumAllocation(aggAllocation, date, interval, 'Allocation Share');
+    var aht = weightedIntervalMetric(aggInterval, date, interval, 'AHT');
+    var acw = weightedIntervalMetric(aggInterval, date, interval, 'ACW');
+    var asa = weightedIntervalMetric(aggInterval, date, interval, 'ASA');
+    var concurrency = weightedIntervalMetric(aggInterval, date, interval, 'Concurrency');
+    var allocation = allocationRatio(aggAllocation, date, interval, false);
+    var cumulativeAllocation = allocationRatio(aggAllocation, date, interval, true);
     var abandoned = offered - handled;
     var scheduledHours = scheduled === 0 ? '' : (scheduled * 30) / 1440;
     var requiredHours = required === 0 ? '' : (required * 30) / 1440;

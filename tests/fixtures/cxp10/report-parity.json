@@ -26,7 +26,7 @@
         "Language": "English",
         "Initial Athlete CS Owner": "NA",
         "Contact Fragment Count": null,
-        "Initial Athlete BPO": "BPO-A"
+        "Initial Athlete BPO": "INT"
       },
       {
         "Case: Case Number": "C-200",
@@ -34,7 +34,7 @@
         "Language": "English",
         "Initial Athlete CS Owner": "NA",
         "Contact Fragment Count": 2,
-        "Initial Athlete BPO": "BPO-B"
+        "Initial Athlete BPO": "INT"
       }
     ],
     "ahtRows": [
@@ -60,7 +60,7 @@
       },
       {
         "Work Item: Name": "SESSION-200",
-        "Accept Date": "2026-08-18T08:05:00.000Z",
+        "Accept Date": "2026-08-18T12:05:00.000Z",
         "Handle Time": 90,
         "Active Time": 60,
         "Speed To Answer": 100,
@@ -81,7 +81,7 @@
       },
       {
         "Date": "2026-08-18",
-        "Interval": "00:00",
+        "Interval": "04:00",
         "Site": "LAS",
         "Type": "Required",
         "Value": 5
@@ -121,7 +121,7 @@
       },
       {
         "Date": "2026-08-18",
-        "Interval": "00:00",
+        "Interval": "04:00",
         "Forecast": 0,
         "Offered": 1,
         "Handled": 0,

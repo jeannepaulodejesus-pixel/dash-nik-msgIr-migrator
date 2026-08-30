@@ -8,6 +8,13 @@ var DatasetAdapter = (function () {
     return require('../monitoring/ErrorCodes.js');
   }
 
+  function resolveErrorTokenCoalescer() {
+    if (typeof ErrorTokenCoalescer !== 'undefined') {
+      return ErrorTokenCoalescer;
+    }
+    return require('./ErrorTokenCoalescer.js');
+  }
+
   function resolvePayload() {
     if (typeof DatasetPayload !== 'undefined') {
       return DatasetPayload;
@@ -194,9 +201,11 @@ var DatasetAdapter = (function () {
       });
     }
     var headers = input.values[0].slice();
-    var collapsed = collapseExactRows(input.datasetName, headers, input.values.slice(1));
+    var coalesced = resolveErrorTokenCoalescer().coalesceRows(input.values.slice(1));
+    var collapsed = collapseExactRows(input.datasetName, headers, coalesced.rows);
     var source = Object.assign({}, input.source || {}, {
       duplicateRowsCollapsed: collapsed.duplicateRowsCollapsed,
+      errorTokensCoalesced: coalesced.count,
     });
     var payload = resolvePayload().create({
       datasetName: input.datasetName,

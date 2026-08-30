@@ -1,21 +1,21 @@
 var ReportingSurfaceFormulaCatalog = (function () {
   'use strict';
 
-  // Band-Aid Internal View layout (sheet remains named Interval View per CXP-02).
+  // Verified WB0817 operational surface. Keep metric semantics separate from
+  // presentation styling, which the transformation service applies natively.
   var INTERVAL_COUNT = 38;
-  var HEADER_ROW = 16;
-  var FIRST_DATA_ROW = 17;
-  var LAST_DATA_ROW = 54;
-  var TOTAL_ROW = 65;
-  // Midnight start so DEC-025 early intervals (incl. 00:00) sit on the View Date page.
-  // Band-Aid Excel Internal View starts at 04:00; chrome/layout otherwise match.
-  var AXIS_START_HOUR = 0;
-  var HANDLED_BLANK_FROM_ROW = 26;
+  var HEADER_ROW = 112;
+  var FIRST_DATA_ROW = 113;
+  var LAST_DATA_ROW = 150;
+  var TOTAL_ROW = 151;
+  var AXIS_START_HOUR = 4;
+  var HANDLED_BLANK_FROM_ROW = 122;
   var VIEW_DATE_COLUMN = 27; // AA
   var VIEW_DATE_ROW = 2;
-  // Helper keys for SUMIFS (INT/MOD inline criteria are unreliable in Sheets).
-  var DATE_KEY_COLUMN = 28; // AB
-  var INTERVAL_KEY_COLUMN = 29; // AC
+  // Report lookup keys are derived inside MAP from AA2 + the PST axis. No
+  // visible helper columns are allowed on the operational surface.
+  var DATE_KEY_COLUMN = null;
+  var INTERVAL_KEY_COLUMN = null;
   // Spill capacity for calendar unpivot (7 days × 48 intervals × 4 blocks).
   var FORECAST_ROW_CAPACITY = 1400;
 
@@ -57,33 +57,17 @@ var ReportingSurfaceFormulaCatalog = (function () {
     'Scheduled to Required',
   ]);
 
-  // Band-Aid columns: A=PST datetime, B:Z = 25 metrics.
+  // Control columns: B=Remarks, C=PST, D:AB = 25 metrics.
   var METRIC_COLUMNS = Object.freeze({
-    Forecast: 2,
-    Offered: 3,
-    Handled: 4,
-    'Chats in SL': 5,
-    Abandoned: 6,
-    'SL % Total': 7,
-    'SL (Time To Connect)': 8,
-    '% of Forecast Offered': 9,
-    '% of Forecast Handled': 10,
-    Allocation: 11,
-    'Cumulative Allocation': 12,
-    'AHT (Session)': 13,
-    AHT: 14,
-    ACW: 15,
-    'ASA in Seconds': 16,
-    Concurrency: 17,
-    Scheduled: 18,
-    Required: 19,
-    'Actual (SO)': 20,
-    'Actual vs Required': 21,
-    'Scheduled Hours': 22,
-    'Required Hours': 23,
-    Actual: 24,
-    'Actual to Required': 25,
-    'Scheduled to Required': 26,
+    Forecast: 4, Offered: 5, Handled: 6, 'Chats in SL': 7, Abandoned: 8,
+    'SL % Total': 9, 'SL (Time To Connect)': 10,
+    '% of Forecast Offered': 11, '% of Forecast Handled': 12,
+    Allocation: 13, 'Cumulative Allocation': 14, 'AHT (Session)': 15,
+    AHT: 16, ACW: 17, 'ASA in Seconds': 18, Concurrency: 19,
+    Scheduled: 20, Required: 21, 'Actual (SO)': 22,
+    'Actual vs Required': 23, 'Scheduled Hours': 24,
+    'Required Hours': 25, Actual: 26, 'Actual to Required': 27,
+    'Scheduled to Required': 28,
   });
 
   function colLetter(column) {
@@ -98,32 +82,37 @@ var ReportingSurfaceFormulaCatalog = (function () {
     return String.fromCharCode(64 + first) + String.fromCharCode(64 + second);
   }
 
-  function dateKeyRange() {
-    return '\'Interval View\'!' + colLetter(DATE_KEY_COLUMN) + FIRST_DATA_ROW +
-      ':' + colLetter(DATE_KEY_COLUMN) + LAST_DATA_ROW;
-  }
-
-  function timeKeyRange() {
-    return '\'Interval View\'!' + colLetter(INTERVAL_KEY_COLUMN) + FIRST_DATA_ROW +
-      ':' + colLetter(INTERVAL_KEY_COLUMN) + LAST_DATA_ROW;
-  }
-
-  // Sheets SUMIFS does not expand criteria ranges row-by-row inside ARRAYFORMULA —
-  // it broadcasts one aggregate onto every axis row. MAP/LAMBDA forces per-grain lookup.
+  // MAP forces per-row lookup. The date comes from the operator-owned AA2
+  // anchor; the exact time fraction is derived by index to avoid float drift.
   function mapLookup(innerExpression) {
-    return '=MAP(' + dateKeyRange() + ',' + timeKeyRange() +
-      ',LAMBDA(d,t,IF(OR(d="",t=""),"",' + innerExpression + ')))';
+    return '=MAP(\'Interval View\'!C' + FIRST_DATA_ROW + ':C' + LAST_DATA_ROW +
+      ',SEQUENCE(' + INTERVAL_COUNT + '),LAMBDA(pst,i,IF(OR($AA$2="",pst=""),"",' +
+      'LET(d,INT($AA$2),t,(' + AXIS_START_HOUR + '*60+(i-1)*30)/1440,' +
+      innerExpression + '))))';
   }
 
   function combinedSitesSumifs(valueColumn) {
-    return 'SUMIFS(\'_AGG_INTERVAL\'!' + valueColumn + ':' + valueColumn +
-      ',\'_AGG_INTERVAL\'!A:A,d' +
-      ',\'_AGG_INTERVAL\'!B:B,t' +
-      ',\'_AGG_INTERVAL\'!C:C,"PH")+' +
-      'SUMIFS(\'_AGG_INTERVAL\'!' + valueColumn + ':' + valueColumn +
-      ',\'_AGG_INTERVAL\'!A:A,d' +
-      ',\'_AGG_INTERVAL\'!B:B,t' +
-      ',\'_AGG_INTERVAL\'!C:C,"LAS")';
+    return 'SUMPRODUCT((INT(\'_AGG_INTERVAL\'!$A$2:$A$51)=INT(d))*' +
+      '(ROUND(\'_AGG_INTERVAL\'!$B$2:$B$51*1440)=ROUND(t*1440))*' +
+      '((\'_AGG_INTERVAL\'!$C$2:$C$51="PH")+' +
+      '(\'_AGG_INTERVAL\'!$C$2:$C$51="LAS"))*' +
+      'N(\'_AGG_INTERVAL\'!$' + valueColumn + '$2:$' + valueColumn + '$51))';
+  }
+
+  function combinedSitesMatchCount() {
+    return 'SUMPRODUCT((INT(\'_AGG_INTERVAL\'!$A$2:$A$51)=INT(d))*' +
+      '(ROUND(\'_AGG_INTERVAL\'!$B$2:$B$51*1440)=ROUND(t*1440))*' +
+      '((\'_AGG_INTERVAL\'!$C$2:$C$51="PH")+' +
+      '(\'_AGG_INTERVAL\'!$C$2:$C$51="LAS")))';
+  }
+
+  function allSitesWeightedAverage(valueColumn, countColumn) {
+    return 'IFERROR(SUMPRODUCT((INT(\'_AGG_INTERVAL\'!$A$2:$A$51)=INT(d))*' +
+      '(ROUND(\'_AGG_INTERVAL\'!$B$2:$B$51*1440)=ROUND(t*1440))*N(\'_AGG_INTERVAL\'!$' + valueColumn +
+      '$2:$' + valueColumn + '$51)*N(\'_AGG_INTERVAL\'!$' + countColumn + '$2:$' +
+      countColumn + '$51))/SUMPRODUCT((INT(\'_AGG_INTERVAL\'!$A$2:$A$51)=INT(d))*' +
+      '(ROUND(\'_AGG_INTERVAL\'!$B$2:$B$51*1440)=ROUND(t*1440))*' +
+      'N(\'_AGG_INTERVAL\'!$' + countColumn + '$2:$' + countColumn + '$51)),"")';
   }
 
   function forecastTypeSumifs(typeName) {
@@ -133,15 +122,16 @@ var ReportingSurfaceFormulaCatalog = (function () {
       ',\'_AGG_FORECAST\'!D:D,"' + typeName + '")';
   }
 
-  function allocationSumifs(valueColumn) {
-    return 'SUMIFS(\'_AGG_ALLOCATION\'!' + valueColumn + ':' + valueColumn +
-      ',\'_AGG_ALLOCATION\'!A:A,d' +
-      ',\'_AGG_ALLOCATION\'!B:B,t' +
-      ',\'_AGG_ALLOCATION\'!C:C,"PH")+' +
-      'SUMIFS(\'_AGG_ALLOCATION\'!' + valueColumn + ':' + valueColumn +
-      ',\'_AGG_ALLOCATION\'!A:A,d' +
-      ',\'_AGG_ALLOCATION\'!B:B,t' +
-      ',\'_AGG_ALLOCATION\'!C:C,"LAS")';
+  function allocationRatio(cumulative) {
+    var intervalMatch = cumulative
+      ? '(ROUND(\'_AGG_ALLOCATION\'!$B$2:$B$51*1440)<=ROUND(t*1440))'
+      : '(ROUND(\'_AGG_ALLOCATION\'!$B$2:$B$51*1440)=ROUND(t*1440))';
+    var baseMatch = '(INT(\'_AGG_ALLOCATION\'!$A$2:$A$51)=INT(d))*' + intervalMatch;
+    var numerator = 'SUMPRODUCT(' + baseMatch +
+      '*(\'_AGG_ALLOCATION\'!$D$2:$D$51="INT")*N(\'_AGG_ALLOCATION\'!$E$2:$E$51))';
+    var denominator = 'SUMPRODUCT(' + baseMatch +
+      '*N(\'_AGG_ALLOCATION\'!$E$2:$E$51))';
+    return 'IFERROR(' + numerator + '/' + denominator + ',"")';
   }
 
   function arrayWrap(expression, blankCheckColumn) {
@@ -158,19 +148,23 @@ var ReportingSurfaceFormulaCatalog = (function () {
   function handledFormula() {
     var sumExpr = combinedSitesSumifs('E');
     var blankFromIndex = HANDLED_BLANK_FROM_ROW - FIRST_DATA_ROW + 1;
-    return '=MAP(' + dateKeyRange() + ',' + timeKeyRange() +
-      ',SEQUENCE(' + INTERVAL_COUNT + '),LAMBDA(d,t,i,IF(OR(d="",t=""),"",LET(s,' +
-      sumExpr + ',IF(i>=' + blankFromIndex + ',IF(s=0,"",s),s)))))';
+    return mapLookup('LET(s,' + sumExpr + ',IF(i>=' + blankFromIndex +
+      ',IF(s=0,"",s),s))');
   }
 
-  function intervalMetricFormula(columnLetter) {
+  function summedIntervalMetricFormula(columnLetter) {
     var sumExpr = combinedSitesSumifs(columnLetter);
-    return mapLookup('IF(' + sumExpr + '=0,"",' + sumExpr + ')');
+    return mapLookup('IF(' + combinedSitesMatchCount() + '=0,"",' + sumExpr + ')');
+  }
+
+  function intervalMetricFormula(columnLetter, countColumnLetter) {
+    var avgExpr = allSitesWeightedAverage(columnLetter, countColumnLetter);
+    return mapLookup(avgExpr);
   }
 
   function ahtSessionFormula() {
-    var sumExpr = combinedSitesSumifs('H');
-    return mapLookup('IF(' + sumExpr + '=0,"",' + sumExpr + '/63)');
+    var avgExpr = allSitesWeightedAverage('H', 'N');
+    return mapLookup('LET(v,' + avgExpr + ',IF(ISNUMBER(v),v/63,""))');
   }
 
   function forecastFormula() {
@@ -184,33 +178,21 @@ var ReportingSurfaceFormulaCatalog = (function () {
   }
 
   function allocationFormula() {
-    return mapLookup(allocationSumifs('E'));
+    return mapLookup(allocationRatio(false));
   }
 
   function cumulativeAllocationFormula() {
-    return mapLookup(allocationSumifs('F'));
+    return mapLookup(allocationRatio(true));
   }
 
   function derivedFormula(expression) {
-    return arrayWrap(expression, 'A');
+    return arrayWrap(expression, 'C');
   }
 
-  // PST datetime axis for display; AB/AC hold Date + Interval keys for _AGG_* SUMIFS.
+  // Control-compatible time-only PST axis. AA2 supplies the business date.
   function intervalAxisPstFormula() {
-    return '=IF($AA$2="","",SEQUENCE(' + INTERVAL_COUNT + ',1,$AA$2+TIME(' +
+    return '=IF($AA$2="","",SEQUENCE(' + INTERVAL_COUNT + ',1,TIME(' +
       AXIS_START_HOUR + ',0,0),TIME(0,30,0)))';
-  }
-
-  function intervalDateKeyFormula() {
-    return '=ARRAYFORMULA(IF(A' + FIRST_DATA_ROW + ':A' + LAST_DATA_ROW +
-      '="","",INT(A' + FIRST_DATA_ROW + ':A' + LAST_DATA_ROW + ')))';
-  }
-
-  // Exact half-hour fractions (avoid MOD float drift from SEQUENCE datetimes).
-  function intervalTimeKeyFormula() {
-    return '=ARRAYFORMULA(IF(A' + FIRST_DATA_ROW + ':A' + LAST_DATA_ROW +
-      '="","",(' + AXIS_START_HOUR + '*60+(ROW(A' + FIRST_DATA_ROW + ':A' +
-      LAST_DATA_ROW + ')-' + FIRST_DATA_ROW + ')*30)/1440))';
   }
 
   function totalFormula(column, expression) {
@@ -222,44 +204,44 @@ var ReportingSurfaceFormulaCatalog = (function () {
       { anchorColumn: METRIC_COLUMNS.Forecast, anchorRow: FIRST_DATA_ROW, formula: forecastFormula() },
       { anchorColumn: METRIC_COLUMNS.Offered, anchorRow: FIRST_DATA_ROW, formula: offeredFormula() },
       { anchorColumn: METRIC_COLUMNS.Handled, anchorRow: FIRST_DATA_ROW, formula: handledFormula() },
-      { anchorColumn: METRIC_COLUMNS['Chats in SL'], anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('F') },
+      { anchorColumn: METRIC_COLUMNS['Chats in SL'], anchorRow: FIRST_DATA_ROW, formula: summedIntervalMetricFormula('F') },
       {
         anchorColumn: METRIC_COLUMNS.Abandoned,
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IF(C' + FIRST_DATA_ROW + ':C' + LAST_DATA_ROW +
-          '="","",IFERROR(C' + FIRST_DATA_ROW + ':C' + LAST_DATA_ROW +
-          '-D' + FIRST_DATA_ROW + ':D' + LAST_DATA_ROW + ',""))'),
+        formula: derivedFormula('IF(E' + FIRST_DATA_ROW + ':E' + LAST_DATA_ROW +
+          '="","",IFERROR(E' + FIRST_DATA_ROW + ':E' + LAST_DATA_ROW +
+          '-F' + FIRST_DATA_ROW + ':F' + LAST_DATA_ROW + ',""))'),
       },
       {
         anchorColumn: METRIC_COLUMNS['SL % Total'],
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IFERROR(E' + FIRST_DATA_ROW + ':E' + LAST_DATA_ROW +
-          '/C' + FIRST_DATA_ROW + ':C' + LAST_DATA_ROW + ',"")'),
+        formula: derivedFormula('IFERROR(G' + FIRST_DATA_ROW + ':G' + LAST_DATA_ROW +
+          '/E' + FIRST_DATA_ROW + ':E' + LAST_DATA_ROW + ',"")'),
       },
-      { anchorColumn: METRIC_COLUMNS['SL (Time To Connect)'], anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('G') },
+      { anchorColumn: METRIC_COLUMNS['SL (Time To Connect)'], anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('G', 'M') },
       {
         anchorColumn: METRIC_COLUMNS['% of Forecast Offered'],
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IF(C' + FIRST_DATA_ROW + ':C' + LAST_DATA_ROW + '=0," ' +
-          '",C' + FIRST_DATA_ROW + ':C' + LAST_DATA_ROW + '/IF(OR(B' + FIRST_DATA_ROW +
-          ':B' + LAST_DATA_ROW + '=0,B' + FIRST_DATA_ROW + ':B' + LAST_DATA_ROW +
-          '=""),1,B' + FIRST_DATA_ROW + ':B' + LAST_DATA_ROW + '))'),
+        formula: derivedFormula('IF(E' + FIRST_DATA_ROW + ':E' + LAST_DATA_ROW + '=0," ' +
+          '",E' + FIRST_DATA_ROW + ':E' + LAST_DATA_ROW + '/IF(((D' + FIRST_DATA_ROW +
+          ':D' + LAST_DATA_ROW + '=0)+(D' + FIRST_DATA_ROW + ':D' + LAST_DATA_ROW +
+          '=""))>0,1,D' + FIRST_DATA_ROW + ':D' + LAST_DATA_ROW + '))'),
       },
       {
         anchorColumn: METRIC_COLUMNS['% of Forecast Handled'],
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IF(D' + FIRST_DATA_ROW + ':D' + LAST_DATA_ROW + '=0," ' +
-          '",D' + FIRST_DATA_ROW + ':D' + LAST_DATA_ROW + '/IF(OR(B' + FIRST_DATA_ROW +
-          ':B' + LAST_DATA_ROW + '=0,B' + FIRST_DATA_ROW + ':B' + LAST_DATA_ROW +
-          '=""),1,B' + FIRST_DATA_ROW + ':B' + LAST_DATA_ROW + '))'),
+        formula: derivedFormula('IF(F' + FIRST_DATA_ROW + ':F' + LAST_DATA_ROW + '=0," ' +
+          '",F' + FIRST_DATA_ROW + ':F' + LAST_DATA_ROW + '/IF(((D' + FIRST_DATA_ROW +
+          ':D' + LAST_DATA_ROW + '=0)+(D' + FIRST_DATA_ROW + ':D' + LAST_DATA_ROW +
+          '=""))>0,1,D' + FIRST_DATA_ROW + ':D' + LAST_DATA_ROW + '))'),
       },
       { anchorColumn: METRIC_COLUMNS.Allocation, anchorRow: FIRST_DATA_ROW, formula: allocationFormula() },
       { anchorColumn: METRIC_COLUMNS['Cumulative Allocation'], anchorRow: FIRST_DATA_ROW, formula: cumulativeAllocationFormula() },
       { anchorColumn: METRIC_COLUMNS['AHT (Session)'], anchorRow: FIRST_DATA_ROW, formula: ahtSessionFormula() },
-      { anchorColumn: METRIC_COLUMNS.AHT, anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('I') },
-      { anchorColumn: METRIC_COLUMNS.ACW, anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('J') },
-      { anchorColumn: METRIC_COLUMNS['ASA in Seconds'], anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('K') },
-      { anchorColumn: METRIC_COLUMNS.Concurrency, anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('L') },
+      { anchorColumn: METRIC_COLUMNS.AHT, anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('I', 'O') },
+      { anchorColumn: METRIC_COLUMNS.ACW, anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('J', 'P') },
+      { anchorColumn: METRIC_COLUMNS['ASA in Seconds'], anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('K', 'Q') },
+      { anchorColumn: METRIC_COLUMNS.Concurrency, anchorRow: FIRST_DATA_ROW, formula: intervalMetricFormula('L', 'R') },
       { anchorColumn: METRIC_COLUMNS.Scheduled, anchorRow: FIRST_DATA_ROW, formula: forecastTypeFormula('Scheduled') },
       { anchorColumn: METRIC_COLUMNS.Required, anchorRow: FIRST_DATA_ROW, formula: forecastTypeFormula('Required') },
       { anchorColumn: METRIC_COLUMNS['Actual (SO)'], anchorRow: FIRST_DATA_ROW, formula: forecastTypeFormula('Actual (SO)') },
@@ -267,45 +249,45 @@ var ReportingSurfaceFormulaCatalog = (function () {
         anchorColumn: METRIC_COLUMNS['Actual vs Required'],
         anchorRow: FIRST_DATA_ROW,
         // Band-Aid: blank when Required is blank (blank-blank otherwise becomes 0).
-        formula: derivedFormula('IF(S' + FIRST_DATA_ROW + ':S' + LAST_DATA_ROW +
-          '="","",T' + FIRST_DATA_ROW + ':T' + LAST_DATA_ROW +
-          '-S' + FIRST_DATA_ROW + ':S' + LAST_DATA_ROW + ')'),
+        formula: derivedFormula('IF(U' + FIRST_DATA_ROW + ':U' + LAST_DATA_ROW +
+          '="","",V' + FIRST_DATA_ROW + ':V' + LAST_DATA_ROW +
+          '-U' + FIRST_DATA_ROW + ':U' + LAST_DATA_ROW + ')'),
       },
       {
         anchorColumn: METRIC_COLUMNS['Scheduled Hours'],
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IF(OR(R' + FIRST_DATA_ROW + ':R' + LAST_DATA_ROW +
-          '="",R' + FIRST_DATA_ROW + ':R' + LAST_DATA_ROW + '=0),"",' +
-          '(R' + FIRST_DATA_ROW + ':R' + LAST_DATA_ROW + '*30)/1440)'),
+        formula: derivedFormula('IF(((T' + FIRST_DATA_ROW + ':T' + LAST_DATA_ROW +
+          '="")+(T' + FIRST_DATA_ROW + ':T' + LAST_DATA_ROW + '=0))>0,"",' +
+          '(T' + FIRST_DATA_ROW + ':T' + LAST_DATA_ROW + '*30)/1440)'),
       },
       {
         anchorColumn: METRIC_COLUMNS['Required Hours'],
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IF(OR(S' + FIRST_DATA_ROW + ':S' + LAST_DATA_ROW +
-          '="",S' + FIRST_DATA_ROW + ':S' + LAST_DATA_ROW + '=0),"",' +
-          '(S' + FIRST_DATA_ROW + ':S' + LAST_DATA_ROW + '*30)/1440)'),
+        formula: derivedFormula('IF(((U' + FIRST_DATA_ROW + ':U' + LAST_DATA_ROW +
+          '="")+(U' + FIRST_DATA_ROW + ':U' + LAST_DATA_ROW + '=0))>0,"",' +
+          '(U' + FIRST_DATA_ROW + ':U' + LAST_DATA_ROW + '*30)/1440)'),
       },
       {
         anchorColumn: METRIC_COLUMNS.Actual,
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IF(OR(T' + FIRST_DATA_ROW + ':T' + LAST_DATA_ROW +
-          '="",T' + FIRST_DATA_ROW + ':T' + LAST_DATA_ROW + '=0),"",' +
-          '(T' + FIRST_DATA_ROW + ':T' + LAST_DATA_ROW + '*30)/1440)'),
+        formula: derivedFormula('IF(((V' + FIRST_DATA_ROW + ':V' + LAST_DATA_ROW +
+          '="")+(V' + FIRST_DATA_ROW + ':V' + LAST_DATA_ROW + '=0))>0,"",' +
+          '(V' + FIRST_DATA_ROW + ':V' + LAST_DATA_ROW + '*30)/1440)'),
       },
       {
         anchorColumn: METRIC_COLUMNS['Actual to Required'],
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IF(OR(X' + FIRST_DATA_ROW + ':X' + LAST_DATA_ROW +
-          '="",W' + FIRST_DATA_ROW + ':W' + LAST_DATA_ROW + '="",W' + FIRST_DATA_ROW +
-          ':W' + LAST_DATA_ROW + '=0),"",IFERROR(X' + FIRST_DATA_ROW + ':X' +
-          LAST_DATA_ROW + '/W' + FIRST_DATA_ROW + ':W' + LAST_DATA_ROW + ',""))'),
+        formula: derivedFormula('IF(((Z' + FIRST_DATA_ROW + ':Z' + LAST_DATA_ROW +
+          '="")+(Y' + FIRST_DATA_ROW + ':Y' + LAST_DATA_ROW + '="")+(Y' + FIRST_DATA_ROW +
+          ':Y' + LAST_DATA_ROW + '=0))>0,"",IFERROR(Z' + FIRST_DATA_ROW + ':Z' +
+          LAST_DATA_ROW + '/Y' + FIRST_DATA_ROW + ':Y' + LAST_DATA_ROW + ',""))'),
       },
       {
         anchorColumn: METRIC_COLUMNS['Scheduled to Required'],
         anchorRow: FIRST_DATA_ROW,
-        formula: derivedFormula('IF(OR(S' + FIRST_DATA_ROW + ':S' + LAST_DATA_ROW +
-          '="",S' + FIRST_DATA_ROW + ':S' + LAST_DATA_ROW + '=0),"",IFERROR(R' +
-          FIRST_DATA_ROW + ':R' + LAST_DATA_ROW + '/S' + FIRST_DATA_ROW + ':S' +
+        formula: derivedFormula('IF(((U' + FIRST_DATA_ROW + ':U' + LAST_DATA_ROW +
+          '="")+(U' + FIRST_DATA_ROW + ':U' + LAST_DATA_ROW + '=0))>0,"",IFERROR(T' +
+          FIRST_DATA_ROW + ':T' + LAST_DATA_ROW + '/U' + FIRST_DATA_ROW + ':U' +
           LAST_DATA_ROW + ',""))'),
       },
     ]);
@@ -313,46 +295,31 @@ var ReportingSurfaceFormulaCatalog = (function () {
 
   function intervalViewTotals() {
     return Object.freeze([
-      {
-        anchorColumn: METRIC_COLUMNS.Forecast,
-        anchorRow: TOTAL_ROW,
-        formula: totalFormula('B', 'IF(COUNT(B17:B54)=0,"",SUM(B17:B54))'),
-      },
-      { anchorColumn: METRIC_COLUMNS.Offered, anchorRow: TOTAL_ROW, formula: totalFormula('C', 'SUM(C17:C54)') },
-      { anchorColumn: METRIC_COLUMNS.Handled, anchorRow: TOTAL_ROW, formula: totalFormula('D', 'SUM(D17:D54)') },
-      { anchorColumn: METRIC_COLUMNS['Chats in SL'], anchorRow: TOTAL_ROW, formula: totalFormula('E', 'SUM(E17:E54)') },
-      { anchorColumn: METRIC_COLUMNS.Abandoned, anchorRow: TOTAL_ROW, formula: totalFormula('F', 'SUM(F17:F54)') },
-      { anchorColumn: METRIC_COLUMNS['SL % Total'], anchorRow: TOTAL_ROW, formula: totalFormula('G', 'IFERROR(E65/C65,"")') },
-      {
-        anchorColumn: METRIC_COLUMNS['SL (Time To Connect)'],
-        anchorRow: TOTAL_ROW,
-        formula: totalFormula('H', 'AVERAGE(H17:H54)'),
-      },
-      {
-        anchorColumn: METRIC_COLUMNS['AHT (Session)'],
-        anchorRow: TOTAL_ROW,
-        formula: totalFormula('M', 'IFERROR(AVERAGE(M17:M54)*63/60,"")'),
-      },
-      {
-        anchorColumn: METRIC_COLUMNS.Scheduled,
-        anchorRow: TOTAL_ROW,
-        formula: totalFormula('R', 'IF(COUNT(R17:R54)=0,"",AVERAGE(R17:R54))'),
-      },
-      {
-        anchorColumn: METRIC_COLUMNS.Required,
-        anchorRow: TOTAL_ROW,
-        formula: totalFormula('S', 'IF(COUNT(S17:S54)=0,"",AVERAGE(S17:S54))'),
-      },
-      {
-        anchorColumn: METRIC_COLUMNS['Actual (SO)'],
-        anchorRow: TOTAL_ROW,
-        formula: totalFormula('T', 'IF(COUNT(T17:T54)=0,"",AVERAGE(T17:T54))'),
-      },
-      {
-        anchorColumn: METRIC_COLUMNS['Scheduled to Required'],
-        anchorRow: TOTAL_ROW,
-        formula: totalFormula('Z', 'IFERROR(R65/S65,"")'),
-      },
+      { anchorColumn: 4, anchorRow: TOTAL_ROW, formula: '=SUM(D113:D150)' },
+      { anchorColumn: 5, anchorRow: TOTAL_ROW, formula: '=SUM(E113:E150)' },
+      { anchorColumn: 6, anchorRow: TOTAL_ROW, formula: '=SUM(F113:F150)' },
+      { anchorColumn: 7, anchorRow: TOTAL_ROW, formula: '=SUM(G113:G150)' },
+      { anchorColumn: 8, anchorRow: TOTAL_ROW, formula: '=SUM(H113:H150)' },
+      { anchorColumn: 9, anchorRow: TOTAL_ROW, formula: '=IFERROR(G151/E151,"")' },
+      { anchorColumn: 10, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(J113:J150),"")' },
+      { anchorColumn: 11, anchorRow: TOTAL_ROW, formula: '=IFERROR(E151/D151,"")' },
+      { anchorColumn: 12, anchorRow: TOTAL_ROW, formula: '=IFERROR(F151/D151,"")' },
+      { anchorColumn: 13, anchorRow: TOTAL_ROW, formula: '=IFERROR(SUM(M113:M150),"")' },
+      { anchorColumn: 14, anchorRow: TOTAL_ROW, formula: '=IFERROR(M151,"")' },
+      { anchorColumn: 15, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(O113:O150)*63/60,"")' },
+      { anchorColumn: 16, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(P113:P150),"")' },
+      { anchorColumn: 17, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(Q113:Q150),"")' },
+      { anchorColumn: 18, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(R113:R150),"")' },
+      { anchorColumn: 19, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(S113:S150),"")' },
+      { anchorColumn: 20, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(T113:T150),"")' },
+      { anchorColumn: 21, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(U113:U150),"")' },
+      { anchorColumn: 22, anchorRow: TOTAL_ROW, formula: '=IFERROR(AVERAGE(V113:V150),"")' },
+      { anchorColumn: 23, anchorRow: TOTAL_ROW, formula: '=IFERROR(V151-U151,"")' },
+      { anchorColumn: 24, anchorRow: TOTAL_ROW, formula: '=SUM(X113:X150)' },
+      { anchorColumn: 25, anchorRow: TOTAL_ROW, formula: '=SUM(Y113:Y150)' },
+      { anchorColumn: 26, anchorRow: TOTAL_ROW, formula: '=SUM(Z113:Z150)' },
+      { anchorColumn: 27, anchorRow: TOTAL_ROW, formula: '=IFERROR(Z151/Y151,"")' },
+      { anchorColumn: 28, anchorRow: TOTAL_ROW, formula: '=IFERROR(X151/Y151,"")' },
     ]);
   }
 
@@ -396,24 +363,14 @@ var ReportingSurfaceFormulaCatalog = (function () {
         'block(datesLv,volLv,"LAS","Forecast"),' +
         'block(datesLv,reqLv,"LAS","Required")' +
       '),' +
-      'FILTER(raw,INDEX(raw,0,1)<>"",INDEX(raw,0,5)<>"")' +
+      'IFNA(FILTER(raw,INDEX(raw,0,1)<>"",INDEX(raw,0,5)<>""),"")' +
     ')';
   }
 
   function intervalViewSpec() {
     return Object.freeze({
       axisFormulas: Object.freeze([
-        { anchorColumn: 1, anchorRow: FIRST_DATA_ROW, formula: intervalAxisPstFormula() },
-        {
-          anchorColumn: DATE_KEY_COLUMN,
-          anchorRow: FIRST_DATA_ROW,
-          formula: intervalDateKeyFormula(),
-        },
-        {
-          anchorColumn: INTERVAL_KEY_COLUMN,
-          anchorRow: FIRST_DATA_ROW,
-          formula: intervalTimeKeyFormula(),
-        },
+        { anchorColumn: 3, anchorRow: FIRST_DATA_ROW, formula: intervalAxisPstFormula() },
       ]),
       businessDayAnchor: Object.freeze({ column: VIEW_DATE_COLUMN, row: VIEW_DATE_ROW }),
       datasetName: 'Interval View',
@@ -424,14 +381,20 @@ var ReportingSurfaceFormulaCatalog = (function () {
       headerStartColumn: METRIC_COLUMNS.Forecast,
       intervalCount: INTERVAL_COUNT,
       intervalKeyColumn: INTERVAL_KEY_COLUMN,
+      lastDataRow: LAST_DATA_ROW,
+      metricLineage: Object.freeze({
+        controlWorkbook: 'MSG Intraday EOD 0817.xlsx',
+        sourceSha256: 'CD8F8EC6F68FBEC85841CD64C251616FCECD0AD67DE4714EFB244F648548E65A',
+      }),
       metricFormulas: intervalViewFormulas(),
+      ownedRange: 'B97:AB151',
       pstHeader: 'PST',
       reportSheetName: 'Interval View',
       sectionLabels: Object.freeze([
-        Object.freeze({ column: 1, label: 'Operational Metrics' }),
-        Object.freeze({ column: 18, label: 'Staffing' }),
+        Object.freeze({ column: 3, label: 'Operational Metrics' }),
+        Object.freeze({ column: 20, label: 'Staffing' }),
       ]),
-      sectionRow: 15,
+      sectionRow: 111,
       totalFormulas: intervalViewTotals(),
       totalLabel: 'Grand Total',
       totalRow: TOTAL_ROW,

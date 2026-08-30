@@ -15,6 +15,7 @@ const StableAggregationFormulaCatalog = require(
 );
 const Cxp10Setup = require('../src/main/Cxp10Setup.js');
 const parityFixture = require('./fixtures/cxp10/report-parity.json');
+const controlContract = require('./fixtures/cxp10/interval-view-control-contract.json');
 
 class FakeRange {
   constructor(sheet, row, column, rowCount, columnCount) {
@@ -220,8 +221,36 @@ test('CXP-10 reference model reproduces the report parity fixture', () => {
   assert.equal(actual.metricOrder.length, 25);
 });
 
+test('CXP-10 Interval View contract is independently pinned to the control workbook', () => {
+  const spec = ReportingSurfaceFormulaCatalog.intervalViewSpec();
+  const presentation = ReportingSurfaceTransformationService.getIntervalPresentationContract();
+  const formats = Object.fromEntries(
+    presentation.numberFormats.map((entry) => [entry.range, entry.pattern]),
+  );
+
+  assert.equal(controlContract.sourceSha256, spec.metricLineage.sourceSha256);
+  assert.equal(spec.reportSheetName, controlContract.sheet);
+  assert.equal(spec.headerRow, 112);
+  assert.equal(spec.firstDataRow, controlContract.axis.firstRow);
+  assert.equal(spec.lastDataRow, controlContract.axis.lastRow);
+  assert.equal(spec.totalRow, 151);
+  assert.equal(spec.headers.length, controlContract.headers.metricCount);
+  assert.match(spec.axisFormulas[0].formula, /SEQUENCE\(38/);
+  assert.match(spec.axisFormulas[0].formula, /TIME\(4,0,0\)/);
+  assert.deepEqual(presentation.merges, controlContract.requiredMerges);
+  assert.deepEqual(presentation.hiddenColumns, controlContract.hiddenColumns);
+  Object.entries(controlContract.numberFormats).forEach(([range, pattern]) => {
+    assert.equal(formats[range], pattern);
+  });
+  assert.equal(spec.totalFormulas.length, controlContract.headers.metricCount);
+});
+
 test('CXP-10 installs Interval View, MOM, and forecast bridge formulas', () => {
   const harness = createFormulaHarness();
+  harness.sheets.get('Interval View').values.set('2:27', 46252);
+  harness.sheets.get('Interval View').values.set('16:1', 'v1 PST');
+  harness.sheets.get('Interval View').values.set('97:4', 0.1768);
+  harness.sheets.get('MOM').values.set('5:2', 99);
   const result = ReportingSurfaceTransformationService.install(harness.spreadsheet);
 
   assert.equal(result.metricCount, 25);
@@ -231,32 +260,46 @@ test('CXP-10 installs Interval View, MOM, and forecast bridge formulas', () => {
   const intervalView = harness.sheets.get('Interval View');
   const mom = harness.sheets.get('MOM');
   const forecast = harness.sheets.get('_AGG_FORECAST');
-  assert.match(intervalView.formulas.get('17:3'), /SUMIFS/);
-  assert.match(intervalView.formulas.get('17:3'), /_AGG_INTERVAL/);
-  assert.match(intervalView.formulas.get('17:2'), /_AGG_FORECAST/);
-  assert.match(intervalView.formulas.get('17:1'), /SEQUENCE\(38/);
-  assert.match(intervalView.formulas.get('17:1'), /TIME\(0,0,0\)/);
-  assert.match(intervalView.formulas.get('17:3'), /MAP\(/);
-  assert.match(intervalView.formulas.get('17:3'), /LAMBDA\(d,t/);
-  assert.match(intervalView.formulas.get('17:3'), /SUMIFS\([^)]*!A:A,d/);
-  assert.match(intervalView.formulas.get('17:28'), /INT\(A17:A54\)/);
-  assert.match(intervalView.formulas.get('17:29'), /\*30\)\/1440/);
-  assert.doesNotMatch(intervalView.formulas.get('17:3'), /A:A,'Interval View'!AB/);
-  // Col I = % of Forecast Offered (anchorColumn 9)
-  assert.match(intervalView.formulas.get('17:9'), /IF\(OR\(B17:B54=0/);
-  // Col V = Scheduled Hours (anchorColumn 22)
-  assert.match(intervalView.formulas.get('17:22'), /R17:R54=""/);
-  // Col U / Z — blank when Required empty (no spurious 0 / #DIV/0!)
-  assert.match(intervalView.formulas.get('17:21'), /IF\(S17:S54="","",T17:T54-S17:S54\)/);
-  assert.match(intervalView.formulas.get('17:26'), /IFERROR\(R17:R54\/S17:S54/);
-  assert.equal(intervalView.values.get('16:1'), 'PST');
+  assert.match(intervalView.formulas.get('113:5'), /SUMPRODUCT/);
+  assert.match(intervalView.formulas.get('113:5'), /_AGG_INTERVAL/);
+  assert.match(intervalView.formulas.get('113:5'), /ROUND\([^)]*\*1440\)/);
+  assert.match(intervalView.formulas.get('113:4'), /_AGG_FORECAST/);
+  assert.match(intervalView.formulas.get('113:3'), /SEQUENCE\(38/);
+  assert.match(intervalView.formulas.get('113:3'), /TIME\(4,0,0\)/);
+  assert.match(intervalView.formulas.get('113:5'), /MAP\(/);
+  assert.match(intervalView.formulas.get('113:10'), /SUMPRODUCT/);
+  assert.match(intervalView.formulas.get('113:10'), /\$M\$2:\$M\$51/);
+  assert.match(intervalView.formulas.get('113:7'), /SUMPRODUCT/);
+  assert.match(intervalView.formulas.get('113:7'), /=0,"",SUMPRODUCT/);
+  assert.doesNotMatch(intervalView.formulas.get('113:10'), /\)=0,""/);
+  assert.match(intervalView.formulas.get('113:13'), /_AGG_ALLOCATION/);
+  assert.match(intervalView.formulas.get('113:13'), /ROUND\([^)]*\*1440\)/);
+  assert.match(intervalView.formulas.get('113:13'), /="INT"/);
+  assert.match(intervalView.formulas.get('113:15'), /\$N\$2:\$N\$51/);
+  assert.match(intervalView.formulas.get('113:16'), /\$O\$2:\$O\$51/);
+  assert.doesNotMatch(intervalView.formulas.get('113:11'), /OR\([^)]*113:150/);
+  assert.equal(intervalView.formulas.has('113:29'), false);
+  assert.equal(intervalView.values.get('112:2'), 'Remarks');
+  assert.equal(intervalView.values.get('112:3'), 'PST');
+  assert.equal(intervalView.values.get('111:3'), 'Operational Metrics');
+  assert.equal(intervalView.values.get('111:20'), 'Staffing');
   assert.equal(intervalView.values.get('1:27'), 'View Date');
   assert.equal(intervalView.formulas.get('2:3'), '=$AA$2');
+  assert.equal(intervalView.values.get('2:27'), 46252);
+  assert.equal(intervalView.values.has('16:1'), false);
+  assert.equal(intervalView.values.get('97:4'), 0.1768);
+  assert.equal(intervalView.formulas.get('97:5'), '=IF(D97="","",D97-0.05)');
+  assert.equal(
+    ReportingSurfaceFormulaCatalog.intervalViewSpec().totalFormulas.length,
+    25,
+  );
   assert.match(forecast.formulas.get('2:1'), /LET\(/);
   assert.match(forecast.formulas.get('2:1'), /MOM!\$A\$5:\$A\$52/);
+  assert.match(forecast.formulas.get('2:1'), /IFNA\(FILTER/);
   assert.equal(mom.values.get('1:1'), 'CHAT MNL');
   assert.equal(mom.values.get('1:25'), 'CHAT LV');
   assert.equal(mom.values.get('2:1'), 'Required FTE at Plan');
+  assert.equal(mom.values.get('5:2'), 99);
   assert.match(mom.formulas.get('5:1'), /SEQUENCE\(48,1,0,TIME\(0,30,0\)\)/);
   assert.equal(mom.formulas.get('3:3'), '=B3+1');
   assert.equal(mom.formulas.get('3:10'), '=$B$3');

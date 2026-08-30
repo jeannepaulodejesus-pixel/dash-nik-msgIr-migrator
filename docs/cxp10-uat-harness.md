@@ -14,7 +14,7 @@ Persisted install state key (delete to reset):
 
 | Script Property | Cleared by |
 |---|---|
-| `CXP10_REPORTING_INSTALL_STATE` | `resetCxp10ReportingInstallationState` or manual delete |
+| `CXP10_REPORTING_INSTALL_STATE_V2` | `resetCxp10ReportingInstallationState` or manual delete |
 
 ## Install / resume entrypoints (`Cxp10Setup.js`)
 

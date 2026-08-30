@@ -36,6 +36,28 @@ var Cxp08ParityUat = (function () {
     'Concluding in Hours',
   ]);
 
+  function buildStaffExpectedRow(nonzeroBuckets) {
+    var row = {};
+    var bucket;
+    for (bucket = 0; bucket < 48; bucket += 1) {
+      var minutes = bucket * 30;
+      var hour = Math.floor(minutes / 60);
+      var minute = minutes % 60;
+      var suffix = hour < 12 ? 'AM' : 'PM';
+      var displayHour = hour % 12 || 12;
+      row[displayHour + ':' + String(minute).padStart(2, '0') + ' ' + suffix] = 0;
+    }
+    nonzeroBuckets.forEach(function (bucketIndex) {
+      var minutes = bucketIndex * 30;
+      var hour = Math.floor(minutes / 60);
+      var minute = minutes % 60;
+      var suffix = hour < 12 ? 'AM' : 'PM';
+      var displayHour = hour % 12 || 12;
+      row[displayHour + ':' + String(minute).padStart(2, '0') + ' ' + suffix] = 1 / 48;
+    });
+    return Object.freeze(row);
+  }
+
   // Mirror of tests/fixtures/cxp08/aht-auxes-staff-parity.json (embedded for Apps Script).
   var FIXTURE = Object.freeze({
     businessDay: BUSINESS_DAY_ISO,
@@ -96,6 +118,13 @@ var Cxp08ParityUat = (function () {
           'Status Start Date': '2026-08-18T08:00:00.000Z',
           'Status End Date': '2026-08-18T09:00:00.000Z',
           'Athlete Display Name': 'Agent A',
+          'Athlete Site': 'CNX-CR1',
+          'Athlete Profile': 'Messaging',
+        }),
+        Object.freeze({
+          'Status Start Date': '2026-08-18T20:00:00.000Z',
+          'Status End Date': '2026-08-18T21:00:00.000Z',
+          'Athlete Display Name': 'Agent B',
           'Athlete Site': 'INT-LAS',
           'Athlete Profile': 'Messaging',
         }),
@@ -145,6 +174,16 @@ var Cxp08ParityUat = (function () {
           'Concluding in Hours': 0.25,
         }),
       ]),
+      staff: Object.freeze([
+        buildStaffExpectedRow([0, 1]),
+        buildStaffExpectedRow([24, 25]),
+      ]),
+      staffSummary: Object.freeze([
+        Object.freeze({ Interval: '00:00', 'Que Summary': 0, 'LAS Summary': 1 }),
+        Object.freeze({ Interval: '00:30', 'Que Summary': 0, 'LAS Summary': 1 }),
+        Object.freeze({ Interval: '12:00', 'Que Summary': 0, 'LAS Summary': 1 }),
+        Object.freeze({ Interval: '12:30', 'Que Summary': 0, 'LAS Summary': 1 }),
+      ]),
     }),
   });
 
@@ -163,6 +202,20 @@ var Cxp08ParityUat = (function () {
       return SchemaRegistry;
     }
     throw new Error('SchemaRegistry is required.');
+  }
+
+  function resolveBusinessContextService() {
+    if (typeof BusinessContextService !== 'undefined') {
+      return BusinessContextService;
+    }
+    return require('../services/BusinessContextService.js');
+  }
+
+  function resolveFormulaCatalog() {
+    if (typeof AhtAuxesStaffFormulaCatalog !== 'undefined') {
+      return AhtAuxesStaffFormulaCatalog;
+    }
+    return require('../transformations/AhtAuxesStaffFormulaCatalog.js');
   }
 
   function openTarget(spreadsheetId) {
@@ -190,12 +243,6 @@ var Cxp08ParityUat = (function () {
         ? partial[header]
         : '';
     });
-  }
-
-  function excelSerialFromIsoDateOnly(isoDate) {
-    var parts = String(isoDate).slice(0, 10).split('-').map(Number);
-    var utc = Date.UTC(parts[0], parts[1] - 1, parts[2]);
-    return (utc - Date.UTC(1899, 11, 30)) / 86400000;
   }
 
   function writeDataset(sheet, headers, rows, prefix) {
@@ -242,15 +289,16 @@ var Cxp08ParityUat = (function () {
     writeDataset(requireSheet(ss, '_RAW_AHT'), aht.headers, aht.rows, prefix + '.aht');
     writeDataset(requireSheet(ss, '_RAW_AUXES'), auxes.headers, auxes.rows, prefix + '.auxes');
     writeDataset(requireSheet(ss, '_RAW_STAFF'), staff.headers, staff.rows, prefix + '.staff');
-    requireSheet(ss, '_CALC_STAFF').getRange(1, 57).setValue(
-      excelSerialFromIsoDateOnly(FIXTURE.businessDay),
-    );
+    var context = resolveBusinessContextService().write(ss, {
+      businessDay: FIXTURE.businessDay,
+    });
     SpreadsheetApp.flush();
     return Object.freeze({
       ahtRows: aht.rows.length,
       auxesRows: auxes.rows.length,
       staffRows: staff.rows.length,
       businessDay: FIXTURE.businessDay,
+      businessContext: context,
     });
   }
 
@@ -411,20 +459,108 @@ var Cxp08ParityUat = (function () {
     return diffs;
   }
 
+  function compareNumericRows(actualRows, expectedRows, headers, tolerance) {
+    var diffs = [];
+    var rowCount = Math.max(actualRows.length, expectedRows.length);
+    var rowIndex;
+    var headerIndex;
+    for (rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+      var actual = actualRows[rowIndex] || {};
+      var expected = expectedRows[rowIndex] || {};
+      for (headerIndex = 0; headerIndex < headers.length; headerIndex += 1) {
+        var header = headers[headerIndex];
+        var left = Number(actual[header] || 0);
+        var right = Number(expected[header] || 0);
+        if (!Number.isFinite(left) || Math.abs(left - right) > tolerance) {
+          diffs.push({
+            row: rowIndex + 1,
+            field: header,
+            actual: left,
+            expected: right,
+          });
+        }
+      }
+    }
+    return diffs;
+  }
+
+  function readStaffRows(sheet, headers, rowCount) {
+    return sheet.getRange(2, 1, rowCount, headers.length).getValues().map(function (values) {
+      var row = {};
+      headers.forEach(function (header, index) {
+        row[header] = values[index];
+      });
+      return row;
+    });
+  }
+
+  function intervalLabel(bucketIndex) {
+    var minutes = bucketIndex * 30;
+    return String(Math.floor(minutes / 60)).padStart(2, '0') + ':' +
+      String(minutes % 60).padStart(2, '0');
+  }
+
+  function readStaffSummary(sheet) {
+    var expectedByInterval = Object.create(null);
+    FIXTURE.expected.staffSummary.forEach(function (row) {
+      expectedByInterval[row.Interval] = row;
+    });
+    var values = sheet.getRange(3, 55, 48, 2).getValues();
+    var actual = [];
+    var expected = [];
+    values.forEach(function (row, bucketIndex) {
+      var interval = intervalLabel(bucketIndex);
+      if (expectedByInterval[interval]) {
+        actual.push({
+          Interval: interval,
+          'Que Summary': row[0],
+          'LAS Summary': row[1],
+        });
+        expected.push(expectedByInterval[interval]);
+      }
+    });
+    return { actual: actual, expected: expected };
+  }
+
   function recordParityOutputs(spreadsheetId) {
     var prefix = 'CXP08UatStep04';
     var ss = openTarget(spreadsheetId);
     SpreadsheetApp.flush();
     var ahtActual = readCalcBlock(requireSheet(ss, '_CALC_AHT'), AHT_CALC_HEADERS, 20);
     var auxesActual = readCalcBlock(requireSheet(ss, '_CALC_AUXES'), AUXES_CALC_HEADERS, 20);
+    var staffSheet = requireSheet(ss, '_CALC_STAFF');
+    var staffHeaders = resolveFormulaCatalog().halfHourHeaders();
+    var staffActual = readStaffRows(
+      staffSheet,
+      staffHeaders,
+      FIXTURE.expected.staff.length,
+    );
+    var staffSummary = readStaffSummary(staffSheet);
     var ahtDiffs = compareRows(ahtActual, FIXTURE.expected.aht, AHT_CALC_HEADERS);
     var auxesDiffs = compareRows(auxesActual, FIXTURE.expected.auxes, AUXES_CALC_HEADERS);
+    var staffDiffs = compareNumericRows(
+      staffActual,
+      FIXTURE.expected.staff,
+      staffHeaders,
+      1e-9,
+    );
+    var staffSummaryDiffs = compareNumericRows(
+      staffSummary.actual,
+      staffSummary.expected,
+      ['Que Summary', 'LAS Summary'],
+      1e-9,
+    );
     var report = {
-      pass: ahtDiffs.length === 0 && auxesDiffs.length === 0,
+      pass: ahtDiffs.length === 0 && auxesDiffs.length === 0 &&
+        staffDiffs.length === 0 && staffSummaryDiffs.length === 0,
       ahtDiffCount: ahtDiffs.length,
       auxesDiffCount: auxesDiffs.length,
+      staffDiffCount: staffDiffs.length,
+      staffSummaryDiffCount: staffSummaryDiffs.length,
       ahtDiffs: ahtDiffs,
       auxesDiffs: auxesDiffs,
+      staffDiffs: staffDiffs,
+      staffSummaryDiffs: staffSummaryDiffs,
       timezoneCheck: {
         aht0: 'UTC 07:45 -> prior fixed-PST date 2026-08-17 @ 23:30',
         aht2: 'UTC 08:05 -> same UTC date 2026-08-18 @ 00:00',
@@ -434,8 +570,12 @@ var Cxp08ParityUat = (function () {
       pass: report.pass,
       ahtDiffCount: report.ahtDiffCount,
       auxesDiffCount: report.auxesDiffCount,
+      staffDiffCount: report.staffDiffCount,
+      staffSummaryDiffCount: report.staffSummaryDiffCount,
       ahtDiffs: ahtDiffs.slice(0, 5),
       auxesDiffs: auxesDiffs.slice(0, 5),
+      staffDiffs: staffDiffs.slice(0, 5),
+      staffSummaryDiffs: staffSummaryDiffs.slice(0, 5),
     });
     return report;
   }
@@ -486,6 +626,46 @@ var Cxp08ParityUat = (function () {
   function promotionGate(spreadsheetId) {
     var status = Cxp08Setup.getStatus();
     var topology = inspectTopology(spreadsheetId);
+    var parity;
+    var expectedRawRows = Object.freeze({
+      _RAW_AHT: FIXTURE.inputs.ahtRows.length,
+      _RAW_AUXES: FIXTURE.inputs.auxesRows.length,
+      _RAW_STAFF: FIXTURE.inputs.staffRows.length,
+    });
+    var actualRawRows = {};
+    Object.keys(expectedRawRows).forEach(function (sheetName) {
+      var raw = topology.rawSchema && topology.rawSchema[sheetName];
+      actualRawRows[sheetName] = raw ? raw.dataRowsApprox : null;
+    });
+    var fixtureStateMatches = Object.keys(expectedRawRows).every(function (sheetName) {
+      return actualRawRows[sheetName] === expectedRawRows[sheetName];
+    });
+    if (topology.rootError) {
+      parity = Object.freeze({
+        pass: false,
+        skipped: true,
+        reason: 'INVALID_BUSINESS_CONTEXT',
+      });
+    } else if (!fixtureStateMatches) {
+      parity = Object.freeze({
+        pass: false,
+        skipped: true,
+        reason: 'FIXTURE_STATE_MISMATCH',
+        expectedRawRows: expectedRawRows,
+        actualRawRows: Object.freeze(actualRawRows),
+      });
+    } else {
+      try {
+        parity = recordParityOutputs(spreadsheetId);
+      } catch (parityError) {
+        parity = {
+          pass: false,
+          error: parityError && parityError.message
+            ? parityError.message
+            : String(parityError),
+        };
+      }
+    }
     var report = {
       installComplete: status && status.status === 'COMPLETE',
       nextStep: status ? status.nextStep : null,
@@ -493,14 +673,21 @@ var Cxp08ParityUat = (function () {
       ahtPresent: !!(topology.calc && topology.calc._CALC_AHT && topology.calc._CALC_AHT.present),
       auxesPresent: !!(topology.calc && topology.calc._CALC_AUXES && topology.calc._CALC_AUXES.present),
       staffPresent: !!(topology.calc && topology.calc._CALC_STAFF && topology.calc._CALC_STAFF.present),
+      businessContextReady: !!(topology.businessContext && topology.businessContext.pass),
+      fixtureStateMatches: fixtureStateMatches,
+      parity: parity,
+      rootError: topology.rootError || null,
     };
     report.pass = report.installComplete &&
       report.ahtPresent &&
       report.auxesPresent &&
-      report.staffPresent;
+      report.staffPresent &&
+      report.businessContextReady &&
+      parity.pass === true;
     uatLog('CXP08UatStep08.result', {
       pass: report.pass,
       installComplete: report.installComplete,
+      parityReason: parity.reason || null,
     });
     return report;
   }

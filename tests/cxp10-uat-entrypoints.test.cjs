@@ -26,7 +26,18 @@ class FakeRange {
   }
 
   getDisplayValues() {
-    return this.getValues();
+    const values = [];
+    for (let rowOffset = 0; rowOffset < this.rowCount; rowOffset += 1) {
+      const rowValues = [];
+      for (let colOffset = 0; colOffset < this.columnCount; colOffset += 1) {
+        rowValues.push(this.sheet.getDisplayCell(
+          this.row + rowOffset,
+          this.column + colOffset,
+        ));
+      }
+      values.push(rowValues);
+    }
+    return values;
   }
 
   getValues() {
@@ -64,6 +75,7 @@ class FakeSheet {
   constructor(name) {
     this.name = name;
     this.cells = new Map();
+    this.displayCells = new Map();
   }
 
   cellKey(row, column) {
@@ -78,6 +90,16 @@ class FakeSheet {
 
   setCell(row, column, value) {
     this.cells.set(this.cellKey(row, column), value);
+  }
+
+  setDisplayCell(row, column, value) {
+    this.displayCells.set(this.cellKey(row, column), value);
+  }
+
+  getDisplayCell(row, column) {
+    return this.displayCells.has(this.cellKey(row, column))
+      ? this.displayCells.get(this.cellKey(row, column))
+      : this.getCell(row, column);
   }
 
   getRange(row, column, rowCount, columnCount) {
@@ -106,19 +128,16 @@ test('CXP-10 parity fixture is embedded in hosted UAT module', () => {
   assert.equal(Cxp10ParityUat.FIXTURE.businessDay, parityFixture.businessDay);
 });
 
-test('Interval View axis formulas emit SEQUENCE from AA2 midnight with lookup keys', () => {
+test('Interval View axis matches the control 04:00-22:30 contract without helpers', () => {
   const spec = ReportingSurfaceFormulaCatalog.intervalViewSpec();
-  const pstFormula = spec.axisFormulas.find((entry) => entry.anchorColumn === 1).formula;
-  const dateKey = spec.axisFormulas.find((entry) => entry.anchorColumn === 28).formula;
-  const timeKey = spec.axisFormulas.find((entry) => entry.anchorColumn === 29).formula;
+  const pstFormula = spec.axisFormulas.find((entry) => entry.anchorColumn === 3).formula;
   assert.match(pstFormula, /SEQUENCE\(38/);
-  assert.match(pstFormula, /\$AA\$2\+TIME\(0,0,0\)/);
-  assert.match(dateKey, /INT\(A17:A54\)/);
-  assert.match(timeKey, /\*30\)\/1440/);
-  assert.doesNotMatch(timeKey, /MOD\(/);
-  assert.equal(spec.axisFormulas.length, 3);
+  assert.match(pstFormula, /TIME\(4,0,0\)/);
+  assert.equal(spec.axisFormulas.length, 1);
   assert.equal(spec.businessDayAnchor.column, 27);
-  assert.equal(spec.headerRow, 16);
+  assert.equal(spec.headerRow, 112);
+  assert.equal(spec.firstDataRow, 113);
+  assert.equal(spec.totalRow, 151);
 });
 
 test('recordParityOutputs passes when Interval View rows match on-axis fixture grains', () => {
@@ -128,14 +147,29 @@ test('recordParityOutputs passes when Interval View rows match on-axis fixture g
     (row) => row.Date === parityFixture.businessDay,
   );
   assert.ok(onAxisExpected.length >= 1);
+  for (let slot = 0; slot < catalog.INTERVAL_COUNT; slot += 1) {
+    intervalSheet.setCell(
+      catalog.FIRST_DATA_ROW + slot,
+      3,
+      (catalog.AXIS_START_HOUR * 60 + slot * 30) / 1440,
+    );
+  }
   onAxisExpected.forEach((expectedRow) => {
     const [hours, minutes] = String(expectedRow.Interval).split(':').map(Number);
     const slot = (hours * 60 + minutes - catalog.AXIS_START_HOUR * 60) / 30;
     const targetRow = catalog.FIRST_DATA_ROW + slot;
     const values = buildIntervalViewRow(expectedRow);
     values.forEach((value, columnIndex) => {
-      intervalSheet.setCell(targetRow, columnIndex + 1, value);
+      intervalSheet.setCell(targetRow, columnIndex + 3, value);
     });
+    if (typeof expectedRow['Required Hours'] === 'number') {
+      const metricIndex = ReportingSurfaceFormulaCatalog.METRIC_HEADERS.indexOf(
+        'Required Hours',
+      );
+      const targetColumn = 4 + metricIndex;
+      intervalSheet.setCell(targetRow, targetColumn, new Date(1899, 11, 30, 2, 30, 0));
+      intervalSheet.setDisplayCell(targetRow, targetColumn, '2:30:00');
+    }
   });
 
   const originalOpen = global.SpreadsheetApp;
@@ -178,11 +212,13 @@ test('recordParityOutputs passes when Interval View rows match on-axis fixture g
 test('weeklyRollover advances Interval View and MOM anchors by seven days', () => {
   const intervalSheet = new FakeSheet('Interval View');
   const momSheet = new FakeSheet('MOM');
+  const staffSheet = new FakeSheet('_CALC_STAFF');
   const epoch = Date.UTC(1899, 11, 30);
   const businessSerial = (Date.UTC(2026, 7, 18) - epoch) / 86400000;
   const weekSerial = (Date.UTC(2026, 7, 17) - epoch) / 86400000;
   intervalSheet.setCell(2, 27, businessSerial);
   momSheet.setCell(3, 2, weekSerial);
+  staffSheet.setCell(1, 57, businessSerial);
 
   const originalOpen = global.SpreadsheetApp;
   global.SpreadsheetApp = {
@@ -195,6 +231,9 @@ test('weeklyRollover advances Interval View and MOM anchors by seven days', () =
           }
           if (name === 'MOM') {
             return momSheet;
+          }
+          if (name === '_CALC_STAFF') {
+            return staffSheet;
           }
           throw new Error('Unexpected sheet: ' + name);
         },
@@ -215,10 +254,116 @@ test('weeklyRollover advances Interval View and MOM anchors by seven days', () =
     assert.equal(report.mom.before, '2026-08-17');
     assert.equal(report.mom.after, '2026-08-24');
     assert.equal(momSheet.getCell(3, 2), (Date.UTC(2026, 7, 24) - epoch) / 86400000);
+    assert.equal(staffSheet.getCell(1, 57), (Date.UTC(2026, 7, 25) - epoch) / 86400000);
+    assert.equal(report.staff.before, '2026-08-18');
+    assert.equal(report.staff.after, '2026-08-25');
   } finally {
     global.SpreadsheetApp = originalOpen;
     delete global.Config;
     delete global.ReportingSurfaceFormulaCatalog;
+  }
+});
+
+test('setReportAnchors rejects a week start that is not the derived Monday', () => {
+  const intervalSheet = new FakeSheet('Interval View');
+  const momSheet = new FakeSheet('MOM');
+  const staffSheet = new FakeSheet('_CALC_STAFF');
+  const originalOpen = global.SpreadsheetApp;
+  global.SpreadsheetApp = {
+    openById() {
+      return {
+        getSheetByName(name) {
+          return new Map([
+            ['Interval View', intervalSheet],
+            ['MOM', momSheet],
+            ['_CALC_STAFF', staffSheet],
+          ]).get(name) || null;
+        },
+      };
+    },
+  };
+  global.Config = { load() { return { targetSpreadsheetId: 'target-id' }; } };
+
+  try {
+    assert.throws(
+      () => Cxp10ParityUat.setReportAnchors(
+        'target-id',
+        '2026-08-18',
+        '2026-08-18',
+      ),
+      (error) => error.code === 'BUSINESS_CONTEXT_INVALID',
+    );
+    assert.equal(intervalSheet.getCell(2, 27), '');
+    assert.equal(momSheet.getCell(3, 2), '');
+    assert.equal(staffSheet.getCell(1, 57), '');
+  } finally {
+    global.SpreadsheetApp = originalOpen;
+    delete global.Config;
+  }
+});
+
+test('promotion gate reports one root anchor error and skips parity', () => {
+  const originalStatus = global.getCxp10ReportingSurfaceStatus;
+  const originalDiagnose = global.diagnoseCxp10RunbookChecks;
+  global.getCxp10ReportingSurfaceStatus = () => ({
+    status: 'COMPLETE',
+    nextStep: 139,
+    stepCount: 139,
+  });
+  global.diagnoseCxp10RunbookChecks = () => ({
+    rootError: {
+      code: 'BUSINESS_CONTEXT_ANCHOR_INVALID',
+      invalidAnchors: ['businessDay', 'weekStart'],
+    },
+    intervalView: { present: true, formulaErrorCount: null, formulaErrorScanSkipped: true },
+    mom: { present: true },
+    forecastBridge: { present: true },
+  });
+
+  try {
+    const report = Cxp10ParityUat.promotionGate('target-id');
+    assert.equal(report.promotionReady, false);
+    assert.equal(report.parity.skipped, true);
+    assert.equal(report.parity.reason, 'INVALID_BUSINESS_CONTEXT');
+    assert.deepEqual(report.rootError.invalidAnchors, ['businessDay', 'weekStart']);
+  } finally {
+    global.getCxp10ReportingSurfaceStatus = originalStatus;
+    global.diagnoseCxp10RunbookChecks = originalDiagnose;
+  }
+});
+
+test('promotion gate bounds parity failure when valid context no longer matches fixture', () => {
+  const originalStatus = global.getCxp10ReportingSurfaceStatus;
+  const originalDiagnose = global.diagnoseCxp10RunbookChecks;
+  global.getCxp10ReportingSurfaceStatus = () => ({
+    status: 'COMPLETE',
+    nextStep: 139,
+    stepCount: 139,
+  });
+  global.diagnoseCxp10RunbookChecks = () => ({
+    businessContext: {
+      pass: true,
+      context: {
+        businessDay: '2026-08-25',
+        weekStart: '2026-08-24',
+        staffDay: '2026-08-25',
+      },
+    },
+    intervalView: { present: true, formulaErrorCount: 0 },
+    mom: { present: true },
+    forecastBridge: { present: true },
+  });
+
+  try {
+    const report = Cxp10ParityUat.promotionGate('target-id');
+    assert.equal(report.promotionReady, false);
+    assert.equal(report.parity.skipped, true);
+    assert.equal(report.parity.reason, 'FIXTURE_CONTEXT_MISMATCH');
+    assert.equal(report.parity.actualContext.businessDay, '2026-08-25');
+    assert.equal(report.parity.expectedContext.businessDay, '2026-08-18');
+  } finally {
+    global.getCxp10ReportingSurfaceStatus = originalStatus;
+    global.diagnoseCxp10RunbookChecks = originalDiagnose;
   }
 });
 
@@ -254,8 +399,8 @@ test('writeMomCalendarInputs maps fixture rows onto Band-Aid calendar cells', ()
     assert.equal(result.cells, 2);
     // PH Forecast 2026-08-17 23:30 → MNL volume block J (col 10), row 52
     assert.equal(momSheet.getCell(52, 10), 10);
-    // LAS Required 2026-08-18 00:00 → LV required block Z (col 26), day+1 → AA (col 27), row 5
-    assert.equal(momSheet.getCell(5, 27), 5);
+    // LAS Required 2026-08-18 04:00 → LV required block, day+1, row 13
+    assert.equal(momSheet.getCell(13, 27), 5);
   } finally {
     global.SpreadsheetApp = originalOpen;
     delete global.Config;

@@ -76,7 +76,7 @@ XLSX input is imported as a temporary Google Sheets file. Every sheet's used ran
 
 The observed HTML delivery is decoded explicitly as ISO-8859-1. The parser accepts one table, decodes the constrained named/numeric entity set, converts `<br>` to a newline, rejects ragged rows, and does not retain HTML markup downstream.
 
-Before CXP-03 type coercion, exact rows are compared in canonical header order and collapsed. After normalization, Handled, Offered, AHT, and Aux reject divergent rows sharing the registered authoritative key. Staff has no stable business key, so only exact full-row duplicates collapse. Header, null, raw error-token, type, date, GMT/UTC, and row-volume behavior remains owned by CXP-03.
+Before CXP-03 type coercion, the ingestion adapter coalesces the eight allowlisted spreadsheet error tokens to `null`, then compares exact rows in canonical header order and collapses them. This means a token row and an otherwise identical blank row collapse deterministically. The payload source metadata includes only the bounded `errorTokensCoalesced` count. Unknown `#...` tokens remain validation errors, and a coalesced authoritative key fails as missing. After normalization, Handled, Offered, AHT, and Aux reject divergent rows sharing the registered authoritative key. Staff has no stable business key, so only exact full-row duplicates collapse.
 
 ## Fingerprints and duplicate records
 

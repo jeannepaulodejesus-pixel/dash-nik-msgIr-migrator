@@ -430,6 +430,65 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 - **Rationale:** A continuation mechanism prevents total loss of progress but does not itself provide acceptable hourly latency. Removing unrelated workbook reads lowers each step's service-call cost; measured packing consumes safe headroom without assuming that different dataset sizes have equal duration. The 4-minute-30-second cooperative boundary leaves 90 seconds for checkpointing, trigger handoff, and platform variance.
 - **Consequences:** Hosted continuation count is workload-dependent rather than fixed at eleven or more invocations. Operators use bounded `CXP06_WORKER_STEP` records to distinguish `PACK_NEXT`, `HANDOFF`, and `PHASE_COMPLETE`. The 420,000 ms trigger remains recovery-only and is not an execution deadline. Existing rollback semantics are preserved. Local tests prove access scope and scheduling decisions, but DEV/UAT must still prove that no invocation reaches 360 seconds and that scheduler wait and end-to-end latency improve at peak volume.
 
+### DEC-048 — Version and render the CXP-10 control-derived report surface
+
+- **Date:** 2026-08-30
+- **Packet:** CXP-10
+- **Status:** Accepted for implementation; hosted UAT pending
+- **Decision:** Bind Interval View v2 to `MSG Intraday EOD 0817.xlsx` SHA-256 `CD8F8EC6F68FBEC85841CD64C251616FCECD0AD67DE4714EFB244F648548E65A`. Separate the 25-metric formula catalog from a declarative presentation renderer, own only `B97:AB151`, preserve `AA2` and MOM manual inputs, and store installation progress under `CXP10_REPORTING_INSTALL_STATE_V2`.
+- **Evidence:** The control uses headers at `B112:AB112`, 38 half-hours at `C113:C150` from 04:00 through 22:30, totals at row 151, verified merged title/legend/section blocks, hidden Remarks column, report number formats, and conditional formats. The former implementation intentionally rendered `A16:Z65`, used a midnight axis and visible helper columns, omitted report chrome and many totals, and its tests asserted only self-authored formulas/values.
+- **Rationale:** Reverse engineering must yield an explicit, testable surface contract; metric correctness alone cannot establish operational report fidelity. A versioned renderer permits layout changes without coupling them to aggregation logic or replaying an old checkpoint into new coordinates.
+- **Consequences:** CXP-09 now exposes per-metric counts as additive sufficient statistics and CXP-10 calculates weighted all-site timing values. Local acceptance includes an independent JSON oracle, exact-axis and formula-error diagnostics, complete totals, and on-axis parity. Promotion remains blocked until the hosted v2 CXP-09/CXP-10 install, recalculation, parity gate, and visual comparison pass.
+
+### DEC-049 — Coalesce allowlisted spreadsheet error tokens at ingestion
+
+- **Date:** 2026-08-30
+- **Packet:** CXP-05 / ingestion
+- **Status:** Accepted; supersedes DEC-018 only for the eight recognized spreadsheet error tokens
+- **Decision:** Before exact-row deduplication and schema type coercion, convert case-insensitive exact matches for `#N/A`, `#REF!`, `#DIV/0!`, `#VALUE!`, `#NAME?`, `#NUM!`, `#NULL!`, and `#ERROR!` to `null`. Preserve fail-closed behavior for unknown `#...` strings and for direct callers that bypass the ingestion adapter. A token in an authoritative key becomes null and fails `DATASET_MISSING_KEY`. Attach only an aggregate `errorTokensCoalesced` count to payload source metadata.
+- **Rationale:** Formula/export artifacts in optional source cells should not reject an otherwise usable full bundle, but silently inventing typed defaults or weakening record keys would corrupt data integrity. Applying the fallback before deduplication makes token-versus-blank duplicates deterministic.
+- **Consequences:** Both single-dataset and multi-sheet workbook paths share one fallback layer. Downstream raw sheets receive blanks through the existing null codec. Operators can observe fallback volume without exposing token locations or source values. Rollback is a code revert; no stored-data migration is required.
+
+### DEC-050 — Assign the forecast aggregation spill to one phase
+
+- **Date:** 2026-08-30
+- **Packet:** CXP-09 / CXP-10
+- **Status:** Accepted and implemented
+- **Decision:** CXP-10 exclusively owns `_AGG_FORECAST!A2` and its MOM unpivot spill. CXP-09 owns the header schema and may clear A2 only when it exactly matches the retired self-query. CXP-09 preserves any CXP-10 bridge or operator data and uses `CXP09_AGGREGATION_INSTALL_STATE_V3`.
+- **Evidence:** The retired formula `=QUERY(A2:E51,...)` was written at A2, placing its anchor inside its own source and producing `#REF! Circular dependency detected`. CXP-10 already installs the independent MOM-based bridge at the same anchor.
+- **Rationale:** A spill anchor cannot also be its source, and phase installers must not compete for the same cell. Exact-match cleanup migrates affected workbooks without allowing a later CXP-09 reinstall to erase the valid CXP-10 bridge.
+- **Consequences:** CXP-09 installs 13 aggregation formula anchors in 23 bounded steps. An empty MOM calendar yields a blank forecast bridge through `IFNA`, not a visible `#N/A`. Rollback is to restore the prior catalog and V2 state key; affected sheets would then require manual replacement of the circular formula.
+
+### DEC-051 — Validate and own workbook business context at one boundary
+
+- **Date:** 2026-08-31
+- **Packet:** CXP-08 / CXP-10
+- **Status:** Accepted and implemented
+- **Decision:** Treat `businessDay` as the canonical date input, derive its Monday `weekStart`, and default `staffDay` to `businessDay` with an explicit validated override. `BusinessContextService` validates the complete context before writing `Interval View!AA2`, `MOM!B3`, and `_CALC_STAFF!BE1`, and restores prior values best-effort after a partial write failure. Preserve the control routing contract through a versioned configuration: `CNX-Que`/`CNX-CR1` for buckets 00:00–03:30 and `INT-Que`/`INT-LAS` for 04:00–23:30.
+- **Rationale:** Independent, unvalidated anchor writes allowed invalid dates to become `#NUM!` and cascade through hundreds of report cells. Hardcoded Staff routing also let fixtures exercise a site outside the rule selected for its interval without testing the zero summaries that resulted.
+- **Rejected alternatives:** Do not infer dates from partial raw timestamps, keep independent manual anchor writers, or add environment-specific routing profiles. Those options introduce ambiguous cross-midnight behavior or unnecessary operational variance.
+- **Consequences:** CXP-08 uses installer state V2 and bounded clears that preserve `BE1`. CXP-08 parity now covers row overlaps and early/late Staff summaries. CXP-10 promotion validates anchors first, returns one `BUSINESS_CONTEXT_ANCHOR_INVALID` root error, and skips parity/formula-error enumeration when context is invalid. Rollback is a code revert plus restoration of the three snapshotted anchors; no raw-data migration is required.
+
+### DEC-052 — Match report intervals by canonical minute bucket and preserve observed zeros
+
+- **Date:** 2026-08-31
+- **Packet:** CXP-09 / CXP-10
+- **Status:** Accepted, implemented, and hosted-verified
+- **Decision:** Compare aggregation and report intervals by rounded integer minute-of-day inside bounded ranges rather than exact spreadsheet time-fraction equality. Preserve a numeric zero when an aggregation row and denominator exist; return blank only when the grain is absent. Keep the allocation numerator contracted to BPO `INT` and align the shared hosted fixture accordingly.
+- **Evidence:** The hosted `_AGG_INTERVAL` 04:00 value was `0.16666666666787933`, while the report formula derived `0.16666666666666666`; exact `SUMIFS` equality returned blanks despite a present LAS row. After minute-bucket matching, only `Chats in SL` and `SL (Time To Connect)` differed because legitimate zeros were blanked. The final August 31 DEV execution completed 139/139 steps, reported zero formula errors, and passed on-axis parity with zero differences across 38 rows.
+- **Rationale:** Spreadsheet date/time serials are floating-point values and equivalent half-hour labels are not guaranteed to have bit-identical fractions after QUERY and timezone arithmetic. Row presence and numeric zero have different reporting meaning and must not be conflated.
+- **Consequences:** CXP-10 uses bounded `SUMPRODUCT` minute comparisons for interval, weighted, and allocation metrics. Hosted parity normalizes duration displays and reports fixture-context drift as one bounded skipped result. CXP-10-v2 is complete in DEV; CXP-08 V2 and the dedicated CXP-09 promotion gate remain separate packet requirements.
+
+### DEC-053 — Evaluate Staff overlaps row by row and close CXP-08 V2
+
+- **Date:** 2026-08-31
+- **Packet:** CXP-08
+- **Status:** Accepted, implemented, and hosted-verified
+- **Decision:** Clip each Staff record independently to each half-hour bucket with element-wise comparisons. Do not use scalar `MIN()` or `MAX()` reductions inside an `ARRAYFORMULA`. Before promotion parity, reject raw row counts that identify the Step 06 refresh bundle with one bounded `FIXTURE_STATE_MISMATCH` result.
+- **Evidence:** With the correct 3/2/2 parity fixture loaded, AHT and Auxes passed while both Staff rows and all four routed summaries remained zero. The installed formula used `MIN(end,bucketEnd)-MAX(start,bucketStart)`, which Google Sheets reduced across the input arrays. After element-wise clipping and reinstall, the hosted 74/74 run reported zero AHT, Auxes, Staff, and Staff-summary differences and `CXP08UatStep08 pass: true`.
+- **Rationale:** Staff overlap is a row-grain calculation. Aggregate extrema silently mix independent Staff records and destroy both overlap and routing evidence. Fixture lifecycle drift is a root-state error, not dozens of metric discrepancies.
+- **Consequences:** CXP-08-v2 is complete in DEV. `_CALC_STAFF!BE1` remains reinstall-safe, early CNX and late INT routing are hosted-verified, and CXP-11 is now gated only by completion of CXP-09.
+
 ## CXP-07 decisions
 
 ### DEC-035 — Install bounded native spill tables instead of transforming rows in Apps Script

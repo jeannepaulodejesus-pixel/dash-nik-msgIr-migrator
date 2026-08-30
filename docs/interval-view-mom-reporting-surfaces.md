@@ -2,53 +2,50 @@
 
 ## Runtime contract
 
-`initializeCxp10ReportingSurfaces()` opens only the configured target spreadsheet and starts or resumes a checkpointed installation. Run CXP-02 and CXP-09 first so backend aggregation sheets and user-facing report placeholders exist. CXP-10 validates `_AGG_INTERVAL`, `_AGG_FORECAST`, and `_AGG_ALLOCATION` before mutating report ranges.
+`initializeCxp10ReportingSurfaces()` opens only the configured target spreadsheet and starts or resumes a checkpointed installation. CXP-02 and CXP-09 must already be installed. CXP-10 validates `_AGG_INTERVAL`, `_AGG_FORECAST`, and `_AGG_ALLOCATION` before mutating report ranges.
 
-The hosted runner divides installation into retry-safe steps: one aggregation preflight, then bounded writes for Interval View headers, interval axis, metric formula anchors, summary row, MOM weekly layout, and the `_AGG_FORECAST` MOM bridge. Progress persists in `CXP10_REPORTING_INSTALL_STATE`. A four-minute cooperative budget, one-second continuation trigger, and seven-minute safety trigger mirror CXP-07 through CXP-09.
-
-`getCxp10ReportingSurfaceStatus()` reads persisted progress without opening the spreadsheet. Re-running the initializer after `COMPLETE` starts a clean reinstall.
+The hosted runner uses bounded, retry-safe steps for Interval View chrome, headers, axis, metric formulas, totals, MOM calendar formulas, and the `_AGG_FORECAST` MOM bridge. Progress persists in `CXP10_REPORTING_INSTALL_STATE_V2`; the versioned key prevents a pre-redesign cursor from resuming against the new surface contract. Reinstall preserves the RTA-owned Interval View `AA2` date and MOM manual-input grids.
 
 ## Data sources
 
-Interval View reads **only** CXP-09 aggregation tables:
+Interval View reads only CXP-09 aggregation tables:
 
 | Metric family | Backend source | Lookup pattern |
 |---|---|---|
-| Offered, Handled, Chats in SL, SL TTC, AHT (Session), AHT, ACW, ASA, Concurrency | `_AGG_INTERVAL` | `SUMIFS` across PH + LAS at Date + Interval grain |
+| Offered, Handled, Chats in SL, SL TTC | `_AGG_INTERVAL` | `SUMIFS` at Date + Interval grain |
+| AHT (Session), AHT, ACW, ASA, Concurrency | `_AGG_INTERVAL` | matching-row averages at Date + Interval grain |
 | Forecast, Required, Scheduled, Actual (SO) | `_AGG_FORECAST` | `SUMIFS` by Date + Interval + Type |
-| Allocation, Cumulative Allocation | `_AGG_ALLOCATION` | `SUMIFS` across BPO rows at interval grain |
-| Abandoned, SL %, forecast ratios, hours, variances | Same-row Interval View columns | Preserves CXP-01 formula families |
+| Allocation, Cumulative Allocation | `_AGG_ALLOCATION` | INT-BPO offered share at interval and cumulative grain |
+| Abandoned, SL %, forecast ratios, hours, variances | Same-row report columns | control-derived formulas |
 
-MOM is the RTA-facing weekly input calendar matching the Band-Aid Step 1 skeleton: `CHAT MNL` (`A:X`) and `CHAT LV` (`Y:AV`), with Required FTE / Forecasted Volume / Forecast AHT section grids, editable week-start at `B3`, day headers `B3:H3` (+ mirrors), and 48 half-hour rows via `SEQUENCE` at `A5` (`00:00`–`23:30`). Manual Required/Forecast values unpivot into `_AGG_FORECAST` through a spill bridge at `A2` (PH←MNL, LAS←LV). Forecast AHT grids stay RTA-visible only and are not bridged.
+MOM remains the RTA-facing weekly input calendar: `CHAT MNL` (`A:X`) and `CHAT LV` (`Y:AV`), editable week start at `B3`, and 48 half-hour rows from `00:00` through `23:30`. Manual Required/Forecast values unpivot into `_AGG_FORECAST`; Forecast AHT remains visible but is not bridged.
 
-## Combined block layout
+## Control-derived Interval View contract
 
-The contract surface is Band-Aid Internal View layout on the `Interval View` sheet (`A16:Z65`):
+The renderer is hash-bound to `MSG Intraday EOD 0817.xlsx` (SHA-256 `CD8F8EC6F68FBEC85841CD64C251616FCECD0AD67DE4714EFB244F648548E65A`):
 
-- `AA2` — View Date anchor (RTA-editable); `C2` mirrors `=$AA$2`
-- `A16` — `PST`; `B16:Z16` — exact 25-metric registry from `config/metric-lineage-contract.json`
-- `A17:A54` — `SEQUENCE` of 38 half-hours from `AA2` midnight through `18:30` (Band-Aid Excel starts at 04:00; CXP-10 keeps midnight so early DEC-025 intervals remain on-page)
-- `AB17:AC54` — Date / Interval helper keys for `_AGG_*` `SUMIFS`
-- `B17:Z54` — combined PH+LAS metrics keyed by helpers against `_AGG_*`
-- Row `65` — Grand Total summary
+- `AA2` — editable View Date; `C2` mirrors it for display.
+- `B97:AB151` — CXP-10-owned operational block; B is the hidden Remarks column. The date-specific allocation target in `D97` is preserved across reinstall and drives the `E97:F97` ±5% band and Allocation +/- card.
+- `B112` — `Remarks`; `C112` — `PST`; `D112:AB112` — exact 25-metric registry.
+- `C113:C150` — exactly 38 half-hours from `04:00` through `22:30`; no visible helper columns.
+- `D113:AB150` — spill formulas for all 25 metrics.
+- `C151:AB151` — Grand Total with all 25 total formulas populated.
+- `K102:X109`, `C103:I109`, and `C111:AB111` — title, KPI cards, legend, and merged section labels.
 
-(Sheet name stays `Interval View` per CXP-02; Band-Aid Excel names the same surface Internal View.)
+The presentation layer owns the verified merges, dimensions, font, borders, number formats, hidden gridlines/Remarks column, and conditional-format bands. The independent machine-readable oracle is `tests/fixtures/cxp10/interval-view-control-contract.json`.
 
-Columns `A` and `B` hold the lookup keys; column `C` remains available for legacy-compatible interval labels.
+## Formula corrections
 
-## Contract anomalies preserved
-
-1. **Handled zero/blank:** rows 17–25 return numeric zero; rows 26–54 return blank when PH+LAS handled sum is zero.
-2. **AHT (Session) divisor:** interval rows divide aggregated session AHT by 63; summary row `M65` divides by 60.
-3. **Scheduled-to-Required:** interval rows divide directly; summary `Z65` wraps in `IFERROR`.
+- Row-local blank/zero guards replace scalar `OR(range...)` expressions that broadcast one result across the spill.
+- AHT Session uses explicit parentheses around the combined-site numerator before division.
+- Timing metrics no longer add site-level averages.
+- Allocation uses INT-BPO share semantics rather than unrelated site/BPO fields.
+- All 25 totals are present and error-guarded where division is involved.
 
 ## Business-day and weekly rollover
 
-- Interval View `AA2` is the View Date anchor. Axis keys are `$AA$2 + n×30 minutes` for 38 slots (`00:00`–`18:30`).
-- MOM `B3` is the editable week-start anchor; `C3:H3` advance as `=B3+1`… and volume/AHT/LV date rows mirror `=$B$3`…`=$H$3`.
-- RTAs update Interval View `AA2` and MOM `B3` at weekly rollover; report formulas refresh from aggregation dependency alone.
-- Hosted parity compares fixture grains on the current `AA2` axis page only (prior-day `23:30` remains CXP-09 evidence).
+The visible PST axis is time-only. Each lookup combines `INT($AA$2)` with its row time. RTAs advance Interval View `AA2` and MOM `B3`; formulas refresh from aggregation dependencies without reinstall.
 
 ## Verification boundary
 
-`npm run test:cxp10` proves reference-model parity against `tests/fixtures/cxp10/report-parity.json`, install topology, checkpoint/resume, and aggregation preflight. Hosted UAT per `docs/cxp10-uat-runbook.md` is required before promotion.
+`npm run test:cxp10` proves reference parity, the independent control contract, install topology, checkpoint/resume, and aggregation preflight. The promotion gate additionally requires an exact 38-row axis, complete headers/totals/layout, zero formula errors, no legacy backend references, and at least one passing on-axis parity row. Hosted UAT and visual sign-off remain required before promotion.

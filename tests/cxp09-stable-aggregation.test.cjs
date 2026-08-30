@@ -17,7 +17,19 @@ const AhtAuxesStaffFormulaCatalog = require(
   '../src/transformations/AhtAuxesStaffFormulaCatalog.js',
 );
 const Cxp09Setup = require('../src/main/Cxp09Setup.js');
+const Cxp09ParityUat = require('../src/main/Cxp09UatEntrypoints.js');
 const parityFixture = require('./fixtures/cxp09/aggregation-parity.json');
+
+test('CXP-09 hosted allocation fixture stays aligned with the checked-in parity fixture', () => {
+  assert.deepEqual(
+    Cxp09ParityUat.FIXTURE.inputs.offeredRows,
+    parityFixture.inputs.offeredRows,
+  );
+  assert.deepEqual(
+    Cxp09ParityUat.FIXTURE.expected.aggAllocation,
+    parityFixture.expected.aggAllocation,
+  );
+});
 
 class FakeRange {
   constructor(sheet, row, column, rowCount, columnCount) {
@@ -30,7 +42,14 @@ class FakeRange {
 
   clearContent() {
     this.sheet.clearCount += 1;
+    if (this.row === 2 && this.column === 1) {
+      this.sheet.formulas.delete('2:1');
+    }
     return this;
+  }
+
+  getFormula() {
+    return this.sheet.formulas.get(`${this.row}:${this.column}`) || '';
   }
 
   getValues() {
@@ -192,7 +211,7 @@ test('CXP-09 installs bounded aggregation formulas with constant write count', (
 
   assert.deepEqual(result, {
     datasetCount: 3,
-    formulaAnchorCount: 8,
+    formulaAnchorCount: 13,
     rowCapacity: 50,
   });
 
@@ -200,7 +219,7 @@ test('CXP-09 installs bounded aggregation formulas with constant write count', (
   const forecast = harness.sheets.get('_AGG_FORECAST');
   const allocation = harness.sheets.get('_AGG_ALLOCATION');
   assert.equal(interval.maxRows, 51);
-  assert.equal(interval.maxColumns, 12);
+  assert.equal(interval.maxColumns, 18);
   assert.equal(forecast.maxColumns, 5);
   assert.equal(allocation.maxColumns, 6);
   assert.match(interval.formulas.get('2:1'), /QUERY\(/);
@@ -209,19 +228,21 @@ test('CXP-09 installs bounded aggregation formulas with constant write count', (
   assert.match(interval.formulas.get('2:10'), /_CALC_AHT/);
   assert.match(interval.formulas.get('2:11'), /_CALC_AHT/);
   assert.match(interval.formulas.get('2:12'), /_CALC_AHT/);
-  assert.match(forecast.formulas.get('2:1'), /QUERY\(A2:E/);
+  assert.match(interval.formulas.get('2:13'), /count\(Col2\)/);
+  assert.match(interval.formulas.get('2:18'), /count\(Col2\)/);
+  assert.equal(forecast.formulas.has('2:1'), false);
   assert.match(allocation.formulas.get('2:1'), /_CALC_OFFERED/);
   assert.match(allocation.formulas.get('2:6'), /SUMIFS/);
   assert.equal(
     interval.formulaWriteCount + forecast.formulaWriteCount + allocation.formulaWriteCount,
-    8,
+    13,
   );
 });
 
 test('CXP-09 exposes the aggregation installation as retry-safe bounded steps', () => {
   const harness = createFormulaHarness();
   const stepCount = StableAggregationTransformationService.getInstallStepCount();
-  assert.equal(stepCount, 18);
+  assert.equal(stepCount, 23);
 
   const labels = [];
   for (let stepIndex = 0; stepIndex < stepCount; stepIndex += 1) {
@@ -235,7 +256,7 @@ test('CXP-09 exposes the aggregation installation as retry-safe bounded steps', 
 
   assert.equal(labels[0], 'PREFLIGHT');
   assert.equal(labels.at(-1), 'Allocation:FORMULA:2');
-  assert.equal(harness.sheets.get('_AGG_INTERVAL').formulas.size, 5);
+  assert.equal(harness.sheets.get('_AGG_INTERVAL').formulas.size, 11);
   assert.equal(harness.sheets.get('_AGG_ALLOCATION').formulas.size, 2);
 });
 
@@ -265,7 +286,7 @@ test('CXP-09 configured setup opens only the target workbook and installs the ag
     environment: 'DEV',
     transformations: {
       datasetCount: 3,
-      formulaAnchorCount: 8,
+      formulaAnchorCount: 13,
       rowCapacity: 50,
     },
   });
@@ -342,5 +363,22 @@ test('CXP-09 idempotent reinstall clears and restores aggregation topology', () 
   const firstClearCount = interval.clearCount;
   StableAggregationTransformationService.install(harness.spreadsheet);
   assert.equal(interval.clearCount, firstClearCount + 1);
-  assert.equal(interval.formulas.size, 5);
+  assert.equal(interval.formulas.size, 11);
+});
+
+test('CXP-09 removes only the legacy forecast self-query and preserves the CXP-10 bridge', () => {
+  const legacyHarness = createFormulaHarness();
+  const legacyForecast = legacyHarness.sheets.get('_AGG_FORECAST');
+  legacyForecast.formulas.set(
+    '2:1',
+    '=QUERY(A2:E51,"select Col1, Col2, Col3, Col4, Col5 where Col1 is not null",0)',
+  );
+  StableAggregationTransformationService.install(legacyHarness.spreadsheet);
+  assert.equal(legacyForecast.formulas.has('2:1'), false);
+
+  const bridgeHarness = createFormulaHarness();
+  const bridgeForecast = bridgeHarness.sheets.get('_AGG_FORECAST');
+  bridgeForecast.formulas.set('2:1', '=LET(raw,MOM!A1:E5,FILTER(raw,INDEX(raw,0,1)<>""))');
+  StableAggregationTransformationService.install(bridgeHarness.spreadsheet);
+  assert.match(bridgeForecast.formulas.get('2:1'), /MOM!/);
 });
