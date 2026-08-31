@@ -11,6 +11,7 @@ Runtime configuration uses Apps Script Script Properties. `Config.load()` reads 
 | `CXP_<ENV>_CONTROL_SPREADSHEET_ID` | Separate system-control workbook. | CXP-02 |
 | `CXP_<ENV>_DRIVE_INBOX_FOLDER_ID` | Controlled Drive intake folder. | CXP-05/CXP-13 |
 | `CXP_<ENV>_MASTER_TEMPLATE_SPREADSHEET_ID` | Master weekly workbook template. | CXP-12 |
+| `CXP_<ENV>_LEGACY_PARITY_EXPORT_FOLDER_ID` | Optional Drive folder holding the contracted legacy Excel parity export bundle. | CXP-11 |
 | `CXP_DEV_BOOTSTRAP_FOLDER_ID` | DEV-only Drive folder for `bootstrapCxpDevWorkbooks()` file automation. | Operator bootstrap |
 
 `<ENV>` is exactly `DEV`, `UAT`, or `PROD`. Values must be set in Script Properties, not in source.
@@ -26,6 +27,12 @@ Example key names for DEV are `CXP_DEV_TARGET_SPREADSHEET_ID` and `CXP_DEV_CONTR
 To point Script Properties at workbooks you already created (spreadsheet IDs or Google Sheets URLs), run `registerCxpDevWorkbookIds(targetSpreadsheetId, controlSpreadsheetId, initializeAndSeed?)`. Pass `true` as the third argument to also run CXP-02 init and seed target/control headers without creating new files.
 
 If bootstrap already created `DEV_TARGET_WORKBOOK` and `DEV_SYSTEM_CONTROL_WORKBOOK` in a Drive folder, run `registerCxpDevWorkbooksFromFolder(folderId?, initializeAndSeed?)` (or editor wrapper `registerCxpDevWorkbooksFromFolderAndSeed()` when `CXP_DEV_BOOTSTRAP_FOLDER_ID` is set) to discover those files by name and write Script Properties automatically. To seed headers only, run `seedCxpControlWorkbookHeaders()` (optional second argument `true` overwrites row 1). Logs never include spreadsheet IDs.
+
+### Legacy parity export folder (CXP-11)
+
+`CXP_<ENV>_LEGACY_PARITY_EXPORT_FOLDER_ID` is optional and read only by the CXP-11 parity run. `startCxp11ParityRun(folderId?)` accepts an explicit folder override; with neither the argument nor the active-environment property, the run fails closed with `PARITY_EXPORT_FOLDER_NOT_CONFIGURED` rather than scanning Drive.
+
+The folder must contain exactly the eight contracted files (`manifest.json` plus five source-table CSVs, `metrics.csv`, and `legacy-errors.csv`) described in [`docs/parity-validation-contract.md`](parity-validation-contract.md). Uncontracted files fail the run closed. CXP-11 writes results only to the control workbook's `PARITY_RESULTS` and `SOURCE_ERROR_BASELINE` tabs; export files and source rows stay outside the repository.
 
 UAT source diagnostics (also in `DevWorkbookBootstrap.js`): `listCxpUatSourceFiles()` / `listCxpUatFilesIfFound()` verifies all five `CXP_UAT_*_FILE_ID` properties; `scanCxpUatSourceFileValidation()` reports invalid types per dataset before CXP-06 Case 1. Read-only; does not require `CXP_UAT_ENABLED`.
 

@@ -127,9 +127,15 @@ test('error taxonomy has stable source, ingestion, migration/calculation, and re
   assert.deepEqual(ErrorCodes.CATEGORIES, {
     INGESTION: 'INGESTION',
     MIGRATION_CALCULATION: 'MIGRATION_CALCULATION',
+    PARITY: 'PARITY',
     REPORTING: 'REPORTING',
     SOURCE: 'SOURCE',
   });
+  assert.equal(ErrorCodes.get('PARITY_TARGET_SNAPSHOT_CHANGED').category, 'PARITY');
+  assert.equal(
+    ErrorCodes.failureStateFor('PARITY_TARGET_SNAPSHOT_CHANGED'),
+    'FAILED_PARITY',
+  );
   assert.equal(ErrorCodes.get('SOURCE_FILE_NOT_FOUND').category, 'SOURCE');
   assert.equal(ErrorCodes.get('SCHEMA_MISSING_REQUIRED_COLUMNS').category, 'SOURCE');
   assert.equal(ErrorCodes.get('INGESTION_LOCK_TIMEOUT').category, 'INGESTION');

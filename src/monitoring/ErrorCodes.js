@@ -4,12 +4,14 @@ var ErrorCodes = (function () {
   var CATEGORIES = Object.freeze({
     INGESTION: 'INGESTION',
     MIGRATION_CALCULATION: 'MIGRATION_CALCULATION',
+    PARITY: 'PARITY',
     REPORTING: 'REPORTING',
     SOURCE: 'SOURCE',
   });
   var FAILURE_STATES = Object.freeze({
     INGESTION: 'FAILED_INGESTION',
     MIGRATION_CALCULATION: 'FAILED_MIGRATION_CALCULATION',
+    PARITY: 'FAILED_PARITY',
     REPORTING: 'FAILED_REPORTING',
     SOURCE: 'FAILED_SOURCE',
   });
@@ -263,6 +265,162 @@ var ErrorCodes = (function () {
     'REPORTING_LOG_WRITE_FAILED',
     CATEGORIES.REPORTING,
     'The run audit records could not be written.',
+    true,
+  );
+  define(
+    'PARITY_EXPORT_FOLDER_NOT_CONFIGURED',
+    CATEGORIES.PARITY,
+    'No legacy parity export folder is configured for the active environment.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_MANIFEST_INVALID',
+    CATEGORIES.PARITY,
+    'The legacy export manifest is invalid.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_CONTRACT_VERSION_MISMATCH',
+    CATEGORIES.PARITY,
+    'The legacy export contract version is not supported.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_FILE_MISSING',
+    CATEGORIES.PARITY,
+    'A contracted legacy export file is missing.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_FILE_UNEXPECTED',
+    CATEGORIES.PARITY,
+    'The legacy export folder contains an uncontracted file.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_DIGEST_MISMATCH',
+    CATEGORIES.PARITY,
+    'A legacy export file digest does not match the manifest.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_SCHEMA_DRIFT',
+    CATEGORIES.PARITY,
+    'A legacy export file does not match its canonical schema.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_ROW_COUNT_MISMATCH',
+    CATEGORIES.PARITY,
+    'A legacy export file row count does not match the manifest.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_DUPLICATE_KEY',
+    CATEGORIES.PARITY,
+    'The legacy export contains conflicting rows for the same key.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_MISSING_KEY',
+    CATEGORIES.PARITY,
+    'A legacy export authoritative key is blank.',
+    false,
+  );
+  define(
+    'PARITY_EXPORT_INVALID_TIMESTAMP',
+    CATEGORIES.PARITY,
+    'A legacy export timestamp is not an ISO UTC value.',
+    false,
+  );
+  define(
+    'PARITY_SOURCE_FINGERPRINT_MISMATCH',
+    CATEGORIES.PARITY,
+    'The legacy export fingerprint has no matching successful file-ledger entry.',
+    false,
+  );
+  define(
+    'PARITY_TARGET_SNAPSHOT_CHANGED',
+    CATEGORIES.PARITY,
+    'Ingestion replaced the migrated target while parity validation was running.',
+    false,
+  );
+  define(
+    'PARITY_BASELINE_UNAVAILABLE',
+    CATEGORIES.PARITY,
+    'The source-error baseline is unavailable.',
+    true,
+  );
+  define(
+    'PARITY_BASELINE_SCHEMA_MISMATCH',
+    CATEGORIES.PARITY,
+    'The source-error baseline header does not match its controlled schema.',
+    false,
+  );
+  define(
+    'PARITY_BASELINE_NOT_INSTALLED',
+    CATEGORIES.PARITY,
+    'The WB0817 source-error baseline is not installed.',
+    false,
+  );
+  define(
+    'PARITY_BASELINE_COUNT_MISMATCH',
+    CATEGORIES.PARITY,
+    'The installed source-error baseline does not equal the WB0817 authority.',
+    false,
+  );
+  define(
+    'PARITY_BASELINE_READ_FAILED',
+    CATEGORIES.PARITY,
+    'The source-error baseline could not be read.',
+    true,
+  );
+  define(
+    'PARITY_BASELINE_WRITE_FAILED',
+    CATEGORIES.PARITY,
+    'The source-error baseline could not be written.',
+    true,
+  );
+  define(
+    'PARITY_RESULTS_UNAVAILABLE',
+    CATEGORIES.PARITY,
+    'The parity results sheet is unavailable.',
+    true,
+  );
+  define(
+    'PARITY_RESULTS_SCHEMA_MISMATCH',
+    CATEGORIES.PARITY,
+    'The parity results header does not match its controlled schema.',
+    false,
+  );
+  define(
+    'PARITY_RESULTS_READ_FAILED',
+    CATEGORIES.PARITY,
+    'The parity results could not be read.',
+    true,
+  );
+  define(
+    'PARITY_RESULTS_WRITE_FAILED',
+    CATEGORIES.PARITY,
+    'The parity results could not be written.',
+    true,
+  );
+  define(
+    'PARITY_RUN_ALREADY_ACTIVE',
+    CATEGORIES.PARITY,
+    'Another parity run is already active.',
+    false,
+  );
+  define(
+    'PARITY_RUN_STATE_INVALID',
+    CATEGORIES.PARITY,
+    'The persisted parity run state is invalid.',
+    false,
+  );
+  define(
+    'PARITY_LOCK_TIMEOUT',
+    CATEGORIES.PARITY,
+    'The parity script lock could not be acquired before timeout.',
     true,
   );
   var CATALOG = Object.freeze(mutableCatalog);
