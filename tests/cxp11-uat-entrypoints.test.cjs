@@ -2,12 +2,17 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const ControlWorkbookHeaders = require('../src/main/ControlWorkbookHeaders.js');
+const Cxp11ParityRun = require('../src/main/Cxp11ParityRun.js');
 const Cxp11ParityUat = require('../src/main/Cxp11UatEntrypoints.js');
 const Cxp11Setup = require('../src/main/Cxp11Setup.js');
+const FileLedgerRepository = require('../src/repository/FileLedgerRepository.js');
 const LegacyExportAdapter = require('../src/parity/LegacyExportAdapter.js');
 const ParityContracts = require('../src/parity/ParityContracts.js');
 const ParityResultsRepository = require('../src/repository/ParityResultsRepository.js');
 const ParityValidationInstallService = require('../src/services/ParityValidationInstallService.js');
+const ReportingSurfaceFormulaCatalog = require(
+  '../src/transformations/ReportingSurfaceFormulaCatalog.js',
+);
 const SourceErrorBaseline = require('../src/parity/SourceErrorBaseline.js');
 const SourceErrorBaselineRepository = require('../src/repository/SourceErrorBaselineRepository.js');
 const fixture = require('./fixtures/cxp11/synthetic-parity-bundle.json');
@@ -57,6 +62,12 @@ class FakeSheet {
         }
         return this;
       },
+      getValue() {
+        return sheet.cell(row, column);
+      },
+      getDisplayValue() {
+        return sheet.cell(row, column);
+      },
       getValues() {
         const values = [];
         for (let r = 0; r < rowCount; r += 1) {
@@ -74,6 +85,9 @@ class FakeSheet {
             sheet.cell(row + r, column + c, value);
           });
         });
+        return this;
+      },
+      setNumberFormat() {
         return this;
       },
     };
@@ -249,6 +263,31 @@ test('the fixture export reader replays the same bundle bytes on every read', ()
   assert.deepEqual(Object.keys(first.files), Object.keys(second.files));
   first.files['offered.csv'] = 'mutated';
   assert.notEqual(reader.read().files['offered.csv'], 'mutated');
+});
+
+test('Step 03 seeds a SUCCESS FILE_LEDGER row for the synthetic fingerprint', () => {
+  const spreadsheet = new FakeSpreadsheet(['FILE_LEDGER']);
+  const first = Cxp11ParityUat.seedSyntheticLedgerEntry(spreadsheet);
+
+  assert.equal(first.seeded, true);
+  assert.equal(first.fingerprint, Cxp11ParityUat.FIXTURE.sourceBundleFingerprint);
+  assert.equal(first.ingestionRunId, Cxp11ParityUat.SYNTHETIC_LEDGER_RUN_ID);
+
+  const entry = FileLedgerRepository.create(spreadsheet)
+    .findSuccessfulByFingerprint(first.fingerprint);
+  assert.equal(entry.result, 'SUCCESS');
+  assert.equal(entry.runId, Cxp11ParityUat.SYNTHETIC_LEDGER_RUN_ID);
+
+  const identity = LegacyExportAdapter.create({}).assertLedgerIdentity(
+    { sourceBundleFingerprint: first.fingerprint },
+    entry,
+  );
+  assert.equal(identity.ingestionRunId, Cxp11ParityUat.SYNTHETIC_LEDGER_RUN_ID);
+
+  const second = Cxp11ParityUat.seedSyntheticLedgerEntry(spreadsheet);
+  assert.equal(second.seeded, false);
+  assert.equal(second.ingestionRunId, Cxp11ParityUat.SYNTHETIC_LEDGER_RUN_ID);
+  assert.equal(spreadsheet.getSheetByName('FILE_LEDGER').getLastRow(), 2);
 });
 
 test('fixed-PST grains shift forward by 480 minutes into legacy UTC grains', () => {
@@ -606,4 +645,30 @@ test('a failed setup step records a sanitized failure code and clears triggers',
   assert.equal(status.lastError, 'PARITY_BASELINE_SCHEMA_MISMATCH');
   assert.equal(status.lastCompletedStep, 'INSTALL_PARITY_RESULTS_SCHEMA');
   assert.equal(services.scriptApp.getProjectTriggers().length, 0);
+});
+
+test('readMetrics uses the PST axis and AA2 when helper key columns are null', () => {
+  assert.equal(ReportingSurfaceFormulaCatalog.INTERVAL_KEY_COLUMN, null);
+  const catalog = ReportingSurfaceFormulaCatalog;
+  const sheet = new FakeSheet('Interval View');
+  const epoch = Date.UTC(1899, 11, 30);
+  sheet.cell(
+    catalog.VIEW_DATE_ROW,
+    catalog.VIEW_DATE_COLUMN,
+    (Date.UTC(2026, 7, 18) - epoch) / 86400000,
+  );
+  sheet.cell(catalog.FIRST_DATA_ROW, 3, 10 / 24);
+  sheet.cell(catalog.FIRST_DATA_ROW, catalog.METRIC_COLUMNS.Offered, 4);
+
+  const records = Cxp11ParityRun.createTargetReader({
+    getSheetByName(name) {
+      return name === 'Interval View' ? sheet : null;
+    },
+  }).readMetrics();
+
+  const offered = records.find((row) => row.metric === 'Offered' && row.intervalStart === '10:00');
+  assert.ok(offered);
+  assert.equal(offered.businessDate, '2026-08-18');
+  assert.equal(offered.value, 4);
+  assert.equal(offered.aggregationIdentity, 'INTERVAL_VIEW');
 });

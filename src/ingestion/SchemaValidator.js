@@ -842,6 +842,7 @@ var SchemaValidator = (function () {
     formatContractDate: formatContractDate,
     formatContractDateTime: formatContractDateTime,
     normalizeDate: normalizeDate,
+    normalizeDateTime: normalizeDateTime,
     normalizeRows: normalizeRows,
     validateHeaders: validateHeaders,
     validateRowVolume: validateRowVolume,

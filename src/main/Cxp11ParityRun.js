@@ -78,6 +78,13 @@ var Cxp11ParityRun = (function () {
     return require('../monitoring/ErrorCodes.js');
   }
 
+  function resolveExportAdapter() {
+    if (typeof LegacyExportAdapter !== 'undefined') {
+      return LegacyExportAdapter;
+    }
+    return require('../parity/LegacyExportAdapter.js');
+  }
+
   function pad2(value) {
     return String(value).padStart(2, '0');
   }
@@ -148,24 +155,75 @@ var Cxp11ParityRun = (function () {
       var record = Object.create(null);
       headers.forEach(function (header, columnIndex) {
         var cell = row[columnIndex];
-        record[header] = cell === null || cell === undefined ? '' : String(cell).trim();
+        record[header] = cell === null || cell === undefined ? '' : cell;
       });
       rows.push(record);
     }
     return { headers: headers, rows: rows };
   }
 
-  function serialToDateParts(serial) {
-    var epoch = Date.UTC(1899, 11, 30);
-    var days = Math.floor(serial);
-    var date = new Date(epoch + days * 86400000);
-    var minutes = Math.round((serial - days) * 1440);
-    return {
-      businessDate: date.getUTCFullYear() +
+  function isDateObject(value) {
+    return Object.prototype.toString.call(value) === '[object Date]' &&
+      !Number.isNaN(value.getTime());
+  }
+
+  /**
+   * CXP-10 v2 has no helper key columns (`INTERVAL_KEY_COLUMN` is null). The
+   * visible PST axis lives in column C; the business date lives on AA2.
+   */
+  function pstAxisColumn(catalog) {
+    var spec = typeof catalog.intervalViewSpec === 'function'
+      ? catalog.intervalViewSpec()
+      : null;
+    if (
+      spec &&
+      spec.axisFormulas &&
+      spec.axisFormulas[0] &&
+      Number.isInteger(spec.axisFormulas[0].anchorColumn)
+    ) {
+      return spec.axisFormulas[0].anchorColumn;
+    }
+    return 3;
+  }
+
+  function businessDateFromAnchor(rawValue, displayValue) {
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      var epoch = Date.UTC(1899, 11, 30);
+      var date = new Date(epoch + Math.floor(rawValue) * 86400000);
+      return date.getUTCFullYear() +
         '-' + pad2(date.getUTCMonth() + 1) +
-        '-' + pad2(date.getUTCDate()),
-      intervalStart: pad2(Math.floor(minutes / 60) % 24) + ':' + pad2(minutes % 60),
-    };
+        '-' + pad2(date.getUTCDate());
+    }
+    if (isDateObject(rawValue)) {
+      return rawValue.getFullYear() +
+        '-' + pad2(rawValue.getMonth() + 1) +
+        '-' + pad2(rawValue.getDate());
+    }
+    var text = String(displayValue || rawValue || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+      return text.slice(0, 10);
+    }
+    var mdy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (mdy) {
+      return mdy[3] + '-' + pad2(mdy[1]) + '-' + pad2(mdy[2]);
+    }
+    return text;
+  }
+
+  function intervalFromAxis(rawValue, displayValue) {
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      var minutes = Math.round(((rawValue % 1) + 1) % 1 * 24 * 60);
+      return pad2(Math.floor(minutes / 60) % 24) + ':' + pad2(minutes % 60);
+    }
+    if (isDateObject(rawValue)) {
+      return pad2(rawValue.getHours()) + ':' + pad2(rawValue.getMinutes());
+    }
+    var display = String(displayValue || rawValue || '').trim();
+    var timeMatch = display.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      return pad2(timeMatch[1]) + ':' + timeMatch[2];
+    }
+    return display;
   }
 
   function normalizeMetricCell(rawValue, displayValue) {
@@ -208,7 +266,12 @@ var Cxp11ParityRun = (function () {
       if (!sheet) {
         return { headers: [], rows: [] };
       }
-      return sheetRowsToRecords(sheet.getDataRange().getValues());
+      var parsed = sheetRowsToRecords(sheet.getDataRange().getValues());
+      var canonical = resolveExportAdapter().canonicalizeDataset(datasetName, parsed);
+      return {
+        headers: canonical.headers,
+        rows: canonical.rows,
+      };
     }
 
     function readMetrics() {
@@ -216,8 +279,18 @@ var Cxp11ParityRun = (function () {
       if (!sheet) {
         return [];
       }
-      var firstColumn = catalog.INTERVAL_KEY_COLUMN;
+      var firstColumn = pstAxisColumn(catalog);
       var lastColumn = catalog.METRIC_COLUMNS[metricHeaders[metricHeaders.length - 1]];
+      var dateAnchor = typeof catalog.intervalViewSpec === 'function'
+        ? catalog.intervalViewSpec().businessDayAnchor
+        : { column: catalog.VIEW_DATE_COLUMN, row: catalog.VIEW_DATE_ROW };
+      var dateCell = sheet.getRange(dateAnchor.row, dateAnchor.column);
+      var businessDate = businessDateFromAnchor(
+        dateCell.getValue ? dateCell.getValue() : dateCell.getValues()[0][0],
+        typeof dateCell.getDisplayValue === 'function'
+          ? dateCell.getDisplayValue()
+          : '',
+      );
       var range = sheet.getRange(
         catalog.FIRST_DATA_ROW,
         firstColumn,
@@ -230,17 +303,16 @@ var Cxp11ParityRun = (function () {
         : rawValues;
       var records = [];
       rawValues.forEach(function (row, rowIndex) {
-        var axisValue = row[0];
-        if (typeof axisValue !== 'number' || !Number.isFinite(axisValue)) {
+        var intervalStart = intervalFromAxis(row[0], displayValues[rowIndex][0]);
+        if (!intervalStart) {
           return;
         }
-        var grain = serialToDateParts(axisValue);
         metricHeaders.forEach(function (metricName) {
           var columnOffset = catalog.METRIC_COLUMNS[metricName] - firstColumn;
           records.push({
             aggregationIdentity: aggregationIdentity,
-            businessDate: grain.businessDate,
-            intervalStart: grain.intervalStart,
+            businessDate: businessDate,
+            intervalStart: intervalStart,
             metric: metricName,
             queueOrLob: queueOrLob,
             site: site,

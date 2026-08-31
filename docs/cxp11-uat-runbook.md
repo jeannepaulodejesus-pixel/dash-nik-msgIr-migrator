@@ -1,6 +1,6 @@
 # CXP-11 Hosted UAT Runbook
 
-**Planned contract** for operator succession; setup, run, and promotion helpers are in `src/main/Cxp11Setup.js`, `src/main/Cxp11ParityRun.js`, and `src/main/Cxp11UatEntrypoints.js`. Contract authority: [`docs/parity-validation-contract.md`](parity-validation-contract.md), [`docs/metric-lineage.md`](metric-lineage.md), `config/formula-family-catalog.json`. Harness: [`docs/cxp11-uat-harness.md`](cxp11-uat-harness.md). Pattern reference: [`docs/cxp10-uat-runbook.md`](cxp10-uat-runbook.md).
+**Planned contract** for operator succession; setup, run, and promotion helpers are in `src/main/Cxp11Setup.js`, `src/main/Cxp11ParityRun.js`, and `src/main/Cxp11UatEntrypoints.js`. Contract authority: [`docs/parity-validation-contract.md`](parity-validation-contract.md), [`docs/metric-lineage.md`](metric-lineage.md), `config/formula-family-catalog.json`. Harness: [`docs/cxp11-uat-harness.md`](cxp11-uat-harness.md). Pattern reference: [`docs/cxp10-uat-runbook.md`](cxp10-uat-runbook.md). Hosted DEV sign-off: [`docs/cxp11-hosted-uat-results-2026-09-01.md`](cxp11-hosted-uat-results-2026-09-01.md).
 
 ## Succession naming
 
@@ -70,8 +70,9 @@ Record sanitized counts, classification tallies, chunk IDs, run states, and timi
 1. The helper writes the synthetic source rows into the five `_RAW_*` tables and flushes.
 2. It then reads the live Interval View metric outputs, shifts each fixed-PST key **forward** by 480 minutes to reproduce the unconverted UTC keys a legacy control emits, and builds the contracted bundle.
 3. It replaces same-named files in the export folder and reports `fileCount: 8` plus per-dataset raw row counts.
+4. It seeds a `SUCCESS` `FILE_LEDGER` row for the synthetic placeholder fingerprint (`sha256:cxp11syntheticbundle…`) if one is not already present, and reports `ledger.seeded` plus `ledger.ingestionRunId`. Re-running Step 03 is idempotent: it does not append a second `SUCCESS` row.
 
-> The synthetic legacy metric CSV is derived from the live workbook on purpose. Step 03 and Step 04 prove the harness mechanics — packaging, digests, source identity, alignment, chunking, and idempotence — on an internally consistent bundle. Step 05 is where injected variance and error cases prove classification. A real weekly run replaces Step 03 with the operator's own recalculated legacy export.
+> The synthetic legacy metric CSV is derived from the live workbook on purpose. Step 03 and Step 04 prove the harness mechanics — packaging, digests, source identity, alignment, chunking, and idempotence — on an internally consistent bundle. Step 05 is where injected variance and error cases prove classification. A real weekly run replaces Step 03 with the operator's own recalculated legacy export whose `sourceBundleFingerprint` matches a successful ingestion of that same five-file bundle. Do not put the synthetic placeholder fingerprint on a real Excel export.
 
 ## CXP11UatStep04 — RunParity
 
@@ -143,7 +144,7 @@ The gate returns `promotionReady: false` with the specific failing input rather 
 | `PARITY_EXPORT_DIGEST_MISMATCH` | A file changed after the manifest was written | Regenerate the manifest and files together |
 | `PARITY_EXPORT_SCHEMA_DRIFT` | Header order, ragged row, or unknown token | Re-export against the canonical schemas |
 | `PARITY_EXPORT_DUPLICATE_KEY` | Divergent rows share one authoritative key | Fix the legacy export; do not deduplicate by hand |
-| `PARITY_SOURCE_FINGERPRINT_MISMATCH` | No successful `FILE_LEDGER` entry for the bundle | Re-run ingestion for the same bundle first |
+| `PARITY_SOURCE_FINGERPRINT_MISMATCH` | No successful `FILE_LEDGER` entry for the bundle | For hosted UAT: push this `src/` tree, re-run `CXP11UatStep03LoadSyntheticParityBundle` (it now seeds the synthetic `SUCCESS` row), then retry Step 04. For a real weekly export: ingest that same five-file bundle first and copy the ledger fingerprint into `manifest.sourceBundleFingerprint`. |
 | `PARITY_TARGET_SNAPSHOT_CHANGED` | Export or target replaced mid-run | Reset the run and restart on a stable snapshot |
 | `PARITY_BASELINE_NOT_INSTALLED` / `PARITY_BASELINE_COUNT_MISMATCH` | Baseline absent or drifted | Re-run `CXP11UatStep01Install` |
 | `PARITY_RUN_ALREADY_ACTIVE` | Another run holds the cursor | Continue it, or reset with force after it stops |

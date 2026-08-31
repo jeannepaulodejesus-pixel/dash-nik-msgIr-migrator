@@ -137,6 +137,7 @@ var Cxp11ParityUat = (function () {
     sourceBundleFingerprint:
       'sha256:cxp11syntheticbundle0000000000000000000000000000000000000000000',
   });
+  var SYNTHETIC_LEDGER_RUN_ID = 'CXP11-UAT-SYNTHETIC-BUNDLE';
 
   function resolveContracts() {
     if (typeof ParityContracts !== 'undefined') {
@@ -178,6 +179,27 @@ var Cxp11ParityUat = (function () {
       return DatasetSheets;
     }
     return require('../config/DatasetSheets.js');
+  }
+
+  function resolveFileLedgerRepository() {
+    if (typeof FileLedgerRepository !== 'undefined') {
+      return FileLedgerRepository;
+    }
+    return require('../repository/FileLedgerRepository.js');
+  }
+
+  function resolveDuplicateService() {
+    if (typeof DuplicateService !== 'undefined') {
+      return DuplicateService;
+    }
+    return require('../services/DuplicateService.js');
+  }
+
+  function resolveSchemaRegistry() {
+    if (typeof SchemaRegistry !== 'undefined') {
+      return SchemaRegistry;
+    }
+    return require('../ingestion/SchemaRegistry.js');
   }
 
   function uatLog(tag, payload) {
@@ -311,6 +333,58 @@ var Cxp11ParityUat = (function () {
     return SpreadsheetApp.openById(id);
   }
 
+  function openControl(spreadsheetId) {
+    var id = spreadsheetId;
+    if (!id || typeof id !== 'string') {
+      id = Config.load().controlSpreadsheetId;
+    }
+    if (!id) {
+      throw new Error('A configured CXP-11 control spreadsheet ID is required.');
+    }
+    return SpreadsheetApp.openById(id);
+  }
+
+  /**
+   * Step 03 writes a placeholder sourceBundleFingerprint. DEC-055 still
+   * requires a successful FILE_LEDGER match, so the UAT helper seeds one
+   * SUCCESS row for that synthetic identity. A real weekly run must ingest
+   * the same five-file bundle instead of using this seed.
+   */
+  function seedSyntheticLedgerEntry(spreadsheet) {
+    var control = spreadsheet || openControl();
+    var ledger = resolveFileLedgerRepository().create(control);
+    var fingerprint = FIXTURE.sourceBundleFingerprint;
+    var existing = ledger.findSuccessfulByFingerprint(fingerprint);
+    if (existing) {
+      return Object.freeze({
+        fingerprint: fingerprint,
+        ingestionRunId: existing.runId,
+        seeded: false,
+      });
+    }
+    var datasetFiles = resolveContracts().DATASET_FILES;
+    resolveDuplicateService().recordSuccessful({
+      checkedAtUtc: new Date().toISOString(),
+      datasetNames: datasetFiles.map(function (entry) {
+        return entry.datasetName;
+      }),
+      fingerprint: fingerprint,
+      runId: SYNTHETIC_LEDGER_RUN_ID,
+      schemaVersion: resolveSchemaRegistry().ACTIVE_SCHEMA_VERSION,
+      sourceFiles: datasetFiles.map(function (entry) {
+        return {
+          fileId: 'uat-synthetic:' + entry.fileName,
+          fileName: entry.fileName,
+        };
+      }),
+    }, ledger);
+    return Object.freeze({
+      fingerprint: fingerprint,
+      ingestionRunId: SYNTHETIC_LEDGER_RUN_ID,
+      seeded: true,
+    });
+  }
+
   function resolveExportFolderId(folderId) {
     var id = folderId;
     if (!id || typeof id !== 'string') {
@@ -366,6 +440,19 @@ var Cxp11ParityUat = (function () {
         });
       });
       sheet.getDataRange().clearContent();
+      var schema = resolveSchemaRegistry().getSchema(entry.datasetName);
+      var writeRowCount = rows.length + 1;
+      if (schema && Array.isArray(schema.columns)) {
+        schema.columns.forEach(function (column, columnIndex) {
+          if (column.type !== 'date' && column.type !== 'date_time') {
+            return;
+          }
+          var columnRange = sheet.getRange(1, columnIndex + 1, writeRowCount, 1);
+          if (columnRange && typeof columnRange.setNumberFormat === 'function') {
+            columnRange.setNumberFormat('@');
+          }
+        });
+      }
       sheet.getRange(1, 1, 1, headers.length).setValues([headers.slice()]);
       if (rows.length > 0) {
         sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
@@ -524,9 +611,11 @@ var Cxp11ParityUat = (function () {
       legacyMetrics: deriveLegacyMetricsFromTarget(spreadsheetId),
     });
     var write = writeBundleToFolder(exportFolderId, bundle);
+    var ledger = seedSyntheticLedgerEntry();
     var result = Object.freeze({
       fileCount: write.fileCount,
       fileNames: write.fileNames,
+      ledger: ledger,
       rawRowCounts: rawCounts,
     });
     uatLog('CXP11UatStep03.done', result);
@@ -693,6 +782,7 @@ var Cxp11ParityUat = (function () {
 
   return Object.freeze({
     FIXTURE: FIXTURE,
+    SYNTHETIC_LEDGER_RUN_ID: SYNTHETIC_LEDGER_RUN_ID,
     buildBundleFiles: buildBundleFiles,
     createFixtureExportReader: createFixtureExportReader,
     deriveLegacyMetricsFromTarget: deriveLegacyMetricsFromTarget,
@@ -703,6 +793,7 @@ var Cxp11ParityUat = (function () {
     reinstallAndRerun: reinstallAndRerun,
     resumeAndSecondBundle: resumeAndSecondBundle,
     runParity: runParity,
+    seedSyntheticLedgerEntry: seedSyntheticLedgerEntry,
     shiftToLegacyUtcGrain: shiftForward,
     validateExpectedVarianceAndErrors: validateExpectedVarianceAndErrors,
     verifyPrerequisites: verifyPrerequisites,

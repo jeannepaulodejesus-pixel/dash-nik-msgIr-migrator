@@ -14,6 +14,8 @@ CXP-11 will:
 
 The authoritative baseline is WB0817: 1,885 cached errors (`1,838 #N/A`, `26 #DIV/0!`, `21 #REF!`). The older 5,655 count is retained only as superseded WB0809/project-record history.
 
+**Hosted DEV acceptance:** Complete on 2026-09-01. Evidence: [`docs/cxp11-hosted-uat-results-2026-09-01.md`](../cxp11-hosted-uat-results-2026-09-01.md).
+
 ## Key Implementation Changes
 
 ### 1. Define the parity contracts

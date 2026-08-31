@@ -19,7 +19,7 @@ Valid states are `Not started`, `In progress`, `Blocked`, and `Complete`. A pack
 | CXP-08 — Native Transformations: AHT, Auxes, and Staff | Complete | Delivery `CXP-08-v2`; hosted DEV promotion passed 2026-08-31 |
 | CXP-09 — Stable Aggregation and Domain Model | Complete | Delivery `CXP-09-v1`; hosted DEV promotion passed 2026-08-31 |
 | CXP-10 — Interval View and MOM Reporting Surfaces | Complete | Delivery `CXP-10-v2`; hosted DEV promotion passed 2026-08-31 |
-| CXP-11 — Excel-vs-Google-Sheets Parity Harness and Source-Error Ledger | In progress | Delivery `CXP-11-v1` implemented and locally verified; hosted DEV/UAT acceptance pending |
+| CXP-11 — Excel-vs-Google-Sheets Parity Harness and Source-Error Ledger | Complete | Delivery `CXP-11-v1`; hosted DEV promotion passed 2026-09-01 |
 | CXP-12 — Weekly Workbook Lifecycle, Scheduling, and Environment Promotion | Not started | Requires CXP-02, CXP-04, CXP-06, and CXP-10 complete |
 | CXP-13 — RTA Intake Surface and Operational Status | Not started | Requires CXP-04 through CXP-06 and CXP-12 complete |
 | CXP-14 — Performance Hardening, UAT, Cutover, and Production Runbook | Not started | Requires CXP-00 through CXP-13 complete |
@@ -404,16 +404,16 @@ Superseded by `CXP-01-v3` only for source timestamp interpretation: fixed PST re
 - **Blockers:** None for CXP-10.
 - **Next-packet inputs:** CXP-11 may consume the completed CXP-07 through CXP-10 contracts; CXP-12 may consume the validated business-context and rollover APIs subject to its other dependencies.
 
-## CXP-11 implementation status
+## CXP-11 completion handoff
 
 - **Delivery version:** `CXP-11-v1` with export contract `1.0.0`, setup state contract `CXP11_PARITY_SETUP_STATE_V1`, and run state contract `CXP11_PARITY_RUN_STATE_V1`.
-- **Repository status:** Implemented and locally verified. Hosted DEV/UAT acceptance has not been executed, so the packet is **In progress**, not Complete.
-- **Scope:** Versioned legacy-export contract and adapter, pure comparison core (DEC-025 alignment, closed-interval selection, tolerance evaluation, classification, summary aggregation), the WB0817 source-error baseline seed, final `PARITY_RESULTS` and `SOURCE_ERROR_BASELINE` write contracts, separate setup and run state machines, and `CXP11UatStep00`–`CXP11UatStep08` hosted helpers.
-- **Files created:** `src/parity/ParityContracts.js`, `src/parity/ParityDigest.js`, `src/parity/LegacyExportAdapter.js`, `src/parity/ParityComparator.js`, `src/parity/SourceErrorBaseline.js`, `src/parity/ParityRunEngine.js`, `src/repository/ParityResultsRepository.js`, `src/repository/SourceErrorBaselineRepository.js`, `src/services/ParityValidationInstallService.js`, `src/main/Cxp11Setup.js`, `src/main/Cxp11ParityRun.js`, `src/main/Cxp11UatEntrypoints.js`, `tests/cxp11-parity-validation.test.cjs`, `tests/cxp11-parity-run-state.test.cjs`, `tests/cxp11-uat-entrypoints.test.cjs`, `tests/fixtures/cxp11/synthetic-parity-bundle.json`, `docs/parity-validation-contract.md`, `docs/cxp11-uat-runbook.md`, `docs/cxp11-uat-harness.md`, `docs/cxp11-parity-report-template.md`, `docs/cxp11-hosted-uat-results-template.md`.
-- **Files changed:** `src/monitoring/ErrorCodes.js` (new `PARITY` category, `FAILED_PARITY` state, and 24 parity codes), `src/config/Config.js` (`LEGACY_PARITY_EXPORT_FOLDER_ID`), `src/main/ControlWorkbookHeaders.js` (final CXP-11 control headers replace the provisional ones), `src/transformations/StableAggregationFormulaCatalog.js` (restored the missing `legacyForecastInputQuery` helper that `legacyFormulaCleanup` referenced), `package.json` (`test:cxp11`), `tests/config.test.cjs`, `tests/cxp04-run-orchestration.test.cjs`, `docs/configuration.md`, `docs/packet-status.md`, `docs/decision-log.md`.
-- **Baseline authority:** Exactly 1,885 WB0817 errors seeded as six evidence-backed rules (1,838 `#N/A`, 26 `#DIV/0!`, 21 `#REF!`). No test or record asserts the superseded 5,655 count, and no individual cell location is fabricated where the repository evidence is aggregate.
-- **Local evidence:** `npm run test:cxp11` passed 56/56. `npm run verify` exited 0 with 262 tests passed, 116 JavaScript files syntax-checked, and 212 text files scanned by repository guardrails.
-- **Pre-existing defect fixed in passing:** `StableAggregationFormulaCatalog.forecastSpec()` referenced a `forecastInputQuery()` helper deleted in commit `82def23`, which threw `ReferenceError` and failed 12 CXP-09/CXP-10 tests on `HEAD`. The helper was restored as `legacyForecastInputQuery()` with its original formula literal.
-- **Known limitations:** Hosted DEV/UAT acceptance and the promotion gate have not been executed. `CXP11UatStep03` derives the synthetic legacy metric CSV from the live Interval View by shifting keys forward 480 minutes, so Steps 03–04 prove harness mechanics on an internally consistent bundle while Step 05 proves classification on injected variance and error cases. A real weekly run supplies the operator's own recalculated legacy export.
-- **Blockers:** Hosted acceptance requires an operator-recalculated legacy export bundle whose `sourceBundleFingerprint` matches a successful `FILE_LEDGER` entry.
-- **Next-packet inputs:** CXP-12 may consume the finalized control-workbook write contracts and the separate setup/run state-machine convention; weekly lifecycle and scheduling remain CXP-12's responsibility.
+- **Repository status:** Complete and locally verified.
+- **Hosted DEV acceptance:** Pass on 2026-09-01. Setup `COMPLETE` at 6/6; `CXP11UatStep08` returned `promotionReady: true` with `summary.pass: true`, `datasetCount: 5`, `metricCount: 25`, `comparisonCount: 341`, and `defectCount: 0` (`MATCH: 335`, `EXPECTED_SOURCE_ERROR: 6`).
+- **Promotion result:** The recorded gate inputs deterministically produce `promotionReady: true`.
+- **Corrective findings closed:** Synthetic `FILE_LEDGER` identity for the UAT placeholder fingerprint; Staff datetime canonicalization to CXP-03 contract strings so Sheets Date objects do not break full-row identity.
+- **Baseline authority:** Exactly 1,885 WB0817 errors seeded as six evidence-backed rules (1,838 `#N/A`, 26 `#DIV/0!`, 21 `#REF!`). No test or record asserts the superseded 5,655 count.
+- **Local evidence:** `npm run test:cxp11` passed 59/59. `npm run verify` exited 0 with 265 tests passed, 116 JavaScript files syntax-checked, and 218 text files scanned by repository guardrails.
+- **Evidence:** [`docs/cxp11-hosted-uat-results-2026-09-01.md`](cxp11-hosted-uat-results-2026-09-01.md), [`docs/cxp11-parity-report-2026-09-01.md`](cxp11-parity-report-2026-09-01.md).
+- **Known limitations:** DEV acceptance used the synthetic Step 03 bundle, not an operator-recalculated weekly Excel export. It does not change UAT/PROD configuration. Hosted Step 06/07 logs were not attached; resume, second-bundle, and reinstall remain locally verified.
+- **Blockers:** None for CXP-11.
+- **Next-packet inputs:** CXP-12 may consume the finalized control-workbook write contracts and the separate setup/run state-machine convention; weekly lifecycle and scheduling remain CXP-12's responsibility. A production weekly parity run still requires an operator-recalculated legacy export whose fingerprint matches a successful `FILE_LEDGER` entry.

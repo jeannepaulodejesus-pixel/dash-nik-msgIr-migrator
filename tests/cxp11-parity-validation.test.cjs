@@ -56,6 +56,66 @@ test('a contracted export bundle validates into canonical records', () => {
   assert.match(validated.manifestFingerprint, /^[0-9a-f]{64}$/);
 });
 
+test('Staff datetime cells canonicalize so Sheets Date objects match the export CSV', () => {
+  const validated = adapter.validate(buildBundle());
+  const staffExport = validated.datasets.find((dataset) => dataset.datasetName === 'Staff');
+
+  assert.equal(staffExport.rows[0]['Status Start Date'], '8/18/2026 2:00 AM');
+  assert.equal(staffExport.rows[0]['Status End Date'], '8/18/2026 10:00 AM');
+
+  const fromIso = LegacyExportAdapter.canonicalizeDataset('Staff', {
+    headers: staffExport.headers,
+    rows: [{
+      'Athlete Display Name': 'Athlete One',
+      'Athlete Profile': 'Messaging',
+      'Athlete Site': 'PH',
+      'Status End Date': '2026-08-18T10:00:00.000Z',
+      'Status Start Date': '2026-08-18T02:00:00.000Z',
+    }],
+  });
+  const fromDate = LegacyExportAdapter.canonicalizeDataset('Staff', {
+    headers: staffExport.headers,
+    rows: [{
+      'Athlete Display Name': 'Athlete One',
+      'Athlete Profile': 'Messaging',
+      'Athlete Site': 'PH',
+      'Status End Date': new Date('2026-08-18T10:00:00.000Z'),
+      'Status Start Date': new Date('2026-08-18T02:00:00.000Z'),
+    }],
+  });
+
+  assert.equal(fromIso.rows[0]['Status Start Date'], staffExport.rows[0]['Status Start Date']);
+  assert.equal(fromDate.rows[0]['Status Start Date'], staffExport.rows[0]['Status Start Date']);
+
+  const chunk = comparator.compareSourceTableChunk({
+    batchSize: 10,
+    legacy: staffExport,
+    migrated: {
+      headers: staffExport.headers,
+      rows: fromDate.rows.concat(
+        LegacyExportAdapter.canonicalizeDataset('Staff', {
+          headers: staffExport.headers,
+          rows: [{
+            'Athlete Display Name': 'Athlete Two',
+            'Athlete Profile': 'Messaging',
+            'Athlete Site': 'LAS',
+            'Status End Date': new Date('2026-08-18T11:00:00.000Z'),
+            'Status Start Date': new Date('2026-08-18T03:00:00.000Z'),
+          }],
+        }).rows,
+      ),
+    },
+    offset: 0,
+    runId: 'RUN-STAFF-DATE',
+  });
+
+  const defects = chunk.comparisons.filter((comparison) => (
+    comparison.classification !== ParityContracts.CLASSIFICATIONS.match
+  ));
+  assert.equal(defects.length, 0);
+  assert.equal(chunk.comparisons.length, 2);
+});
+
 test('manifest and file digest failures fail closed', () => {
   const bundle = buildBundle();
 

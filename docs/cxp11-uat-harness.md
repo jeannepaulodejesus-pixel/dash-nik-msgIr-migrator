@@ -47,7 +47,7 @@ Install steps, in order: `INSTALL_PARITY_RESULTS_SCHEMA`, `INSTALL_SOURCE_ERROR_
 | `CXP11UatStep00VerifyPrerequisites` | CXP-07 through CXP-10 status plus configuration readiness |
 | `CXP11UatStep01Install` | Install final headers and the WB0817 baseline |
 | `CXP11UatStep02InspectControlContracts` | Schemas, protections, state, and baseline count |
-| `CXP11UatStep03LoadSyntheticParityBundle` | Seed `_RAW_*` fixture rows and write the export bundle to Drive |
+| `CXP11UatStep03LoadSyntheticParityBundle` | Seed `_RAW_*` fixture rows, write the export bundle to Drive, and seed a `SUCCESS` `FILE_LEDGER` row for the synthetic fingerprint |
 | `CXP11UatStep04RunParity` | Start and drive continuations to a terminal run state |
 | `CXP11UatStep05ValidateExpectedVarianceAndErrors` | DEC-025 variance and WB0817 error classification |
 | `CXP11UatStep06ResumeAndSecondBundle` | Forced yield, retry-safe chunking, and weekly rerun |
@@ -56,8 +56,10 @@ Install steps, in order: `INSTALL_PARITY_RESULTS_SCHEMA`, `INSTALL_SOURCE_ERROR_
 
 ## Pure surfaces used by tests
 
-`Cxp11ParityUat.buildBundleFiles`, `Cxp11ParityUat.createFixtureExportReader`, and `Cxp11ParityUat.shiftToLegacyUtcGrain` build and replay a contracted bundle without Drive. `ParityRunEngine.create(ports)` accepts injected export/target/results/baseline/ledger/lock/trigger ports, so the whole state machine is exercised in Node.
+`Cxp11ParityUat.buildBundleFiles`, `Cxp11ParityUat.createFixtureExportReader`, `Cxp11ParityUat.seedSyntheticLedgerEntry`, and `Cxp11ParityUat.shiftToLegacyUtcGrain` build and replay a contracted bundle without Drive. `ParityRunEngine.create(ports)` accepts injected export/target/results/baseline/ledger/lock/trigger ports, so the whole state machine is exercised in Node.
 
 ## Evidence
 
 Record sanitized counts, classification tallies, timings, chunk IDs, and run state only. Never attach source rows, spreadsheet or folder IDs, user emails, or raw metric values that carry business data.
+
+DEV promotion evidence: [`docs/cxp11-hosted-uat-results-2026-09-01.md`](cxp11-hosted-uat-results-2026-09-01.md).

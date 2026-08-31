@@ -495,7 +495,7 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-11
-- **Status:** Accepted, implemented, locally verified
+- **Status:** Accepted, implemented, and hosted-verified
 - **Decision:** Define a versioned legacy-export contract (`manifest.json`, five canonical wide source CSVs, one long-form metric CSV, one legacy-error CSV) that the operator produces from a freshly recalculated legacy control, and validate it — contract version, WB0817 hash, ISO UTC acquisition timestamp, per-file SHA-256, ordered headers, row counts, authoritative keys, and duplicate policy — before any comparison runs. CXP-11 does not automate Excel.
 - **Rationale:** The partial-day raw deliveries are not WB0817 EOD fixtures, and no Apps Script boundary can drive Excel recalculation. A hash-bound file contract makes the legacy side reproducible, auditable, and comparable without an Excel dependency, and it lets the entire comparison core stay pure and injected.
 - **Consequences:** Every parity run requires an operator-supplied bundle whose `sourceBundleFingerprint` matches a successful `FILE_LEDGER` entry. Export files and source rows stay outside the repository; only synthetic fixtures are committed. `CXP_<ENV>_LEGACY_PARITY_EXPORT_FOLDER_ID` becomes an optional configuration key that fails closed rather than scanning Drive.
@@ -504,7 +504,7 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-11
-- **Status:** Accepted, implemented, locally verified
+- **Status:** Accepted, implemented, and hosted-verified
 - **Decision:** At preflight, record both the export manifest fingerprint and the `FILE_LEDGER` ingestion run ID for the matched source-bundle fingerprint. Recheck both before every continuation and again at finalization, and fail with `PARITY_TARGET_SNAPSHOT_CHANGED` if either changes.
 - **Rationale:** A parity run spans multiple Apps Script executions. Without a bound identity, an ingestion that replaces the target mid-run — or a regenerated export — would produce a signed-off result over mixed inputs, which is worse than no result.
 - **Consequences:** Long runs are safe to resume but cannot outlive their inputs. A replaced snapshot requires a deliberate reset and restart rather than a silent continuation.
@@ -513,7 +513,7 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-11
-- **Status:** Accepted, implemented, locally verified
+- **Status:** Accepted, implemented, and hosted-verified
 - **Decision:** Shift every legacy interval key by −480 minutes into fixed PST before matching migrated keys, compare only intervals whose right boundary is at or before the fixed-PST acquisition checkpoint, and classify a mismatch as `APPROVED_EXPECTED_VARIANCE` **only** when the same legacy value matches the migrated value at the unshifted key. Every other difference is a defect.
 - **Rationale:** DEC-025 is the sole approved rule correction against legacy hour flooring. Encoding the variance as a positional test — rather than a per-metric allowance — keeps the exception narrow and machine-checkable, so no real defect can hide behind the timezone story.
 - **Consequences:** Approved variance is auditable per comparison through its `DEC-025` lineage reference. Blank, single-space, zero, and error tokens remain distinct sentinels, so blank-versus-zero and blank-versus-error can never be absorbed as variance.
@@ -522,7 +522,7 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-11
-- **Status:** Accepted, implemented, locally verified
+- **Status:** Accepted, implemented, and hosted-verified
 - **Decision:** Seed `SOURCE_ERROR_BASELINE` with six rules totalling exactly 1,885 WB0817 cached errors — two Offered formula-family ranges at 919 `#N/A` each, plus worksheet-scope counts of 13 and 8 `#REF!` and 20 and 6 `#DIV/0!`. Where the repository evidence is per-sheet rather than per-cell, keep the record a bounded worksheet-scope count and never fabricate cell locations. Reconcile observed legacy errors per worksheet-and-token key and assert the 1,885 total.
 - **Rationale:** `config/formula-family-catalog.json` provides per-sheet and, for Offered, per-family cached-error evidence. Inventing 47 individual non-`#N/A` cell references to reach a tidier schema would create unverifiable audit records.
 - **Consequences:** Baseline drift is detected by both total and error type. The superseded WB0809 count of 5,655 is asserted nowhere in code, tests, or evidence, and a `#N/A` observed in a source-table comparison classifies as `EXPECTED_SOURCE_ERROR` against the baseline rather than as a migration defect.
@@ -531,10 +531,19 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-11
-- **Status:** Accepted, implemented, locally verified
+- **Status:** Accepted, implemented, and hosted-verified
 - **Decision:** Keep two independent versioned state machines — setup (`IDLE`/`RUNNING`/`COMPLETE`/`FAILED`) and run (`PREFLIGHT`/`SOURCE_TABLES`/`METRICS`/`ERROR_CLASSIFICATION`/`SUMMARIZING`/`COMPLETE`/`FAILED`) — sharing the script lock but never the cursor. Derive chunk IDs deterministically from phase, dataset, and offset so the results repository can reject a replayed chunk. Persist source-table comparisons as dataset, field, hashed record identity, and hashed value digests only.
 - **Rationale:** Installing control schemas and running a multi-hour comparison have different failure modes and different reset semantics; one shared cursor would make a partial schema indistinguishable from an interrupted comparison. Deterministic chunk IDs remove the need for a distributed transaction between the write and the cursor update, and hashing keeps PII out of the control workbook.
 - **Consequences:** Each invocation processes one bounded batch inside a four-minute budget and schedules exactly one continuation. A chunk written just before an interrupted cursor update is detected on retry and not appended twice. Resetting or retargeting an active run or setup is refused unless the operator forces it.
+
+### DEC-059 — Canonicalize source-table dates to CXP-03 contract strings at comparison time
+
+- **Date:** 2026-09-01
+- **Packet:** CXP-11
+- **Status:** Accepted, implemented, and hosted-verified
+- **Decision:** Before source-table identity and field comparison, rewrite date and date-time cells on both the export CSV and the migrated `_RAW_*` sheet to the CXP-03 contract strings (`M/D/YYYY` and `M/D/YYYY h:mm AM/PM`). Accept ISO UTC, `yyyy-MM-dd HH:mm:ss`, Sheets Date objects, and serials as inputs to that rewrite. Hosted UAT Step 03 also writes those fixture columns as plain text so Sheets does not coerce them to local Date values. Ingest validation stays strict and is unchanged.
+- **Rationale:** Staff has no authoritative key and dedupes on the full row. Hosted Step 04 treated two Staff fixture rows as `MISSING_SOURCE` plus `MISSING_TARGET` because `_RAW_STAFF` Date objects stringified differently from `staff.csv`. That is a transport mismatch, not a migration defect.
+- **Consequences:** Synthetic and weekly exports compare on one date identity. A real weekly Excel export can keep CXP-03 AM/PM strings or ISO UTC and still match ingested `_RAW_*` Date cells. Local timezone coercion of unformatted fixture strings remains a Step 03 concern, which is why those columns are written as text.
 
 ## CXP-07 decisions
 

@@ -23,11 +23,135 @@ var LegacyExportAdapter = (function () {
     return require('./ParityDigest.js');
   }
 
+  function resolveSchemaRegistry() {
+    if (typeof SchemaRegistry !== 'undefined') {
+      return SchemaRegistry;
+    }
+    return require('../ingestion/SchemaRegistry.js');
+  }
+
+  function resolveSchemaValidator() {
+    if (typeof SchemaValidator !== 'undefined') {
+      return SchemaValidator;
+    }
+    return require('../ingestion/SchemaValidator.js');
+  }
+
   function resolveErrorCodes() {
     if (typeof ErrorCodes !== 'undefined') {
       return ErrorCodes;
     }
     return require('../monitoring/ErrorCodes.js');
+  }
+
+  function isBlankCell(value) {
+    return value === null || value === undefined || value === '';
+  }
+
+  function isoFromDate(value) {
+    var iso = resolveSchemaValidator().normalizeDate(value);
+    if (iso) {
+      return iso;
+    }
+    if (Object.prototype.toString.call(value) === '[object Date]' &&
+        !Number.isNaN(value.getTime())) {
+      return value.toISOString().slice(0, 10);
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    var trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+      var parsed = new Date(trimmed);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+    }
+    return null;
+  }
+
+  function isoFromDateTime(value) {
+    var iso = resolveSchemaValidator().normalizeDateTime(value);
+    if (iso) {
+      return iso;
+    }
+    if (Object.prototype.toString.call(value) === '[object Date]' &&
+        !Number.isNaN(value.getTime())) {
+      return value.toISOString();
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    var trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(trimmed)) {
+      var parsed = new Date(trimmed);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+    }
+    var space = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/.exec(
+      trimmed,
+    );
+    if (!space) {
+      return null;
+    }
+    return new Date(Date.UTC(
+      Number(space[1]),
+      Number(space[2]) - 1,
+      Number(space[3]),
+      Number(space[4]),
+      Number(space[5]),
+      Number(space[6] || 0),
+    )).toISOString();
+  }
+
+  function canonicalizeCell(column, value) {
+    if (isBlankCell(value)) {
+      return '';
+    }
+    var validator = resolveSchemaValidator();
+    if (column && column.type === 'date') {
+      var dateIso = isoFromDate(value);
+      if (dateIso) {
+        return validator.formatContractDate(dateIso);
+      }
+    }
+    if (column && column.type === 'date_time') {
+      var dateTimeIso = isoFromDateTime(value);
+      if (dateTimeIso) {
+        return validator.formatContractDateTime(dateTimeIso);
+      }
+    }
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+    return value;
+  }
+
+  /**
+   * Rewrites date / date-time cells to the CXP-03 contract strings so a Sheets
+   * Date object, an ISO UTC value, and a `yyyy-MM-dd HH:mm:ss` export all share
+   * one identity. Ingest validation stays strict; this is comparison-only.
+   */
+  function canonicalizeDataset(datasetName, parsed) {
+    var schema = resolveSchemaRegistry().getSchema(datasetName);
+    var columnByName = Object.create(null);
+    if (schema && Array.isArray(schema.columns)) {
+      schema.columns.forEach(function (column) {
+        columnByName[column.name] = column;
+      });
+    }
+    var headers = (parsed && parsed.headers) || [];
+    var rows = ((parsed && parsed.rows) || []).map(function (record) {
+      var next = Object.create(null);
+      headers.forEach(function (header) {
+        next[header] = canonicalizeCell(columnByName[header], record[header]);
+      });
+      return next;
+    });
+    return {
+      headers: headers,
+      rows: rows,
+    };
   }
 
   function fail(code, details) {
@@ -479,7 +603,11 @@ var LegacyExportAdapter = (function () {
         var fileDigest = assertDigest(entry.fileName, text, declared.sha256);
         var records = parseFile(entry.fileName, text, headers, declared.rowCount);
         var keyFields = contracts.datasetKeyFields(entry.datasetName);
-        var canonical = applyDuplicatePolicy(records, headers, keyFields, entry.fileName);
+        var typed = canonicalizeDataset(entry.datasetName, {
+          headers: headers,
+          rows: records,
+        });
+        var canonical = applyDuplicatePolicy(typed.rows, headers, keyFields, entry.fileName);
         return Object.freeze({
           datasetName: entry.datasetName,
           digest: fileDigest,
@@ -569,11 +697,13 @@ var LegacyExportAdapter = (function () {
 
     return Object.freeze({
       assertLedgerIdentity: assertLedgerIdentity,
+      canonicalizeDataset: canonicalizeDataset,
       validate: validate,
     });
   }
 
   return Object.freeze({
+    canonicalizeDataset: canonicalizeDataset,
     create: create,
     parseCsv: parseCsv,
   });
