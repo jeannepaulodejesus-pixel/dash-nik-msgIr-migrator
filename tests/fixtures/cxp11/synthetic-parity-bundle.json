@@ -1,0 +1,233 @@
+{
+  "contractVersion": "1.0.0",
+  "acquisitionTimestampUtc": "2026-08-18T18:30:00Z",
+  "sourceBundleFingerprint": "sha256:cxp11syntheticbundle0000000000000000000000000000000000000000000",
+  "ingestionRunId": "RUN-CXP11-SYNTHETIC",
+  "businessDate": "2026-08-18",
+  "notes": "Synthetic-only records. No source rows, spreadsheet IDs, or PII are committed.",
+  "datasets": {
+    "Handled": [
+      {
+        "Case: Case Number": "C-1001",
+        "Messaging Session Name": "MS-1001",
+        "Initial Queue": "INT Messaging",
+        "Initial Athlete Site": "PH"
+      },
+      {
+        "Case: Case Number": "C-1002",
+        "Messaging Session Name": "MS-1002",
+        "Initial Queue": "INT Messaging",
+        "Initial Athlete Site": "LAS"
+      }
+    ],
+    "Offered": [
+      {
+        "Case: Case Number": "C-1001",
+        "Messaging Session Name": "MS-1001",
+        "Initial Athlete BPO": "INT",
+        "Initial Athlete Site": "PH"
+      },
+      {
+        "Case: Case Number": "C-1002",
+        "Messaging Session Name": "MS-1002",
+        "Initial Athlete BPO": "CNX",
+        "Initial Athlete Site": "LAS"
+      }
+    ],
+    "AHT - Raw": [
+      {
+        "Agent Work ID": "AW-2001",
+        "Work Item: Name": "MS-1001",
+        "Athlete Site": "PH"
+      },
+      {
+        "Agent Work ID": "AW-2002",
+        "Work Item: Name": "MS-1002",
+        "Athlete Site": "LAS"
+      }
+    ],
+    "Auxes - Raw": [
+      {
+        "Name": "Athlete One",
+        "User Presence ID": "UP-3001",
+        "Athlete Site": "PH"
+      },
+      {
+        "Name": "Athlete Two",
+        "User Presence ID": "UP-3002",
+        "Athlete Site": "LAS"
+      }
+    ],
+    "Staff": [
+      {
+        "Status Start Date": "2026-08-18 02:00:00",
+        "Status End Date": "2026-08-18 10:00:00",
+        "Athlete Display Name": "Athlete One",
+        "Athlete Site": "PH",
+        "Athlete Profile": "Messaging"
+      },
+      {
+        "Status Start Date": "2026-08-18 03:00:00",
+        "Status End Date": "2026-08-18 11:00:00",
+        "Athlete Display Name": "Athlete Two",
+        "Athlete Site": "LAS",
+        "Athlete Profile": "Messaging"
+      }
+    ]
+  },
+  "legacyMetrics": [
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "17:30",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "Offered",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": "2"
+    },
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "18:00",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "Offered",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": "4"
+    },
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "18:00",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "Handled",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": "3"
+    },
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "18:00",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "SL % Total",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": "0.75"
+    },
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "18:30",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "Offered",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": "9"
+    }
+  ],
+  "legacyErrors": [
+    {
+      "worksheet": "Offered",
+      "cellOrRange": "G2:G5717",
+      "errorToken": "#N/A",
+      "formulaFamily": "VLOOKUP(Offered[[#This Row],[Case: Case Number]],Handled!D:T,17,0)",
+      "observedCount": 919
+    },
+    {
+      "worksheet": "Offered",
+      "cellOrRange": "F2:F5717",
+      "errorToken": "#N/A",
+      "formulaFamily": "IF(Offered[[#This Row],[Handled ASA]]<91,1,0)",
+      "observedCount": 919
+    },
+    {
+      "worksheet": "Teams Update",
+      "cellOrRange": "WORKSHEET",
+      "errorToken": "#REF!",
+      "formulaFamily": "teams_update_broken_reference",
+      "observedCount": 13
+    },
+    {
+      "worksheet": "Interval View",
+      "cellOrRange": "WORKSHEET",
+      "errorToken": "#REF!",
+      "formulaFamily": "broken_defined_name_lob_sst",
+      "observedCount": 8
+    },
+    {
+      "worksheet": "pull outs for alloc",
+      "cellOrRange": "WORKSHEET",
+      "errorToken": "#DIV/0!",
+      "formulaFamily": "allocation_pullout_zero_denominator",
+      "observedCount": 20
+    },
+    {
+      "worksheet": "Drivers and Allocation",
+      "cellOrRange": "WORKSHEET",
+      "errorToken": "#DIV/0!",
+      "formulaFamily": "allocation_ratio_zero_denominator",
+      "observedCount": 6
+    }
+  ],
+  "targetMetrics": [
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "09:30",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "Offered",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": 2
+    },
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "10:00",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "Offered",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": 4
+    },
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "10:00",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "Handled",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": 3
+    },
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "10:00",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "SL % Total",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": 0.75
+    },
+    {
+      "businessDate": "2026-08-18",
+      "intervalStart": "10:30",
+      "site": "ALL",
+      "queueOrLob": "ALL",
+      "metric": "Offered",
+      "aggregationIdentity": "INTERVAL_VIEW",
+      "value": 9
+    }
+  ],
+  "expected": {
+    "comparisonCount": 20,
+    "byClassification": {
+      "MATCH": 14,
+      "EXPECTED_SOURCE_ERROR": 6,
+      "APPROVED_EXPECTED_VARIANCE": 0,
+      "MIGRATION_DEFECT": 0,
+      "MISSING_SOURCE": 0,
+      "MISSING_TARGET": 0,
+      "INVALID_INPUT": 0
+    },
+    "defectCount": 0,
+    "datasetCount": 5,
+    "metricCount": 25,
+    "baselineTotal": 1885,
+    "pass": true
+  }
+}

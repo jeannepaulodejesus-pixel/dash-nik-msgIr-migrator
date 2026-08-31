@@ -31,6 +31,7 @@ test('loads DEV configuration from environment-prefixed PropertiesService keys',
       CXP_DEV_CONTROL_SPREADSHEET_ID: 'dev-control',
       CXP_DEV_DRIVE_INBOX_FOLDER_ID: 'dev-inbox',
       CXP_DEV_MASTER_TEMPLATE_SPREADSHEET_ID: 'dev-template',
+      CXP_DEV_LEGACY_PARITY_EXPORT_FOLDER_ID: 'dev-parity-export',
     }),
   );
 
@@ -40,6 +41,7 @@ test('loads DEV configuration from environment-prefixed PropertiesService keys',
     controlSpreadsheetId: 'dev-control',
     driveInboxFolderId: 'dev-inbox',
     masterTemplateSpreadsheetId: 'dev-template',
+    legacyParityExportFolderId: 'dev-parity-export',
   });
   assert.equal(Object.isFrozen(config), true);
 });

@@ -66,3 +66,7 @@ The workbook table definitions and aggregate cached-data profiles are verified. 
 7. **Version authority:** WB0817 is authoritative. WB0809 and the WB0816 screenshot are comparison evidence only; WB0817 removes the prior Interval View C111 array formula but preserves the 25-metric block formulas.
 
 Any downstream behavior that “fixes” an accepted anomaly fails parity unless a separate approved change request supersedes this contract. The missing timezone converter is the explicit exception: it is classified as an approved defect correction rather than intentional legacy behavior.
+
+## Parity execution
+
+CXP-11 executes this contract. The legacy export packaging, tolerance classes, classification vocabulary, WB0817 source-error baseline, and −480-minute alignment protocol are specified in [`docs/parity-validation-contract.md`](parity-validation-contract.md) with machine authority in `src/parity/ParityContracts.js`.

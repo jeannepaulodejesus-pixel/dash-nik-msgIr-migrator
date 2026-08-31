@@ -1,8 +1,8 @@
 /**
  * Row-1 headers (and SCHEMA_REGISTRY seed rows) for the seven CXP-02 control tabs.
- * CXP-04 owns RUN_LOG/ERROR_LOG; CXP-05 owns FILE_LEDGER; CXP-03 owns SCHEMA_REGISTRY.
- * WEEK_REGISTRY, PARITY_RESULTS, and SOURCE_ERROR_BASELINE use provisional headers until
- * CXP-11/CXP-12 land their write contracts.
+ * CXP-04 owns RUN_LOG/ERROR_LOG; CXP-05 owns FILE_LEDGER; CXP-03 owns SCHEMA_REGISTRY;
+ * CXP-11 owns the final PARITY_RESULTS and SOURCE_ERROR_BASELINE contracts.
+ * WEEK_REGISTRY stays provisional until CXP-12 lands its write contract.
  */
 var ControlWorkbookHeaders = (function () {
   'use strict';
@@ -15,32 +15,19 @@ var ControlWorkbookHeaders = (function () {
     'Status',
     'Notes',
   ]);
-  var PROVISIONAL_PARITY_RESULTS_HEADERS = Object.freeze([
-    'Run ID',
-    'Business Date',
-    'Interval Start',
-    'Site',
-    'Queue Or LOB',
-    'Metric Name',
-    'Source Value',
-    'Target Value',
-    'Delta',
-    'Tolerance',
-    'Lineage JSON',
-    'Classification',
-    'Resolution Status',
-    'Compared At UTC',
-  ]);
-  var PROVISIONAL_SOURCE_ERROR_BASELINE_HEADERS = Object.freeze([
-    'Worksheet Name',
-    'Cell Reference',
-    'Cached Value',
-    'Error Type',
-    'Classification',
-    'Treatment',
-    'Resolution Status',
-    'Notes',
-  ]);
+  function resolveParityResultsRepository() {
+    if (typeof ParityResultsRepository !== 'undefined') {
+      return ParityResultsRepository;
+    }
+    return require('../repository/ParityResultsRepository.js');
+  }
+
+  function resolveSourceErrorBaselineRepository() {
+    if (typeof SourceErrorBaselineRepository !== 'undefined') {
+      return SourceErrorBaselineRepository;
+    }
+    return require('../repository/SourceErrorBaselineRepository.js');
+  }
 
   function resolveRunLogger() {
     if (typeof RunLogger !== 'undefined') {
@@ -83,10 +70,10 @@ var ControlWorkbookHeaders = (function () {
     return Object.freeze({
       ERROR_LOG: resolveErrorLogger().HEADERS,
       FILE_LEDGER: ledger.HEADERS,
-      PARITY_RESULTS: PROVISIONAL_PARITY_RESULTS_HEADERS,
+      PARITY_RESULTS: resolveParityResultsRepository().HEADERS,
       RUN_LOG: resolveRunLogger().HEADERS,
       SCHEMA_REGISTRY: registry.REGISTRY_RECORD_HEADERS,
-      SOURCE_ERROR_BASELINE: PROVISIONAL_SOURCE_ERROR_BASELINE_HEADERS,
+      SOURCE_ERROR_BASELINE: resolveSourceErrorBaselineRepository().HEADERS,
       WEEK_REGISTRY: PROVISIONAL_WEEK_REGISTRY_HEADERS,
     });
   }
@@ -149,9 +136,6 @@ var ControlWorkbookHeaders = (function () {
   }
 
   return Object.freeze({
-    PROVISIONAL_PARITY_RESULTS_HEADERS: PROVISIONAL_PARITY_RESULTS_HEADERS,
-    PROVISIONAL_SOURCE_ERROR_BASELINE_HEADERS:
-      PROVISIONAL_SOURCE_ERROR_BASELINE_HEADERS,
     PROVISIONAL_WEEK_REGISTRY_HEADERS: PROVISIONAL_WEEK_REGISTRY_HEADERS,
     buildSchemaRegistryRows: buildSchemaRegistryRows,
     headersBySheetName: headersBySheetName,

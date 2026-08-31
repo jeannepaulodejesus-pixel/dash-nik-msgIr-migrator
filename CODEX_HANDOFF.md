@@ -497,7 +497,7 @@ Excel-vs-Sheets parity validation
 - Load/export comparable Excel-control outputs and Google Sheets target outputs for the exact same raw dataset.
 - Compare at date + interval + site + queue/LOB + metric grain.
 - Prioritize service level, AHT/handle time, abandonment, offered/handled, staffing percentages, then the full operational metric registry.
-- Create SOURCE_ERROR_BASELINE with the known 5,655 cached Excel errors and classification rules.
+- Create SOURCE_ERROR_BASELINE with the known cached Excel errors and classification rules. The 5,655 figure in this handoff is superseded WB0809/project-record history; the WB0817 binary authority is 1,885 errors (1,838 `#N/A`, 26 `#DIV/0!`, 21 `#REF!`) per `config/formula-family-catalog.json` and `docs/parity-validation-contract.md`.
 - Log source value, target value, delta, tolerance if applicable, calculation lineage, classification, and resolution status.
 - Produce a machine-readable and human-readable parity summary.
 
@@ -505,12 +505,12 @@ Excel-vs-Sheets parity validation
 - Do not automatically treat every Excel error as expected target behavior.
 - Do not validate appearance as a substitute for output parity.
 
-**Required deliverables**
-- ParityValidator.gs or validation utility
-- PARITY_RESULTS schema
-- SOURCE_ERROR_BASELINE initialization
-- validation fixtures
-- parity report template
+**Required deliverables** (delivered as `CXP-11-v1`)
+- Validation utilities: `src/parity/` (contracts, digest, export adapter, comparator, baseline, run engine) plus `src/main/Cxp11Setup.js`, `src/main/Cxp11ParityRun.js`, and `src/main/Cxp11UatEntrypoints.js`
+- PARITY_RESULTS schema: `src/repository/ParityResultsRepository.js`
+- SOURCE_ERROR_BASELINE initialization: `src/parity/SourceErrorBaseline.js` and `src/repository/SourceErrorBaselineRepository.js`
+- Validation fixtures: `tests/fixtures/cxp11/synthetic-parity-bundle.json`
+- Contract and templates: `docs/parity-validation-contract.md`, `docs/cxp11-uat-runbook.md`, `docs/cxp11-uat-harness.md`, `docs/cxp11-parity-report-template.md`, `docs/cxp11-hosted-uat-results-template.md`
 
 **Acceptance criteria**
 - [ ] Known source errors are not counted as migration defects unless the migration intentionally changes behavior and the change is documented.

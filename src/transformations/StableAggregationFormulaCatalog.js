@@ -89,6 +89,13 @@ var StableAggregationFormulaCatalog = (function () {
     ]);
   }
 
+  // Superseded self-referential spill that CXP-09 install removes from
+  // _AGG_FORECAST!A2. Retained only as the cleanup match target.
+  function legacyForecastInputQuery() {
+    return '=QUERY(A2:E' + (ROW_CAPACITY + 1) +
+      ',"select Col1, Col2, Col3, Col4, Col5 where Col1 is not null",0)';
+  }
+
   function allocationCountQuery() {
     return '=QUERY({' +
       '\'_CALC_OFFERED\'!A2:A' + OFFERED_LAST_ROW + ',' +
@@ -176,7 +183,7 @@ var StableAggregationFormulaCatalog = (function () {
       // and removes only its legacy self-referential QUERY during migration.
       legacyFormulaCleanup: Object.freeze({
         column: 1,
-        formula: forecastInputQuery(),
+        formula: legacyForecastInputQuery(),
         row: 2,
       }),
       preserveBody: true,

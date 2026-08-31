@@ -489,6 +489,53 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 - **Rationale:** Staff overlap is a row-grain calculation. Aggregate extrema silently mix independent Staff records and destroy both overlap and routing evidence. Fixture lifecycle drift is a root-state error, not dozens of metric discrepancies.
 - **Consequences:** CXP-08-v2 is complete in DEV. `_CALC_STAFF!BE1` remains reinstall-safe, early CNX and late INT routing are hosted-verified, and CXP-11 is now gated only by completion of CXP-09.
 
+## CXP-11 decisions
+
+### DEC-054 — Compare a contracted legacy export bundle, not the live Excel workbook
+
+- **Date:** 2026-08-31
+- **Packet:** CXP-11
+- **Status:** Accepted, implemented, locally verified
+- **Decision:** Define a versioned legacy-export contract (`manifest.json`, five canonical wide source CSVs, one long-form metric CSV, one legacy-error CSV) that the operator produces from a freshly recalculated legacy control, and validate it — contract version, WB0817 hash, ISO UTC acquisition timestamp, per-file SHA-256, ordered headers, row counts, authoritative keys, and duplicate policy — before any comparison runs. CXP-11 does not automate Excel.
+- **Rationale:** The partial-day raw deliveries are not WB0817 EOD fixtures, and no Apps Script boundary can drive Excel recalculation. A hash-bound file contract makes the legacy side reproducible, auditable, and comparable without an Excel dependency, and it lets the entire comparison core stay pure and injected.
+- **Consequences:** Every parity run requires an operator-supplied bundle whose `sourceBundleFingerprint` matches a successful `FILE_LEDGER` entry. Export files and source rows stay outside the repository; only synthetic fixtures are committed. `CXP_<ENV>_LEGACY_PARITY_EXPORT_FOLDER_ID` becomes an optional configuration key that fails closed rather than scanning Drive.
+
+### DEC-055 — Bind source identity for the whole run and fail closed on re-ingestion
+
+- **Date:** 2026-08-31
+- **Packet:** CXP-11
+- **Status:** Accepted, implemented, locally verified
+- **Decision:** At preflight, record both the export manifest fingerprint and the `FILE_LEDGER` ingestion run ID for the matched source-bundle fingerprint. Recheck both before every continuation and again at finalization, and fail with `PARITY_TARGET_SNAPSHOT_CHANGED` if either changes.
+- **Rationale:** A parity run spans multiple Apps Script executions. Without a bound identity, an ingestion that replaces the target mid-run — or a regenerated export — would produce a signed-off result over mixed inputs, which is worse than no result.
+- **Consequences:** Long runs are safe to resume but cannot outlive their inputs. A replaced snapshot requires a deliberate reset and restart rather than a silent continuation.
+
+### DEC-056 — Classify only the DEC-025 key shift as approved variance
+
+- **Date:** 2026-08-31
+- **Packet:** CXP-11
+- **Status:** Accepted, implemented, locally verified
+- **Decision:** Shift every legacy interval key by −480 minutes into fixed PST before matching migrated keys, compare only intervals whose right boundary is at or before the fixed-PST acquisition checkpoint, and classify a mismatch as `APPROVED_EXPECTED_VARIANCE` **only** when the same legacy value matches the migrated value at the unshifted key. Every other difference is a defect.
+- **Rationale:** DEC-025 is the sole approved rule correction against legacy hour flooring. Encoding the variance as a positional test — rather than a per-metric allowance — keeps the exception narrow and machine-checkable, so no real defect can hide behind the timezone story.
+- **Consequences:** Approved variance is auditable per comparison through its `DEC-025` lineage reference. Blank, single-space, zero, and error tokens remain distinct sentinels, so blank-versus-zero and blank-versus-error can never be absorbed as variance.
+
+### DEC-057 — Seed the WB0817 baseline as bounded evidence-backed rules
+
+- **Date:** 2026-08-31
+- **Packet:** CXP-11
+- **Status:** Accepted, implemented, locally verified
+- **Decision:** Seed `SOURCE_ERROR_BASELINE` with six rules totalling exactly 1,885 WB0817 cached errors — two Offered formula-family ranges at 919 `#N/A` each, plus worksheet-scope counts of 13 and 8 `#REF!` and 20 and 6 `#DIV/0!`. Where the repository evidence is per-sheet rather than per-cell, keep the record a bounded worksheet-scope count and never fabricate cell locations. Reconcile observed legacy errors per worksheet-and-token key and assert the 1,885 total.
+- **Rationale:** `config/formula-family-catalog.json` provides per-sheet and, for Offered, per-family cached-error evidence. Inventing 47 individual non-`#N/A` cell references to reach a tidier schema would create unverifiable audit records.
+- **Consequences:** Baseline drift is detected by both total and error type. The superseded WB0809 count of 5,655 is asserted nowhere in code, tests, or evidence, and a `#N/A` observed in a source-table comparison classifies as `EXPECTED_SOURCE_ERROR` against the baseline rather than as a migration defect.
+
+### DEC-058 — Separate the setup and run state machines and make chunk writes retry-safe
+
+- **Date:** 2026-08-31
+- **Packet:** CXP-11
+- **Status:** Accepted, implemented, locally verified
+- **Decision:** Keep two independent versioned state machines — setup (`IDLE`/`RUNNING`/`COMPLETE`/`FAILED`) and run (`PREFLIGHT`/`SOURCE_TABLES`/`METRICS`/`ERROR_CLASSIFICATION`/`SUMMARIZING`/`COMPLETE`/`FAILED`) — sharing the script lock but never the cursor. Derive chunk IDs deterministically from phase, dataset, and offset so the results repository can reject a replayed chunk. Persist source-table comparisons as dataset, field, hashed record identity, and hashed value digests only.
+- **Rationale:** Installing control schemas and running a multi-hour comparison have different failure modes and different reset semantics; one shared cursor would make a partial schema indistinguishable from an interrupted comparison. Deterministic chunk IDs remove the need for a distributed transaction between the write and the cursor update, and hashing keeps PII out of the control workbook.
+- **Consequences:** Each invocation processes one bounded batch inside a four-minute budget and schedules exactly one continuation. A chunk written just before an interrupted cursor update is detected on retry and not appended twice. Resetting or retargeting an active run or setup is refused unless the operator forces it.
+
 ## CXP-07 decisions
 
 ### DEC-035 — Install bounded native spill tables instead of transforming rows in Apps Script
