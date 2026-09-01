@@ -65,6 +65,7 @@ Record Week Keys, statuses, health codes, timings, and trigger kinds only. Never
 | Step 00 failed until master template configured | Script property pointed at target, not a Drive master template | Operator created DEV master via bootstrap helper; set `CXP_DEV_MASTER_TEMPLATE_SPREADSHEET_ID` | Step 00 pass |
 | Step 06 `markerPreserved: false` despite archive/activate | Marker seeded only when `_RAW_HANDLED` had &lt; 2 rows; template copies already had data | Always seed/read reserved `_RAW_HANDLED!AX1` | Step 06 pass |
 | Step 08 `LIFECYCLE_CONTROL_UNAVAILABLE` from TriggerController | `promotionGate` did not wire hosted `ScriptApp` / health ports | Use `resolveHostedTriggerPorts` + `evaluateHostedHealth` | Step 08 pass |
+| `RUN_LOG` rows used bare `cxp12-uat-success` placeholders | Health seed wrote minimal rows outside `RunLogger` / `RunRepository` | Seed idempotent `CXP12-UAT-HEALTH-SEED` via `RunRepository.persistOnce` with actor, source file, target ID, counts, and state history | Re-run Step 04 or 08 once after clasp push |
 
 ## Sign-off
 

@@ -17,6 +17,9 @@ var Cxp12Uat = (function () {
 
   var FIXTURE_WEEK_KEY = '2026-08-17';
   var FIXTURE_NEXT_WEEK_KEY = '2026-08-24';
+  var UAT_HEALTH_SEED_RUN_ID = 'CXP12-UAT-HEALTH-SEED';
+  var UAT_HEALTH_SOURCE_FILE = 'cxp12-uat-health-fixture';
+  var UAT_HEALTH_SOURCE_FILE_ID = 'uat-synthetic:cxp12-uat-health-fixture';
   /** Reserved disposable cell on `_RAW_HANDLED` (AX1) — always writable for UAT. */
   var UAT_MARKER_VALUE = 'CXP12-UAT-MARKER';
   var UAT_MARKER_ROW = 1;
@@ -84,6 +87,38 @@ var Cxp12Uat = (function () {
       return WeekRegistryRepository;
     }
     return require('../repository/WeekRegistryRepository.js');
+  }
+
+  function resolveRunLogger() {
+    if (typeof RunLogger !== 'undefined') {
+      return RunLogger;
+    }
+    return require('../monitoring/RunLogger.js');
+  }
+
+  function resolveRunRepository() {
+    if (typeof RunRepository !== 'undefined') {
+      return RunRepository;
+    }
+    return require('../repository/RunRepository.js');
+  }
+
+  function resolveSchemaRegistry() {
+    if (typeof SchemaRegistry !== 'undefined') {
+      return SchemaRegistry;
+    }
+    return require('../ingestion/SchemaRegistry.js');
+  }
+
+  function resolveSourceActor() {
+    if (typeof Session !== 'undefined' && Session && typeof Session.getActiveUser === 'function') {
+      try {
+        return Session.getActiveUser().getEmail() || '';
+      } catch (error) {
+        return '';
+      }
+    }
+    return '';
   }
 
   function uatLog(tag, payload) {
@@ -187,49 +222,46 @@ var Cxp12Uat = (function () {
     return resolved;
   }
 
-  function seedRecentSuccessRun(controlSpreadsheet) {
+  function seedRecentSuccessRun(controlSpreadsheet, options) {
     if (!controlSpreadsheet) {
-      return false;
+      return Object.freeze({ seeded: false, runId: UAT_HEALTH_SEED_RUN_ID });
     }
-    var sheet = controlSpreadsheet.getSheetByName('RUN_LOG');
-    if (!sheet) {
-      return false;
-    }
-    var now = new Date().toISOString();
-    var row = [
-      'cxp12-uat-success',
-      now,
-      now,
-      null,
-      '',
-      '',
-      '1.0.0',
-      '{}',
-      '{}',
-      '',
-      'SUCCESS',
-      null,
-      '[]',
+    var opts = options || {};
+    var configuration = opts.configuration || loadConfiguration({
+      properties: opts.properties,
+    });
+    var startedAt = new Date();
+    var endedAt = new Date(startedAt.getTime() + 250);
+    var startedAtUtc = startedAt.toISOString();
+    var endedAtUtc = endedAt.toISOString();
+    var stateHistory = [
+      { atUtc: startedAtUtc, state: 'RECEIVED' },
+      { atUtc: endedAtUtc, state: 'HEALTH_CHECK' },
+      { atUtc: endedAtUtc, state: 'SUCCESS' },
     ];
-    if (sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, row.length).setValues([[
-        'Run ID',
-        'Started At UTC',
-        'Ended At UTC',
-        'Source Actor',
-        'Source File Name',
-        'Source File ID',
-        'Schema Version',
-        'Input Row Counts JSON',
-        'Output Row Counts JSON',
-        'Target Workbook ID',
-        'Status',
-        'Error Code',
-        'State History JSON',
-      ]]);
-    }
-    sheet.getRange(sheet.getLastRow() + 1, 1, 1, row.length).setValues([row]);
-    return true;
+    var record = resolveRunLogger().createRecord({
+      endedAtUtc: endedAtUtc,
+      errorCode: null,
+      inputRowCounts: { LifecycleHealth: 1 },
+      outputRowCounts: { HealthCheck: 1 },
+      runId: UAT_HEALTH_SEED_RUN_ID,
+      schemaVersion: resolveSchemaRegistry().ACTIVE_SCHEMA_VERSION,
+      sourceActor: resolveSourceActor(),
+      sourceFileId: UAT_HEALTH_SOURCE_FILE_ID,
+      sourceFileName: UAT_HEALTH_SOURCE_FILE,
+      startedAtUtc: startedAtUtc,
+      stateHistory: stateHistory,
+      status: 'SUCCESS',
+      targetWorkbookId: configuration.targetSpreadsheetId || '',
+    });
+    var result = resolveRunRepository()
+      .create(controlSpreadsheet)
+      .persistOnce([record], []);
+    return Object.freeze({
+      appendedRuns: result.appendedRuns,
+      runId: UAT_HEALTH_SEED_RUN_ID,
+      seeded: result.appendedRuns > 0,
+    });
   }
 
   function loadConfiguration(ports) {
@@ -275,12 +307,18 @@ var Cxp12Uat = (function () {
     var services = resolved.services || {
       spreadsheetApp: typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null,
     };
+    uatLog('CXP12UatStep01.start', {});
     var status = setup.initialize(services, resolved.properties);
     var result = Object.freeze({
       pass: status.status === setup.SETUP_STATES.COMPLETE && status.nextStep === status.stepCount,
       status: status,
     });
-    uatLog('CXP12UatStep01.result', { pass: result.pass, status: result.status.status });
+    uatLog('CXP12UatStep01.done', {
+      nextStep: result.status.nextStep,
+      pass: result.pass,
+      status: result.status.status,
+      stepCount: result.status.stepCount,
+    });
     return result;
   }
 
@@ -351,7 +389,10 @@ var Cxp12Uat = (function () {
       });
     }
     if (healthPorts.controlSpreadsheet && resolved.skipSuccessSeed !== true) {
-      seedRecentSuccessRun(healthPorts.controlSpreadsheet);
+      seedRecentSuccessRun(healthPorts.controlSpreadsheet, {
+        configuration: configuration,
+        properties: resolved.properties,
+      });
     }
     var baseline = resolveHealthCheck().evaluate(healthPorts, Object.assign({
       configuration: configuration,
@@ -484,8 +525,10 @@ var Cxp12Uat = (function () {
     uatLog('CXP12UatStep06.result', {
       activeWeekKey: result.activeWeekKey,
       markerPreserved: result.markerPreserved,
+      nextWeekKey: nextKey,
       pass: result.pass,
       priorStatus: result.priorStatus,
+      weekKey: firstKey,
     });
     return result;
   }
@@ -570,7 +613,10 @@ var Cxp12Uat = (function () {
       });
     }
     if (healthPorts.controlSpreadsheet && resolved.skipSuccessSeed !== true) {
-      seedRecentSuccessRun(healthPorts.controlSpreadsheet);
+      seedRecentSuccessRun(healthPorts.controlSpreadsheet, {
+        configuration: configuration,
+        properties: resolved.properties,
+      });
     }
     return resolveHealthCheck().evaluate(healthPorts, Object.assign({
       configuration: configuration,

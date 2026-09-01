@@ -19,7 +19,7 @@ Record Week Keys, statuses, health codes, timings, and trigger kinds only. Never
 | Step | Entrypoint | Result | Evidence |
 |---|---|---|---|
 | 00 — VerifyPrerequisites | `CXP12UatStep00VerifyPrerequisites` | Pass / Fail | `CXP12_UAT CXP12UatStep00.result` |
-| 01 — InstallRegistry | `CXP12UatStep01InstallRegistry` | Pass / Fail | `CXP12_SETUP` / `COMPLETE` |
+| 01 — InstallRegistry | `CXP12UatStep01InstallRegistry` | Pass / Fail | `CXP12_SETUP` `COMPLETE` / `CXP12_UAT CXP12UatStep01.done` |
 | 02 — CreateOrActivateWeek | `CXP12UatStep02CreateOrActivateWeek` | Pass / Fail | Week Key + `ACTIVE` / idempotent reuse |
 | 03 — AlignActiveTarget | `CXP12UatStep03AlignActiveTarget` | Pass / Fail | `registryPropertyAligned` |
 | 04 — HealthCheck | `CXP12UatStep04HealthCheck` | Pass / Fail | `healthy` + fault codes |

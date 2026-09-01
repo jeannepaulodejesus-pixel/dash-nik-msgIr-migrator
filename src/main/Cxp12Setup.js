@@ -46,7 +46,7 @@ var Cxp12Setup = (function () {
   }
 
   function emitLog(tag, payload) {
-    var line = 'CXP12_SETUP ' + tag + ' ' + JSON.stringify(payload || {});
+    var line = tag + ' ' + JSON.stringify(payload || {});
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
       console.log(line);
     }
@@ -135,7 +135,11 @@ var Cxp12Setup = (function () {
       version: STATE_VERSION,
     };
     saveState(props, state);
-    emitLog('start', { stepCount: STEPS.length });
+    emitLog('CXP12_SETUP', {
+      event: 'INITIALIZE',
+      nextStep: state.nextStep,
+      stepCount: STEPS.length,
+    });
 
     for (var index = 0; index < STEPS.length; index += 1) {
       var stepName = STEPS[index];
@@ -143,19 +147,34 @@ var Cxp12Setup = (function () {
         runStep(stepName, control);
         state.nextStep = index + 1;
         saveState(props, state);
-        emitLog('step', { nextStep: state.nextStep, step: stepName });
+        emitLog('CXP12_SETUP_STEP', {
+          label: stepName,
+          nextStep: state.nextStep,
+          stepCount: STEPS.length,
+          stepIndex: index,
+        });
       } catch (error) {
         state.status = SETUP_STATES.FAILED;
         state.errorCode = error && error.code ? error.code : 'LIFECYCLE_REGISTRY_SCHEMA_MISMATCH';
         saveState(props, state);
-        emitLog('failed', { errorCode: state.errorCode, step: stepName });
+        emitLog('CXP12_SETUP', {
+          event: 'FAILED',
+          errorCode: state.errorCode,
+          nextStep: state.nextStep,
+          step: stepName,
+        });
         throw error;
       }
     }
 
     state.status = SETUP_STATES.COMPLETE;
     saveState(props, state);
-    emitLog('complete', { nextStep: state.nextStep });
+    emitLog('CXP12_SETUP', {
+      event: 'COMPLETE',
+      nextStep: state.nextStep,
+      status: state.status,
+      stepCount: STEPS.length,
+    });
     return getStatus(props);
   }
 
