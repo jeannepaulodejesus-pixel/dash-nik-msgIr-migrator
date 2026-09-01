@@ -19,11 +19,22 @@ Task 2: completed — Final PARITY_RESULTS / SOURCE_ERROR_BASELINE contracts and
 Task 3: completed — Separate setup and run state machines with checkpointed, lock-guarded continuation
 Task 4: completed — CXP11UatStep00–08 helpers, synthetic bundle fixture, and documentation
 Task 5: completed — Local verification passed with 262 tests and zero failures
-Task 6: pending — Hosted DEV/UAT acceptance and promotion gate
+Task 6: completed — Hosted DEV acceptance and promotion gate passed on 2026-09-01
+
+Plan: CXP-12 Weekly Workbook Lifecycle, Scheduling, and Environment Promotion
+
+Task 0: completed — Requirements analysis and documentation package
+Task 1: completed — WeekRegistryRepository, final WEEK_REGISTRY headers, config keys
+Task 2: completed — WorkbookLifecycleService create/activate/archive/align
+Task 3: completed — HealthCheck + TriggerController + PromotionChecklist
+Task 4: completed — CXP12UatStep00–08 helpers and setup entrypoints
+Task 5: completed — Local verification passed with 279 tests and zero failures
+Task 6: completed — Hosted DEV acceptance and promotion gate passed on 2026-08-31
 
 Packet status:
 
 - CXP-08: complete — delivery CXP-08-v2, hosted DEV promotion passed
 - CXP-09: complete — delivery CXP-09-v1, hosted DEV promotion passed
 - CXP-10: complete — delivery CXP-10-v2, hosted DEV promotion passed
-- CXP-11: in progress — delivery CXP-11-v1 implemented and locally verified; hosted acceptance pending
+- CXP-11: complete — delivery CXP-11-v1, hosted DEV promotion passed 2026-09-01
+- CXP-12: complete — delivery CXP-12-v1, hosted DEV promotion passed 2026-08-31

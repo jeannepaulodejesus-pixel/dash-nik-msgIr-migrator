@@ -10,13 +10,20 @@ Runtime configuration uses Apps Script Script Properties. `Config.load()` reads 
 | `CXP_<ENV>_TARGET_SPREADSHEET_ID` | Active operational workbook target. | CXP-02/CXP-12 |
 | `CXP_<ENV>_CONTROL_SPREADSHEET_ID` | Separate system-control workbook. | CXP-02 |
 | `CXP_<ENV>_DRIVE_INBOX_FOLDER_ID` | Controlled Drive intake folder. | CXP-05/CXP-13 |
-| `CXP_<ENV>_MASTER_TEMPLATE_SPREADSHEET_ID` | Master weekly workbook template. | CXP-12 |
+| `CXP_<ENV>_MASTER_TEMPLATE_SPREADSHEET_ID` | Master weekly workbook template copied into each weekly instance. | CXP-12 |
+| `CXP_<ENV>_STALE_DATA_THRESHOLD_MINUTES` | Optional HealthCheck freshness threshold; default applied when absent. | CXP-12 |
 | `CXP_<ENV>_LEGACY_PARITY_EXPORT_FOLDER_ID` | Optional Drive folder holding the contracted legacy Excel parity export bundle. | CXP-11 |
 | `CXP_DEV_BOOTSTRAP_FOLDER_ID` | DEV-only Drive folder for `bootstrapCxpDevWorkbooks()` file automation. | Operator bootstrap |
 
 `<ENV>` is exactly `DEV`, `UAT`, or `PROD`. Values must be set in Script Properties, not in source.
 
 Example key names for DEV are `CXP_DEV_TARGET_SPREADSHEET_ID` and `CXP_DEV_CONTROL_SPREADSHEET_ID`; this repository intentionally supplies no values.
+
+### Weekly lifecycle and active target (CXP-12)
+
+`CXP_<ENV>_MASTER_TEMPLATE_SPREADSHEET_ID` is required by CXP-12 create/activate entrypoints and fails closed when missing. The master template is an operator-prepared spreadsheet skeleton; weekly instances are Drive copies and never receive bound Apps Script copies (ADR-002).
+
+`CXP_<ENV>_TARGET_SPREADSHEET_ID` remains the runtime authority for ingestion. CXP-12 create/activate/rollover rewrites it to the ACTIVE weekly instance and cross-checks it against the control workbook `WEEK_REGISTRY`. A mismatch fails closed with `LIFECYCLE_ACTIVE_TARGET_MISMATCH`. Contract: [`docs/weekly-workbook-lifecycle-contract.md`](weekly-workbook-lifecycle-contract.md).
 
 `initializeCxp02Workbooks()` requires both active-environment target/control IDs, rejects blank values, and rejects one ID being used for both roles before calling `SpreadsheetApp.openById`. The IDs must reference existing spreadsheets that the effective user may edit; CXP-02 does not create, publish, or store those IDs.
 
@@ -50,4 +57,4 @@ Downstream ingestion must convert UTC source and acquisition datetime values by 
 
 ## Promotion boundary
 
-Promotion changes Script Properties and the local/CI clasp target, not source. CXP-00 permits only DEV/UAT target validation and does not authorize a production push. Later deployment packets must add an approval-bound promotion checklist before PROD is used.
+Promotion changes Script Properties and the local/CI clasp target, not source. CXP-00 permits only DEV/UAT target validation and does not authorize a production push. CXP-12 owns the approval-bound DEV → UAT → PROD checklist (required destination keys, master template, ACTIVE registry alignment, HealthCheck, maintenance trigger inventory). PROD still requires explicit operator acknowledgment; CXP-14 owns cutover push and production runbooks. See [`docs/cxp12-uat-runbook.md`](cxp12-uat-runbook.md) Step 08 and [`docs/weekly-workbook-lifecycle-contract.md`](weekly-workbook-lifecycle-contract.md).

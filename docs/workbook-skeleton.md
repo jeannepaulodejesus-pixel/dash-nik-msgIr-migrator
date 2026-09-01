@@ -20,7 +20,7 @@ The report/support set preserves the CXP-01 operational surfaces without recreat
 
 ## System-control workbook
 
-The separate control spreadsheet contains `RUN_LOG`, `ERROR_LOG`, `FILE_LEDGER`, `WEEK_REGISTRY`, `SCHEMA_REGISTRY`, `PARITY_RESULTS`, and `SOURCE_ERROR_BASELINE`. Every required control tab receives managed sheet protection. CXP-02 creates names only; headers and row schemas belong to CXP-03/CXP-04/CXP-11. `PARITY_RESULTS` and `SOURCE_ERROR_BASELINE` now use the final CXP-11 contracts in [`docs/parity-validation-contract.md`](parity-validation-contract.md); `WEEK_REGISTRY` remains provisional until CXP-12.
+The separate control spreadsheet contains `RUN_LOG`, `ERROR_LOG`, `FILE_LEDGER`, `WEEK_REGISTRY`, `SCHEMA_REGISTRY`, `PARITY_RESULTS`, and `SOURCE_ERROR_BASELINE`. Every required control tab receives managed sheet protection. CXP-02 creates names only; headers and row schemas belong to CXP-03/CXP-04/CXP-11/CXP-12. `PARITY_RESULTS` and `SOURCE_ERROR_BASELINE` use the final CXP-11 contracts in [`docs/parity-validation-contract.md`](parity-validation-contract.md). `WEEK_REGISTRY` is owned by CXP-12; the final write contract is [`docs/weekly-workbook-lifecycle-contract.md`](weekly-workbook-lifecycle-contract.md).
 
 ## Idempotency contract
 

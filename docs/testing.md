@@ -18,6 +18,7 @@ npm run test:cxp08
 npm run test:cxp09
 npm run test:cxp10
 npm run test:cxp11
+npm run test:cxp12
 npm run verify
 git diff --check
 ```
@@ -56,3 +57,5 @@ CXP-09 locally verifies aggregation topology, retry-safe installation, circular-
 CXP-10 local tests prove the control-derived layout/formula contract, minute-bucket matching, zero preservation, duration normalization, business-context validation, and bounded parity failures. Hosted DEV acceptance passed on August 31, 2026: 139/139 install steps, zero formula errors, all structural layout checks, valid complete context, and `CXP10UatStep04` parity with zero differences across 38 axis rows. Evidence is recorded in `docs/cxp10-hosted-uat-results-2026-08-31.md`. UAT/PROD promotion remains a separate environment action.
 
 CXP-11 local tests drive the whole parity run through injected export, target, results, baseline, ledger, lock, and trigger ports, so no Drive folder or spreadsheet ID is needed. Node cannot recalculate a legacy Excel control, execute Google Sheets formulas, or prove hosted trigger timing and quota behavior. Hosted DEV acceptance passed on 2026-09-01: setup `COMPLETE` at 6/6, and `CXP11UatStep08` returned `promotionReady: true` with 341 comparisons, 335 matches, 6 expected source errors, 5 datasets, 25 metrics, and zero defects. Evidence is recorded in `docs/cxp11-hosted-uat-results-2026-09-01.md` and `docs/cxp11-parity-report-2026-09-01.md`. A real weekly run still requires an operator-recalculated export bundle whose `sourceBundleFingerprint` matches a successful `FILE_LEDGER` entry. Hosted helpers are documented in `docs/cxp11-uat-harness.md`. UAT/PROD promotion remains a separate environment action.
+
+CXP-12 tests are covered by `npm run test:cxp12` (`tests/cxp12-weekly-lifecycle.test.cjs`) for Week Key validation, idempotent activate/archive, ACTIVE mismatch fail-closed, ensure-only reinit, health codes, maintenance-only trigger inventory, promotion checklist completeness, rollover lock refusal, setup header install, and `CXP12UatStep00`–`08` succession through injected Drive/Spreadsheet/Properties/Lock/Trigger doubles. Hosted succession is documented in `docs/cxp12-uat-runbook.md` and `docs/cxp12-uat-harness.md`; contract authority is `docs/weekly-workbook-lifecycle-contract.md`. Hosted DEV evidence: [`docs/cxp12-hosted-uat-results-2026-08-31.md`](cxp12-hosted-uat-results-2026-08-31.md).

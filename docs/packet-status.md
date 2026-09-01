@@ -20,7 +20,7 @@ Valid states are `Not started`, `In progress`, `Blocked`, and `Complete`. A pack
 | CXP-09 — Stable Aggregation and Domain Model | Complete | Delivery `CXP-09-v1`; hosted DEV promotion passed 2026-08-31 |
 | CXP-10 — Interval View and MOM Reporting Surfaces | Complete | Delivery `CXP-10-v2`; hosted DEV promotion passed 2026-08-31 |
 | CXP-11 — Excel-vs-Google-Sheets Parity Harness and Source-Error Ledger | Complete | Delivery `CXP-11-v1`; hosted DEV promotion passed 2026-09-01 |
-| CXP-12 — Weekly Workbook Lifecycle, Scheduling, and Environment Promotion | Not started | Requires CXP-02, CXP-04, CXP-06, and CXP-10 complete |
+| CXP-12 — Weekly Workbook Lifecycle, Scheduling, and Environment Promotion | Complete | Delivery `CXP-12-v1`; hosted DEV promotion passed 2026-08-31 |
 | CXP-13 — RTA Intake Surface and Operational Status | Not started | Requires CXP-04 through CXP-06 and CXP-12 complete |
 | CXP-14 — Performance Hardening, UAT, Cutover, and Production Runbook | Not started | Requires CXP-00 through CXP-13 complete |
 
@@ -417,3 +417,25 @@ Superseded by `CXP-01-v3` only for source timestamp interpretation: fixed PST re
 - **Known limitations:** DEV acceptance used the synthetic Step 03 bundle, not an operator-recalculated weekly Excel export. It does not change UAT/PROD configuration. Hosted Step 06/07 logs were not attached; resume, second-bundle, and reinstall remain locally verified.
 - **Blockers:** None for CXP-11.
 - **Next-packet inputs:** CXP-12 may consume the finalized control-workbook write contracts and the separate setup/run state-machine convention; weekly lifecycle and scheduling remain CXP-12's responsibility. A production weekly parity run still requires an operator-recalculated legacy export whose fingerprint matches a successful `FILE_LEDGER` entry.
+
+## CXP-12 completion handoff
+
+- **Delivery version:** `CXP-12-v1`
+- **Repository status:** Complete — hosted DEV promotion passed 2026-08-31.
+- **Dependency gate:** Satisfied — CXP-02, CXP-04, CXP-06, and CXP-10 are complete.
+- **Files created:** `src/repository/WeekRegistryRepository.js`, `src/services/WorkbookLifecycleService.js`, `src/services/HealthCheck.js`, `src/services/TriggerController.js`, `src/services/PromotionChecklist.js`, `src/main/Cxp12Setup.js`, `src/main/Cxp12UatEntrypoints.js`, `tests/cxp12-weekly-lifecycle.test.cjs`, plus the documentation package and [`docs/cxp12-hosted-uat-results-2026-08-31.md`](cxp12-hosted-uat-results-2026-08-31.md).
+- **Files updated:** `src/main/ControlWorkbookHeaders.js` (final WEEK_REGISTRY headers), `src/config/Config.js` (`STALE_DATA_THRESHOLD_MINUTES`), `src/monitoring/ErrorCodes.js` (`LIFECYCLE` category and packet codes), `package.json` (`test:cxp12`), `tests/config.test.cjs`, `tests/cxp04-run-orchestration.test.cjs`, `src/main/DevWorkbookBootstrap.js` (DEV master-template helper).
+- **Local evidence:** `npm run test:cxp12` passed 14/14. `npm run verify` exited 0 with 279 tests passed.
+- **Evidence:** [`docs/cxp12-hosted-uat-results-2026-08-31.md`](cxp12-hosted-uat-results-2026-08-31.md).
+- **Acceptance criteria:**
+  - Idempotent master-template → weekly-instance create/register — Pass (hosted Step 02)
+  - Active workbook resolved via configuration and registry alignment — Pass (hosted Step 03)
+  - Stale/failed/missing-sheet/recalc health codes detectable — Pass (local + hosted healthy baseline Step 04)
+  - Maintenance triggers only; no primary ingest timer — Pass (hosted Step 05, five kinds)
+  - Weekly rollover archives prior week and preserves live data — Pass (hosted Step 06)
+  - Accidental re-init does not clear live data — Pass (hosted Step 07)
+  - DEV/UAT/PROD checklist without source edits; PROD requires acknowledgment — Pass (hosted Step 08 DEV; PROD ack local)
+- **Assumptions:** Intra-week date anchors remain CXP-10; CXP-12 owns week-boundary file rollover only. Time triggers are maintenance-only.
+- **Known limitations:** DEV fixture Week Keys are UAT constants. This run does not change UAT/PROD Script Properties. Hosted timer *delivery* (actual fire) was not separately observed—inventory install only. Node tests use injected Drive/Spreadsheet/Trigger doubles.
+- **Blockers:** None for CXP-12.
+- **Next-packet inputs:** CXP-13 may consume ACTIVE workbook lookup, health status, and maintenance-trigger conventions for the RTA intake surface.

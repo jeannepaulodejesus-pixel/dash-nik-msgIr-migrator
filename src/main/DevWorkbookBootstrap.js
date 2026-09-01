@@ -16,6 +16,9 @@
  *   scanCxpUatSourceFileValidation()              // scan all five UAT sources for schema/type errors
  *   repairCxpUatSourceFiles(updateProperties?)    // export Fixed-*.xlsx sources; optional property update
  *
+ *   createCxpDevMasterTemplateFromTarget()        // Drive-copy DEV target → DEV_MASTER_TEMPLATE + set property
+ *   createCxpDevMasterTemplateFromTargetForceReplace() // overwrite existing master template property
+ *
  * Never commits IDs to source. Refuses PROD. Refuses overwrite of existing
  * CXP_DEV_* spreadsheet IDs unless forceReplace is true.
  */
@@ -25,6 +28,7 @@ var DevWorkbookBootstrap = (function () {
   var BOOTSTRAP_FOLDER_PROPERTY = 'CXP_DEV_BOOTSTRAP_FOLDER_ID';
   var TARGET_WORKBOOK_NAME = 'DEV_TARGET_WORKBOOK';
   var CONTROL_WORKBOOK_NAME = 'DEV_SYSTEM_CONTROL_WORKBOOK';
+  var MASTER_TEMPLATE_WORKBOOK_NAME = 'DEV_MASTER_TEMPLATE';
   var ENVIRONMENT = 'DEV';
 
   function resolveConfig() {
@@ -423,12 +427,76 @@ var DevWorkbookBootstrap = (function () {
     return result;
   }
 
+  function createMasterTemplateFromTarget(options, properties, services) {
+    var opts = options || {};
+    var forceReplace = opts.forceReplace === true;
+    var resolvedProperties = resolveProperties(properties);
+    var resolvedServices = resolveServices(services);
+    var config = resolveConfig();
+
+    assertDevOnly(resolvedProperties);
+
+    var targetKey = config.propertyKey(ENVIRONMENT, config.CONFIGURATION_KEYS.targetSpreadsheetId);
+    var masterKey = config.propertyKey(
+      ENVIRONMENT,
+      config.CONFIGURATION_KEYS.masterTemplateSpreadsheetId,
+    );
+    var targetId = resolvedProperties.getProperty(targetKey);
+    if (!targetId || !String(targetId).trim()) {
+      throw new Error(targetKey + ' is required before creating a master template.');
+    }
+    targetId = String(targetId).trim();
+
+    var existingMaster = resolvedProperties.getProperty(masterKey);
+    if (existingMaster && String(existingMaster).trim() && !forceReplace) {
+      throw new Error(
+        masterKey + ' is already set. Pass forceReplace=true or run ' +
+        'createCxpDevMasterTemplateFromTargetForceReplace().',
+      );
+    }
+
+    if (!resolvedServices.driveApp || typeof resolvedServices.driveApp.getFileById !== 'function') {
+      throw new Error('DriveApp.getFileById is required to copy the DEV target.');
+    }
+    if (
+      !resolvedServices.spreadsheetApp ||
+      typeof resolvedServices.spreadsheetApp.openById !== 'function'
+    ) {
+      throw new Error('SpreadsheetApp.openById is required to verify the DEV target.');
+    }
+
+    resolvedServices.spreadsheetApp.openById(targetId);
+
+    var sourceFile = resolvedServices.driveApp.getFileById(targetId);
+    if (!sourceFile || typeof sourceFile.makeCopy !== 'function') {
+      throw new Error('Drive file makeCopy is required to create the master template.');
+    }
+
+    var copied = sourceFile.makeCopy(MASTER_TEMPLATE_WORKBOOK_NAME);
+    var masterId = copied.getId();
+    resolvedProperties.setProperty(masterKey, masterId);
+    if (!resolvedProperties.getProperty(config.ACTIVE_ENVIRONMENT_KEY)) {
+      resolvedProperties.setProperty(config.ACTIVE_ENVIRONMENT_KEY, ENVIRONMENT);
+    }
+
+    var result = Object.freeze({
+      forceReplace: forceReplace,
+      masterTemplateConfigured: true,
+      masterTemplateName: MASTER_TEMPLATE_WORKBOOK_NAME,
+      targetUnchanged: true,
+    });
+    emitLog('CXP_DEV_MASTER_TEMPLATE', result);
+    return result;
+  }
+
   return Object.freeze({
     BOOTSTRAP_FOLDER_PROPERTY: BOOTSTRAP_FOLDER_PROPERTY,
     CONTROL_WORKBOOK_NAME: CONTROL_WORKBOOK_NAME,
     ENVIRONMENT: ENVIRONMENT,
+    MASTER_TEMPLATE_WORKBOOK_NAME: MASTER_TEMPLATE_WORKBOOK_NAME,
     TARGET_WORKBOOK_NAME: TARGET_WORKBOOK_NAME,
     bootstrap: bootstrap,
+    createMasterTemplateFromTarget: createMasterTemplateFromTarget,
     discoverWorkbooksInFolder: discoverWorkbooksInFolder,
     parseSpreadsheetId: parseSpreadsheetId,
     registerWorkbookIds: registerWorkbookIds,
@@ -448,6 +516,18 @@ function bootstrapCxpDevWorkbooks(folderId, forceReplace) {
 
 function bootstrapCxpDevWorkbooksForceReplace() {
   return bootstrapCxpDevWorkbooks(null, true);
+}
+
+/**
+ * Drive-copy the configured DEV target into DEV_MASTER_TEMPLATE and set
+ * CXP_DEV_MASTER_TEMPLATE_SPREADSHEET_ID. Does not change the target ID.
+ */
+function createCxpDevMasterTemplateFromTarget() {
+  return DevWorkbookBootstrap.createMasterTemplateFromTarget({ forceReplace: false });
+}
+
+function createCxpDevMasterTemplateFromTargetForceReplace() {
+  return DevWorkbookBootstrap.createMasterTemplateFromTarget({ forceReplace: true });
 }
 
 /**
