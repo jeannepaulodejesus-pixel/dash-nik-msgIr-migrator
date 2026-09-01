@@ -551,7 +551,7 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-12
-- **Status:** Accepted and implemented locally; hosted UAT pending
+- **Status:** Accepted; implemented; hosted DEV UAT passed 2026-08-31
 - **Decision:** Persist weekly instances in control-workbook `WEEK_REGISTRY` and keep `CXP_<ENV>_TARGET_SPREADSHEET_ID` as the runtime ingestion pointer. Create/activate/rollover must keep them aligned; mismatch fails closed with `LIFECYCLE_ACTIVE_TARGET_MISMATCH`. Exactly one `ACTIVE` row is allowed.
 - **Rationale:** ADR-009 requires a registered weekly active workbook; ADR-010 forbids hard-coded IDs. Ingestion already resolves the target from Script Properties; the registry supplies durable history and an operator-visible health cross-check without rewriting every caller.
 - **Consequences:** `WeekRegistryRepository` becomes the write authority for `WEEK_REGISTRY`. Provisional six-column headers gain `Activated At UTC`. HealthCheck and CXP-13 status surfaces can report ACTIVE Week Key without reading source.
@@ -560,7 +560,7 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-12
-- **Status:** Accepted and implemented locally; hosted UAT pending
+- **Status:** Accepted; implemented; hosted DEV UAT passed 2026-08-31
 - **Decision:** CXP-12 owns master-template copy, ACTIVE registration, prior-week archive, and target retarget at week boundaries. CXP-10 `BusinessContextService` continues to own intra-week `Interval View!AA2` / `MOM!B3` / `_CALC_STAFF!BE1` advancement inside one workbook.
 - **Rationale:** Collapsing both into one API would either recreate daily file sprawl or force destructive clears when RTAs only need the next business day. The handoff forbids daily operational files and requires accidental re-init safety for live data.
 - **Consequences:** WeeklyRollover UAT proves a new spreadsheet instance; CXP-10 Step 05 remains the in-workbook seven-day anchor advance. CXP-12 may seed anchors on a newly created week but must use ensure-only semantics on live books.
@@ -569,7 +569,7 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-12
-- **Status:** Accepted and implemented locally; hosted UAT pending
+- **Status:** Accepted; implemented; hosted DEV UAT passed 2026-08-31
 - **Decision:** Install time-driven triggers solely for `HEALTH_CHECK`, `STALE_DATA`, `CLEANUP`, optional `INBOX_POLL`, and `WEEKLY_ROLLOVER`. Primary hourly freshness remains user-triggered or source-triggered ingestion (CXP-06 / later CXP-13). Inbox polling may signal availability but must not commit.
 - **Rationale:** The packet goal keeps user/source-triggered ingestion as the primary refresh path and uses timers for maintenance, stale checks, cleanup, and rollover. Apps Script trigger delivery is eventual; making commit timer-primary would hide failures and fight LockService serialization.
 - **Consequences:** `TriggerController` inventories kinds, not opaque IDs, in evidence. UAT Step 05 fails if a primary ingest commit trigger is installed. Exact wake clocks are non-goals.
@@ -578,7 +578,7 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 
 - **Date:** 2026-08-31
 - **Packet:** CXP-12
-- **Status:** Accepted and implemented locally; hosted UAT pending
+- **Status:** Accepted; implemented; hosted DEV UAT passed 2026-08-31
 - **Decision:** DEV → UAT → PROD promotion updates Script Properties and clasp target only, never source. CXP-12 ships the checklist and PROD acknowledgment gate; CXP-14 retains cutover push and production runbooks. Required destination keys include target, control, master template, and inbox folder IDs plus post-smoke HealthCheck and trigger inventory.
 - **Rationale:** ADR-010 and CXP-00 already forbid embedding environment IDs in source and withhold unattended PROD push. Operators need an explicit checklist before PROD keys are used.
 - **Consequences:** `CXP12UatStep08PromotionGate` returns `promotionReady` from checklist inputs. Missing destination keys yield `PROMOTION_CHECKLIST_INCOMPLETE`. Optional `CXP_<ENV>_STALE_DATA_THRESHOLD_MINUTES` is documented with a default when absent.
