@@ -20,4 +20,4 @@ The approved architecture is defined in `CODEX_HANDOFF.md`. This index gives lat
 | ADR-014 | Accepted | Give `_AGG_FORECAST!A2` one formula owner: CXP-10; CXP-09 owns only its schema and exact legacy cleanup. |
 | ADR-015 | Accepted | Own report and Staff dates through one validated business-context service and generate Staff summary formulas from a versioned routing contract. |
 
-Implementation-level decisions made by CXP-00 through CXP-11, including the later GMT-extraction clarification, are recorded in the [decision log](decision-log.md).
+Implementation-level decisions made by CXP-00 through CXP-12, including the later GMT-extraction clarification, are recorded in the [decision log](decision-log.md). CXP-12 DEC-060–DEC-063 are accepted and implemented locally; hosted UAT remains pending.

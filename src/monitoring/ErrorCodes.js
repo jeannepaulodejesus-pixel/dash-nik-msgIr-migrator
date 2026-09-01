@@ -3,6 +3,7 @@ var ErrorCodes = (function () {
 
   var CATEGORIES = Object.freeze({
     INGESTION: 'INGESTION',
+    LIFECYCLE: 'LIFECYCLE',
     MIGRATION_CALCULATION: 'MIGRATION_CALCULATION',
     PARITY: 'PARITY',
     REPORTING: 'REPORTING',
@@ -10,6 +11,7 @@ var ErrorCodes = (function () {
   });
   var FAILURE_STATES = Object.freeze({
     INGESTION: 'FAILED_INGESTION',
+    LIFECYCLE: 'FAILED_LIFECYCLE',
     MIGRATION_CALCULATION: 'FAILED_MIGRATION_CALCULATION',
     PARITY: 'FAILED_PARITY',
     REPORTING: 'FAILED_REPORTING',
@@ -422,6 +424,90 @@ var ErrorCodes = (function () {
     CATEGORIES.PARITY,
     'The parity script lock could not be acquired before timeout.',
     true,
+  );
+  define(
+    'LIFECYCLE_TEMPLATE_NOT_CONFIGURED',
+    CATEGORIES.LIFECYCLE,
+    'The master template spreadsheet ID is not configured.',
+    false,
+  );
+  define(
+    'LIFECYCLE_TEMPLATE_UNREADABLE',
+    CATEGORIES.LIFECYCLE,
+    'The master template spreadsheet could not be opened or copied.',
+    true,
+  );
+  define(
+    'LIFECYCLE_WEEK_KEY_INVALID',
+    CATEGORIES.LIFECYCLE,
+    'The week key must be a Monday ISO date (YYYY-MM-DD).',
+    false,
+  );
+  define(
+    'LIFECYCLE_ACTIVE_TARGET_MISMATCH',
+    CATEGORIES.LIFECYCLE,
+    'The ACTIVE week registry target does not match the configured target spreadsheet ID.',
+    false,
+  );
+  define(
+    'LIFECYCLE_ROLLOVER_LOCKED',
+    CATEGORIES.LIFECYCLE,
+    'Weekly rollover is refused while ingestion holds the script lock or a run is not terminal.',
+    true,
+  );
+  define(
+    'LIFECYCLE_ALREADY_ACTIVE',
+    CATEGORIES.LIFECYCLE,
+    'The requested week key is already ACTIVE.',
+    false,
+  );
+  define(
+    'LIFECYCLE_INIT_REFUSED_LIVE_DATA',
+    CATEGORIES.LIFECYCLE,
+    'Destructive week initialization was refused because live operational data is present.',
+    false,
+  );
+  define(
+    'LIFECYCLE_CONTROL_UNAVAILABLE',
+    CATEGORIES.LIFECYCLE,
+    'The control workbook or WEEK_REGISTRY sheet is unavailable.',
+    true,
+  );
+  define(
+    'LIFECYCLE_REGISTRY_SCHEMA_MISMATCH',
+    CATEGORIES.LIFECYCLE,
+    'The WEEK_REGISTRY header does not match its controlled schema.',
+    false,
+  );
+  define(
+    'HEALTH_MISSING_SHEETS',
+    CATEGORIES.LIFECYCLE,
+    'One or more required sheets are missing from the active workbook.',
+    false,
+  );
+  define(
+    'HEALTH_LAST_RUN_FAILED',
+    CATEGORIES.LIFECYCLE,
+    'The latest terminal run ended in a failure state.',
+    true,
+  );
+  define(
+    'HEALTH_STALE_DATA',
+    CATEGORIES.LIFECYCLE,
+    'The last successful run is older than the stale-data threshold.',
+    true,
+  );
+  define(
+    'HEALTH_RECALC_NOT_READY',
+    CATEGORIES.LIFECYCLE,
+    'Recalculation or post-commit health readiness is not satisfied.',
+    true,
+  );
+  define(
+    'PROMOTION_CHECKLIST_INCOMPLETE',
+    CATEGORIES.LIFECYCLE,
+    'The destination environment promotion checklist is incomplete.',
+    false,
   );
   var CATALOG = Object.freeze(mutableCatalog);
 

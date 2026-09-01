@@ -2,66 +2,91 @@
  * Row-1 headers (and SCHEMA_REGISTRY seed rows) for the seven CXP-02 control tabs.
  * CXP-04 owns RUN_LOG/ERROR_LOG; CXP-05 owns FILE_LEDGER; CXP-03 owns SCHEMA_REGISTRY;
  * CXP-11 owns the final PARITY_RESULTS and SOURCE_ERROR_BASELINE contracts.
- * WEEK_REGISTRY stays provisional until CXP-12 lands its write contract.
+ * CXP-12 owns the final WEEK_REGISTRY write contract.
+ *
+ * Apps Script has no require(). Keep final WEEK_REGISTRY headers inline so this
+ * module can load before WeekRegistryRepository in clasp file order, and only
+ * call require() under Node.
  */
 var ControlWorkbookHeaders = (function () {
   'use strict';
 
-  var PROVISIONAL_WEEK_REGISTRY_HEADERS = Object.freeze([
+  // Must stay aligned with WeekRegistryRepository.HEADERS (CXP-12 contract 1.0.0).
+  var WEEK_REGISTRY_HEADERS = Object.freeze([
     'Week Key',
     'Target Spreadsheet ID',
     'Master Template Spreadsheet ID',
     'Registered At UTC',
+    'Activated At UTC',
     'Status',
     'Notes',
   ]);
+
+  function nodeRequire(path) {
+    if (typeof require === 'function') {
+      return require(path);
+    }
+    return null;
+  }
+
   function resolveParityResultsRepository() {
     if (typeof ParityResultsRepository !== 'undefined') {
       return ParityResultsRepository;
     }
-    return require('../repository/ParityResultsRepository.js');
+    return nodeRequire('../repository/ParityResultsRepository.js');
   }
 
   function resolveSourceErrorBaselineRepository() {
     if (typeof SourceErrorBaselineRepository !== 'undefined') {
       return SourceErrorBaselineRepository;
     }
-    return require('../repository/SourceErrorBaselineRepository.js');
+    return nodeRequire('../repository/SourceErrorBaselineRepository.js');
+  }
+
+  function resolveWeekRegistryHeaders() {
+    if (typeof WeekRegistryRepository !== 'undefined' && WeekRegistryRepository.HEADERS) {
+      return WeekRegistryRepository.HEADERS;
+    }
+    var repo = nodeRequire('../repository/WeekRegistryRepository.js');
+    if (repo && repo.HEADERS) {
+      return repo.HEADERS;
+    }
+    return WEEK_REGISTRY_HEADERS;
   }
 
   function resolveRunLogger() {
     if (typeof RunLogger !== 'undefined') {
       return RunLogger;
     }
-    return require('../monitoring/RunLogger.js');
+    return nodeRequire('../monitoring/RunLogger.js');
   }
 
   function resolveErrorLogger() {
     if (typeof ErrorLogger !== 'undefined') {
       return ErrorLogger;
     }
-    return require('../monitoring/ErrorLogger.js');
+    return nodeRequire('../monitoring/ErrorLogger.js');
   }
 
   function resolveFileLedgerRepository() {
     if (typeof FileLedgerRepository !== 'undefined') {
       return FileLedgerRepository;
     }
-    return require('../repository/FileLedgerRepository.js');
+    return nodeRequire('../repository/FileLedgerRepository.js');
   }
 
   function resolveSchemaRegistry() {
     if (typeof SchemaRegistry !== 'undefined') {
       return SchemaRegistry;
     }
-    return require('../ingestion/SchemaRegistry.js');
+    return nodeRequire('../ingestion/SchemaRegistry.js');
   }
 
   function resolveSheetNames() {
     if (typeof SheetNames !== 'undefined') {
       return SheetNames;
     }
-    return require('../config/SheetNames.js');
+    return nodeRequire('../config/SheetNames.js');
   }
 
   function headersBySheetName() {
@@ -74,7 +99,7 @@ var ControlWorkbookHeaders = (function () {
       RUN_LOG: resolveRunLogger().HEADERS,
       SCHEMA_REGISTRY: registry.REGISTRY_RECORD_HEADERS,
       SOURCE_ERROR_BASELINE: resolveSourceErrorBaselineRepository().HEADERS,
-      WEEK_REGISTRY: PROVISIONAL_WEEK_REGISTRY_HEADERS,
+      WEEK_REGISTRY: resolveWeekRegistryHeaders(),
     });
   }
 
@@ -136,7 +161,9 @@ var ControlWorkbookHeaders = (function () {
   }
 
   return Object.freeze({
-    PROVISIONAL_WEEK_REGISTRY_HEADERS: PROVISIONAL_WEEK_REGISTRY_HEADERS,
+    WEEK_REGISTRY_HEADERS: WEEK_REGISTRY_HEADERS,
+    // Back-compat alias; values are the final CXP-12 contract, not the old 6-column shell.
+    PROVISIONAL_WEEK_REGISTRY_HEADERS: WEEK_REGISTRY_HEADERS,
     buildSchemaRegistryRows: buildSchemaRegistryRows,
     headersBySheetName: headersBySheetName,
     seed: seed,
@@ -144,8 +171,13 @@ var ControlWorkbookHeaders = (function () {
 })();
 
 function seedCxpControlWorkbookHeaders(spreadsheetId, overwrite) {
-  var configModule =
-    typeof Config !== 'undefined' ? Config : require('../config/Config.js');
+  var configModule = typeof Config !== 'undefined' ? Config : null;
+  if (!configModule && typeof require === 'function') {
+    configModule = require('../config/Config.js');
+  }
+  if (!configModule) {
+    throw new Error('Config is required to seed control headers.');
+  }
   var configuration = configModule.load();
   var resolvedId =
     typeof spreadsheetId === 'string' && spreadsheetId.trim()

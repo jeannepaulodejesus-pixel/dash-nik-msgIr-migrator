@@ -9,6 +9,7 @@ var Config = (function () {
     driveInboxFolderId: 'DRIVE_INBOX_FOLDER_ID',
     masterTemplateSpreadsheetId: 'MASTER_TEMPLATE_SPREADSHEET_ID',
     legacyParityExportFolderId: 'LEGACY_PARITY_EXPORT_FOLDER_ID',
+    staleDataThresholdMinutes: 'STALE_DATA_THRESHOLD_MINUTES',
   });
 
   function normalizeEnvironment(value) {

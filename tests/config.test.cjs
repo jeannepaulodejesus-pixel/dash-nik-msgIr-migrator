@@ -42,6 +42,7 @@ test('loads DEV configuration from environment-prefixed PropertiesService keys',
     driveInboxFolderId: 'dev-inbox',
     masterTemplateSpreadsheetId: 'dev-template',
     legacyParityExportFolderId: 'dev-parity-export',
+    staleDataThresholdMinutes: null,
   });
   assert.equal(Object.isFrozen(config), true);
 });

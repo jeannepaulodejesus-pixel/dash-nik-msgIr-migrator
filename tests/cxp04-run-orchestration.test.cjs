@@ -126,6 +126,7 @@ test('error taxonomy has stable source, ingestion, migration/calculation, and re
 
   assert.deepEqual(ErrorCodes.CATEGORIES, {
     INGESTION: 'INGESTION',
+    LIFECYCLE: 'LIFECYCLE',
     MIGRATION_CALCULATION: 'MIGRATION_CALCULATION',
     PARITY: 'PARITY',
     REPORTING: 'REPORTING',
@@ -145,6 +146,11 @@ test('error taxonomy has stable source, ingestion, migration/calculation, and re
     'MIGRATION_CALCULATION',
   );
   assert.equal(ErrorCodes.get('REPORTING_LOG_WRITE_FAILED').category, 'REPORTING');
+  assert.equal(ErrorCodes.get('LIFECYCLE_ACTIVE_TARGET_MISMATCH').category, 'LIFECYCLE');
+  assert.equal(
+    ErrorCodes.failureStateFor('LIFECYCLE_ACTIVE_TARGET_MISMATCH'),
+    'FAILED_LIFECYCLE',
+  );
   assert.equal(
     ErrorCodes.failureStateFor('SCHEMA_MISSING_REQUIRED_COLUMNS'),
     'FAILED_SOURCE',
