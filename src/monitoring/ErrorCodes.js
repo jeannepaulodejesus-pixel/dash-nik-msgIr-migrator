@@ -179,6 +179,14 @@ var ErrorCodes = (function () {
     'An ingestion operation failed.',
     true,
   );
+  define('INGESTION_UNAUTHORIZED_ACTOR', CATEGORIES.INGESTION, 'The signed-in user is not authorized to start ingestion.', false);
+  define('INGESTION_RUN_ALREADY_ACTIVE', CATEGORIES.INGESTION, 'Another ingestion run is already active.', true);
+  define('INGESTION_SELECTION_CHANGED', CATEGORIES.INGESTION, 'The selected inbox delivery changed before processing began.', true);
+  define('SOURCE_INBOX_NOT_CONFIGURED', CATEGORIES.SOURCE, 'The controlled Drive Inbox is not configured.', false);
+  define('SOURCE_INBOX_UNAVAILABLE', CATEGORIES.SOURCE, 'The controlled Drive Inbox is unavailable.', true);
+  define('SOURCE_INBOX_TOO_LARGE', CATEGORIES.SOURCE, 'The controlled Drive Inbox exceeds its bounded scan limit.', false);
+  define('SOURCE_INBOX_BUNDLE_INCOMPLETE', CATEGORIES.SOURCE, 'The newest inbox delivery is incomplete.', false);
+  define('SOURCE_INBOX_BUNDLE_AMBIGUOUS', CATEGORIES.SOURCE, 'The newest inbox delivery is ambiguous.', false);
   define(
     'INGESTION_FILE_LEDGER_SCHEMA_MISMATCH',
     CATEGORIES.INGESTION,

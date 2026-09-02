@@ -11,6 +11,7 @@ Runtime configuration uses Apps Script Script Properties. `Config.load()` reads 
 | `CXP_<ENV>_CONTROL_SPREADSHEET_ID` | Separate system-control workbook. | CXP-02 |
 | `CXP_<ENV>_DRIVE_INBOX_FOLDER_ID` | Controlled Drive intake folder. | CXP-05/CXP-13 |
 | `CXP_<ENV>_MASTER_TEMPLATE_SPREADSHEET_ID` | Master weekly workbook template copied into each weekly instance. | CXP-12 |
+| `CXP_<ENV>_RTA_ALLOWED_DOMAIN` | Workspace domain allowed to use the CXP-13 web app and start ingestion. | CXP-13 |
 | `CXP_<ENV>_STALE_DATA_THRESHOLD_MINUTES` | Optional HealthCheck freshness threshold; default applied when absent. | CXP-12 |
 | `CXP_<ENV>_LEGACY_PARITY_EXPORT_FOLDER_ID` | Optional Drive folder holding the contracted legacy Excel parity export bundle. | CXP-11 |
 | `CXP_DEV_BOOTSTRAP_FOLDER_ID` | DEV-only Drive folder for `bootstrapCxpDevWorkbooks()` file automation. | Operator bootstrap |
@@ -42,6 +43,12 @@ If bootstrap already created `DEV_TARGET_WORKBOOK` and `DEV_SYSTEM_CONTROL_WORKB
 The folder must contain exactly the eight contracted files (`manifest.json` plus five source-table CSVs, `metrics.csv`, and `legacy-errors.csv`) described in [`docs/parity-validation-contract.md`](parity-validation-contract.md). Uncontracted files fail the run closed. CXP-11 writes results only to the control workbook's `PARITY_RESULTS` and `SOURCE_ERROR_BASELINE` tabs; export files and source rows stay outside the repository.
 
 UAT source diagnostics (also in `DevWorkbookBootstrap.js`): `listCxpUatSourceFiles()` / `listCxpUatFilesIfFound()` verifies all five `CXP_UAT_*_FILE_ID` properties; `scanCxpUatSourceFileValidation()` reports invalid types per dataset before CXP-06 Case 1. Read-only; does not require `CXP_UAT_ENABLED`.
+
+### RTA intake web app (CXP-13)
+
+`CXP_<ENV>_RTA_ALLOWED_DOMAIN` is required by every CXP-13 web/status/start entrypoint. It contains only the Workspace domain (for example, `example.test`), never an email address. Deploy the web app as the accessing user and restrict it to the same Workspace domain. The server compares the signed-in user's domain exactly, then discards the email value.
+
+The configured Drive Inbox accepts only the timestamped naming contract in [`docs/rta-intake-contract.md`](rta-intake-contract.md). CXP-13 does not scan arbitrary Drive locations or accept browser uploads.
 
 ## Local clasp target
 

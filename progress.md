@@ -38,3 +38,4 @@ Packet status:
 - CXP-10: complete — delivery CXP-10-v2, hosted DEV promotion passed
 - CXP-11: complete — delivery CXP-11-v1, hosted DEV promotion passed 2026-09-01
 - CXP-12: complete — delivery CXP-12-v1, hosted DEV promotion passed 2026-08-31
+- CXP-13: implementation complete locally — delivery CXP-13-v1-rc; hosted DEV/UAT Steps 00–08 and timing gate pending

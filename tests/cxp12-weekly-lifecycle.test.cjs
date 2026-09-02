@@ -489,6 +489,26 @@ test('Config loads optional stale threshold key', () => {
   assert.equal(config.staleDataThresholdMinutes, '120');
 });
 
+test('alignActiveTarget repairs a drifted target property from the ACTIVE registry row', () => {
+  const ports = buildLifecyclePorts();
+  const lifecycle = WorkbookLifecycleService.create(ports);
+  const created = lifecycle.createOrActivateWeeklyWorkbook({ weekKey: '2026-08-24' });
+
+  ports.properties.setProperty('CXP_DEV_TARGET_SPREADSHEET_ID', 'stale-target');
+  assert.throws(() => lifecycle.getActiveWeeklyWorkbook(), {
+    code: 'LIFECYCLE_ACTIVE_TARGET_MISMATCH',
+  });
+
+  const aligned = lifecycle.alignActiveTarget();
+  assert.equal(aligned.aligned, true);
+  assert.equal(aligned.weekKey, '2026-08-24');
+  assert.equal(
+    ports.properties.getProperty('CXP_DEV_TARGET_SPREADSHEET_ID'),
+    created.record.targetSpreadsheetId,
+  );
+  assert.equal(lifecycle.getActiveWeeklyWorkbook().aligned, true);
+});
+
 test('CXP12 UAT succession helpers pass with injected ports', () => {
   const ports = buildLifecyclePorts({ withRawMarker: true });
   const books = ports.books;

@@ -439,3 +439,12 @@ Superseded by `CXP-01-v3` only for source timestamp interpretation: fixed PST re
 - **Known limitations:** DEV fixture Week Keys are UAT constants. This run does not change UAT/PROD Script Properties. Hosted timer *delivery* (actual fire) was not separately observed—inventory install only. Node tests use injected Drive/Spreadsheet/Trigger doubles.
 - **Blockers:** None for CXP-12.
 - **Next-packet inputs:** CXP-13 may consume ACTIVE workbook lookup, health status, and maintenance-trigger conventions for the RTA intake surface.
+
+## CXP-13 implementation status
+
+- **Delivery version:** `CXP-13-v1-rc`
+- **Repository status:** Implemented and locally testable; hosted DEV/UAT promotion evidence is pending.
+- **Architecture:** Standalone domain-restricted web app, deterministic controlled-Inbox bundle selection, production-neutral checkpointed ingestion controller, RUN_LOG-backed public status, and separate `CXP13_INGESTION_PIPELINE_STATE_V1` state.
+- **Execution boundary:** 270,000 ms cooperative budget, 60,000 ms minimum reserve, 15,000 ms handoff margin, one successor trigger, and a recovery-only 420,000 ms watchdog.
+- **Hosted gate:** Run [`docs/cxp13-uat-runbook.md`](cxp13-uat-runbook.md) in DEV and UAT. Promotion requires Steps 00–08, longest invocation below 270 seconds, multi-invocation resume, duplicate/invalid/concurrency/rollback evidence, and sanitized logs.
+- **PROD:** Not authorized; CXP-14 owns production deployment and cutover.

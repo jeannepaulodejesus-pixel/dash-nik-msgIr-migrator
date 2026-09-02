@@ -26,6 +26,7 @@
     "test:cxp10": "node --test tests/cxp10-reporting-surfaces.test.cjs tests/cxp10-uat-entrypoints.test.cjs",
     "test:cxp11": "node --test tests/cxp11-parity-validation.test.cjs tests/cxp11-parity-run-state.test.cjs tests/cxp11-uat-entrypoints.test.cjs",
     "test:cxp12": "node --test tests/cxp12-weekly-lifecycle.test.cjs",
+    "test:cxp13": "node --test tests/cxp13-rta-intake.test.cjs",
     "test:bootstrap": "node --test tests/cxp-dev-workbook-bootstrap.test.cjs",
     "test:control-headers": "node --test tests/cxp-control-workbook-headers.test.cjs",
     "verify": "npm run lint && npm test && npm run guardrails"
