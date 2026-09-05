@@ -16,7 +16,7 @@ missing: []
 promotionReady: true
 ```
 
-The Step 08 result proves that the persisted CXP-13 DEV evidence contained every required Step 00–07 gate plus the validated permission observation. This acceptance applies only to the DEV deployment and configuration. A separate hosted UAT execution remains required; PROD deployment and cutover remain owned by CXP-14.
+The Step 08 result proves that the persisted CXP-13 DEV evidence contained every required Step 00–07 gate plus the validated permission observation. On September 6, 2026, the packet owner authoritatively accepted this evidence as sufficient for CXP-13 completion. This does not claim that a separate UAT deployment was executed. PROD deployment and cutover remain owned by CXP-14.
 
 ## Scope and acceptance basis
 
@@ -24,7 +24,7 @@ The Step 08 result proves that the persisted CXP-13 DEV evidence contained every
 |---|---|
 | Environment | Hosted Google Apps Script DEV |
 | Execution date | 2026-09-06 local / 2026-09-05 UTC |
-| Delivery | `CXP-13-v1-rc`, DEV accepted |
+| Delivery | `CXP-13-v1`, complete |
 | Setup state | `CXP13_INTAKE_SETUP_STATE_V1` |
 | Pipeline state | `CXP13_INGESTION_PIPELINE_STATE_V1` |
 | Evidence state | `CXP13_UAT_EVIDENCE_V1` |
@@ -105,7 +105,7 @@ The control workbook's total start-to-terminal run duration exceeded one invocat
 - Public CXP-13 status remains allowlisted and excludes file IDs, spreadsheet IDs, filenames, emails, source rows, values, and formulas.
 - Domain authorization remains server-side; HTML contains no authorization or ingestion decisions.
 - Evidence records contain booleans, bounded status/error names, and timing only.
-- During an earlier read-only review before the final gate, the control workbook UI reported link-based access. The final Step 08 result includes the operator's later `permissionsVerified: true` assertion, but the final sharing dialog was not independently captured in the supplied evidence. Reconfirm restricted sharing during the separate UAT run.
+- During an earlier read-only review before the final gate, the control workbook UI reported link-based access. The final Step 08 result includes the operator's later `permissionsVerified: true` assertion, but the final sharing dialog was not independently captured in the supplied evidence. Reconfirm restricted sharing before any later environment promotion.
 
 ## Execution-boundary disposition
 
@@ -123,9 +123,9 @@ The exact hosted maximum invocation duration was not present in the supplied Ste
 
 ## Promotion disposition
 
-**CXP-13 hosted functional acceptance is passed for the September 6, 2026 DEV evidence set.**
+**CXP-13 is complete as `CXP-13-v1`.**
 
-This result does not complete the separate UAT deployment gate and does not authorize PROD deployment, Script Property changes, or cutover. Repeat Steps 00–08 against UAT, capture the final Step 07 timing payload and deployment-permission evidence, and then update this packet from `v1-rc` to the final accepted delivery. CXP-14 retains PROD ownership.
+Completion is based on the passing September 6, 2026 DEV evidence set plus the packet owner's authoritative acceptance on the same date. A separate UAT deployment was not executed and is not claimed in this record. That unobserved environment rehearsal does not remain a CXP-13 blocker; CXP-14 may repeat the runbook as part of performance hardening, UAT, and cutover preparation. This completion does not authorize PROD deployment, Script Property changes, or cutover. CXP-14 retains PROD ownership.
 
 ## Sign-off record
 
@@ -134,6 +134,8 @@ This result does not complete the separate UAT deployment gate and does not auth
 - Final gate: **PASSED**
 - Promotion readiness: **true**
 - Missing gates: **none**
-- Delivery: **CXP-13-v1-rc, DEV accepted**
-- Remaining blocker: **Separate hosted UAT acceptance**
+- Delivery: **CXP-13-v1, complete**
+- Completion authority: **Packet-owner acceptance on September 6, 2026**
+- Remaining blocker: **None for CXP-13**
+- Unobserved scope: **Separate UAT deployment execution; available to CXP-14**
 - PROD status: **Not authorized; CXP-14 owns cutover**

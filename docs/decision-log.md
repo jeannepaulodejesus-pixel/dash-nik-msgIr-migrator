@@ -583,6 +583,15 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 - **Rationale:** ADR-010 and CXP-00 already forbid embedding environment IDs in source and withhold unattended PROD push. Operators need an explicit checklist before PROD keys are used.
 - **Consequences:** `CXP12UatStep08PromotionGate` returns `promotionReady` from checklist inputs. Missing destination keys yield `PROMOTION_CHECKLIST_INCOMPLETE`. Optional `CXP_<ENV>_STALE_DATA_THRESHOLD_MINUTES` is documented with a default when absent.
 
+### DEC-064 — Accept hosted DEV evidence as final CXP-13 packet evidence
+
+- **Date:** 2026-09-06
+- **Packet:** CXP-13
+- **Status:** Accepted; implemented; complete as `CXP-13-v1`
+- **Decision:** The packet owner authoritatively accepts the passing hosted DEV Steps 00–08 promotion gate, sanitized terminal reconciliation, negative/timing assertions, and green local verification as sufficient to complete CXP-13. A separate UAT deployment execution is not a remaining CXP-13 gate.
+- **Rationale:** The supplied Step 08 result reports `pass: true`, `missing: []`, and `promotionReady: true`; the repository verification passes 294/294 tests; and the packet owner explicitly directed completion after reviewing the distinction between DEV evidence and a separate UAT run.
+- **Consequences:** CXP-13 advances from `v1-rc` to `CXP-13-v1` with no packet blocker. Documentation must continue to distinguish observed DEV evidence from the unexecuted separate UAT environment. CXP-14 retains performance hardening, any additional UAT rehearsal, PROD configuration, deployment, and cutover authority.
+
 ## CXP-07 decisions
 
 ### DEC-035 — Install bounded native spill tables instead of transforming rows in Apps Script
