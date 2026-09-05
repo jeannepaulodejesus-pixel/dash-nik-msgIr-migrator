@@ -19,6 +19,7 @@ npm run test:cxp09
 npm run test:cxp10
 npm run test:cxp11
 npm run test:cxp12
+npm run test:cxp13
 npm run verify
 git diff --check
 ```
@@ -60,4 +61,4 @@ CXP-11 local tests drive the whole parity run through injected export, target, r
 
 CXP-12 tests are covered by `npm run test:cxp12` (`tests/cxp12-weekly-lifecycle.test.cjs`) for Week Key validation, idempotent activate/archive, ACTIVE mismatch fail-closed, ensure-only reinit, health codes, maintenance-only trigger inventory, promotion checklist completeness, rollover lock refusal, setup header install, and `CXP12UatStep00`–`08` succession through injected Drive/Spreadsheet/Properties/Lock/Trigger doubles. Hosted succession is documented in `docs/cxp12-uat-runbook.md` and `docs/cxp12-uat-harness.md`; contract authority is `docs/weekly-workbook-lifecycle-contract.md`. Hosted DEV evidence: [`docs/cxp12-hosted-uat-results-2026-08-31.md`](cxp12-hosted-uat-results-2026-08-31.md).
 
-CXP-13 tests are covered by `npm run test:cxp13` (`tests/cxp13-rta-intake.test.cjs`). They verify deterministic timestamp-token grouping for both CXP-05 packaging forms, newest-incomplete refusal, ambiguity and 200-file scan limits, exact domain authorization, public terminal-status mapping, the shared 270-second reserve decision, checkpointed continuation progress, one-successor trigger replacement, no finalization replay, the five-second web poll, and parameterless setup/web/UAT entrypoints. Hosted timing, deployment identity, Drive permissions, trigger delivery, rollback visibility, and Steps 00–08 remain mandatory DEV/UAT evidence under [`docs/cxp13-uat-runbook.md`](cxp13-uat-runbook.md).
+CXP-13 tests are covered by `npm run test:cxp13` (`tests/cxp13-rta-intake.test.cjs`). They verify deterministic timestamp-token grouping for both CXP-05 packaging forms, newest-incomplete refusal, ambiguity and 200-file scan limits, exact domain authorization, public terminal-status mapping, the shared 270-second reserve decision, checkpointed continuation progress, one-successor trigger replacement, no finalization replay, the five-second web poll, parameterless setup/web/UAT entrypoints, validated editor-safe evidence recording, safe missing-predicate reporting, and rejection at the exact 270,000 ms boundary. Hosted DEV Steps 00–08 passed on 2026-09-06; evidence is recorded in [`docs/cxp13-hosted-uat-results-2026-09-06.md`](cxp13-hosted-uat-results-2026-09-06.md). A separate hosted UAT run remains mandatory under [`docs/cxp13-uat-runbook.md`](cxp13-uat-runbook.md).

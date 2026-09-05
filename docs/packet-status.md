@@ -21,7 +21,7 @@ Valid states are `Not started`, `In progress`, `Blocked`, and `Complete`. A pack
 | CXP-10 — Interval View and MOM Reporting Surfaces | Complete | Delivery `CXP-10-v2`; hosted DEV promotion passed 2026-08-31 |
 | CXP-11 — Excel-vs-Google-Sheets Parity Harness and Source-Error Ledger | Complete | Delivery `CXP-11-v1`; hosted DEV promotion passed 2026-09-01 |
 | CXP-12 — Weekly Workbook Lifecycle, Scheduling, and Environment Promotion | Complete | Delivery `CXP-12-v1`; hosted DEV promotion passed 2026-08-31 |
-| CXP-13 — RTA Intake Surface and Operational Status | Not started | Requires CXP-04 through CXP-06 and CXP-12 complete |
+| CXP-13 — RTA Intake Surface and Operational Status | In progress | Delivery `CXP-13-v1-rc`; hosted DEV promotion passed 2026-09-06, separate UAT pending |
 | CXP-14 — Performance Hardening, UAT, Cutover, and Production Runbook | Not started | Requires CXP-00 through CXP-13 complete |
 
 ## CXP-00 completion handoff
@@ -440,11 +440,14 @@ Superseded by `CXP-01-v3` only for source timestamp interpretation: fixed PST re
 - **Blockers:** None for CXP-12.
 - **Next-packet inputs:** CXP-13 may consume ACTIVE workbook lookup, health status, and maintenance-trigger conventions for the RTA intake surface.
 
-## CXP-13 implementation status
+## CXP-13 implementation and DEV acceptance status
 
 - **Delivery version:** `CXP-13-v1-rc`
-- **Repository status:** Implemented and locally testable; hosted DEV/UAT promotion evidence is pending.
+- **Repository status:** Implemented and locally verified; hosted DEV promotion passed 2026-09-06. Separate hosted UAT evidence remains pending.
 - **Architecture:** Standalone domain-restricted web app, deterministic controlled-Inbox bundle selection, production-neutral checkpointed ingestion controller, RUN_LOG-backed public status, and separate `CXP13_INGESTION_PIPELINE_STATE_V1` state.
 - **Execution boundary:** 270,000 ms cooperative budget, 60,000 ms minimum reserve, 15,000 ms handoff margin, one successor trigger, and a recovery-only 420,000 ms watchdog.
-- **Hosted gate:** Run [`docs/cxp13-uat-runbook.md`](cxp13-uat-runbook.md) in DEV and UAT. Promotion requires Steps 00–08, longest invocation below 270 seconds, multi-invocation resume, duplicate/invalid/concurrency/rollback evidence, and sanitized logs.
+- **Hosted DEV evidence:** `CXP13UatStep08PromotionGate` returned `pass: true`, `missing: []`, and `promotionReady: true`. The sanitized control record contains one success, one duplicate failure, and one invalid-header failure. Evidence: [`docs/cxp13-hosted-uat-results-2026-09-06.md`](cxp13-hosted-uat-results-2026-09-06.md).
+- **Local evidence:** CXP-13 focused tests passed 14/14; the full repository suite passed 294/294, with syntax checks, guardrails, and `git diff --check` green.
+- **Corrective findings closed:** ACTIVE-target alignment recovery, editor-safe validated UAT evidence recording, safe missing-predicate diagnostics, strict 270,000 ms boundary testing, and explicit no-timeout/permission gates.
+- **Remaining gate:** Repeat [`docs/cxp13-uat-runbook.md`](cxp13-uat-runbook.md) in the separate UAT deployment. Capture the exact Step 07 maximum invocation duration and final sharing/deployment evidence.
 - **PROD:** Not authorized; CXP-14 owns production deployment and cutover.

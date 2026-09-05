@@ -31,6 +31,16 @@ Task 4: completed — CXP12UatStep00–08 helpers and setup entrypoints
 Task 5: completed — Local verification passed with 279 tests and zero failures
 Task 6: completed — Hosted DEV acceptance and promotion gate passed on 2026-08-31
 
+Plan: CXP-13 RTA Intake Surface and Operational Status
+
+Task 1: completed — Deterministic controlled-Inbox discovery and sanitized server status contract
+Task 2: completed — Production-neutral checkpointed ingestion controller and CXP-13 wrapper
+Task 3: completed — Domain-authorized web app, setup entrypoints, and five-second status polling
+Task 4: completed — Hosted UAT harness, validated parameterless evidence recorder, and negative/timing gates
+Task 5: completed — Local verification passed with 294 tests and zero failures
+Task 6: completed — Hosted DEV Steps 00–08 and promotion gate passed on 2026-09-06
+Task 7: pending — Repeat the complete hosted run against the separate UAT deployment
+
 Packet status:
 
 - CXP-08: complete — delivery CXP-08-v2, hosted DEV promotion passed
@@ -38,4 +48,4 @@ Packet status:
 - CXP-10: complete — delivery CXP-10-v2, hosted DEV promotion passed
 - CXP-11: complete — delivery CXP-11-v1, hosted DEV promotion passed 2026-09-01
 - CXP-12: complete — delivery CXP-12-v1, hosted DEV promotion passed 2026-08-31
-- CXP-13: implementation complete locally — delivery CXP-13-v1-rc; hosted DEV/UAT Steps 00–08 and timing gate pending
+- CXP-13: delivery CXP-13-v1-rc — hosted DEV promotion passed 2026-09-06; separate hosted UAT pending

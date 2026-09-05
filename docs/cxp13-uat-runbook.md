@@ -18,7 +18,12 @@ Run Step 06 to queue the identical bundle and wait for `DUPLICATE`. Separately e
 - a second start while the first is active (`INGESTION_RUN_ALREADY_ACTIVE`);
 - the existing CXP-06 UAT mid-commit failure/rollback seam against the same active workbook, proving the prior valid dataset remains usable.
 
-Record only the resulting booleans and maximum duration with `recordCxp13UatNegativeEvidence`. Then run Steps 07–08. Promotion requires no invocation at or above 270,000 ms, no Apps Script timeout, a successful multi-invocation resume, all negative gates, and `promotionReady: true` with `missing: []`.
+After observing every scenario, set temporary Script Property `CXP13_UAT_PENDING_EVIDENCE_V1` to:
+
+```json
+{"duplicate":true,"invalid":true,"concurrency":true,"rollbackPreserved":true,"multiInvocation":true,"noTimeout":true,"permissionsVerified":true,"maxInvocationMs":123456}
+```
+
+Replace `123456` with the largest measured Apps Script invocation duration in milliseconds. Do not use total end-to-end run duration. Run parameterless `recordCxp13UatNegativeEvidence()`; it validates the object and consumes the temporary property. Then run Steps 07–08. Promotion requires no invocation at or above 270,000 ms, no Apps Script timeout, separately verified DEV/UAT web deployment identity and permissions, a successful multi-invocation resume, all negative gates, and `promotionReady: true` with `missing: []`.
 
 Repeat the complete run in hosted UAT after DEV passes. Do not deploy or retarget PROD; CXP-14 owns cutover.
-

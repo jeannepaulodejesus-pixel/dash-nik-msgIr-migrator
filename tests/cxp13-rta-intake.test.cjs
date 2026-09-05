@@ -8,6 +8,16 @@ global.ErrorCodes = ErrorCodes;
 const InboxBundleRepository = require('../src/repository/InboxBundleRepository.js');
 const Pipeline = require('../src/ingestion/IngestionPipelineController.js');
 const RtaIntakeService = require('../src/services/RtaIntakeService.js');
+const Cxp13Uat = require('../src/main/Cxp13UatEntrypoints.js');
+
+function propertyStore(initial = {}) {
+  const values = { ...initial };
+  return {
+    deleteProperty(key) { delete values[key]; },
+    getProperty(key) { return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null; },
+    setProperty(key, value) { values[key] = String(value); },
+  };
+}
 
 function file(name, id = name, updatedAtUtc = '2026-09-03T01:00:00.000Z') {
   return Object.freeze({ id, name, updatedAtUtc });
@@ -137,4 +147,45 @@ test('parameterless setup, web, continuation, and UAT entrypoints remain declare
   const files = ['Cxp13Setup.js', 'Cxp13WebEntrypoints.js', 'Cxp13UatEntrypoints.js'].map((name) => fs.readFileSync(path.join(__dirname, '..', 'src', 'main', name), 'utf8')).join('\n');
   ['initializeCxp13Intake','getCxp13IntakeSetupStatus','resetCxp13IntakeSetupState','doGet','cxp13GetIntakeStatus','cxp13StartLatestBundle','cxp13GetRunStatus','continueCxp13Ingestion'].forEach((name) => assert.match(files, new RegExp(`function ${name}\\(`)));
   for (let step = 0; step <= 8; step += 1) assert.match(files, new RegExp(`function CXP13UatStep0${step}`));
+});
+
+test('hosted UAT evidence recorder rejects missing input and consumes validated pending evidence', () => {
+  const properties = propertyStore();
+  assert.throws(() => Cxp13Uat.recordPending({ properties }), { code: 'CXP13_UAT_EVIDENCE_INVALID' });
+  properties.setProperty(Cxp13Uat.PENDING_EVIDENCE_KEY, JSON.stringify({
+    concurrency: true,
+    duplicate: true,
+    invalid: true,
+    maxInvocationMs: 269999,
+    multiInvocation: true,
+    noTimeout: true,
+    permissionsVerified: true,
+    rollbackPreserved: true,
+  }));
+  const recorded = Cxp13Uat.recordPending({ properties });
+  assert.equal(recorded.recorded, true);
+  assert.equal(properties.getProperty(Cxp13Uat.PENDING_EVIDENCE_KEY), null);
+  const gate = Cxp13Uat.step07({ properties });
+  assert.equal(gate.pass, true);
+  assert.deepEqual(gate.missing, []);
+});
+
+test('hosted UAT gate reports bounded missing predicates and rejects the 270000 ms boundary', () => {
+  const properties = propertyStore();
+  Cxp13Uat.recordNegative({ properties }, {
+    concurrency: true,
+    duplicate: true,
+    invalid: true,
+    maxInvocationMs: 270000,
+    multiInvocation: true,
+    noTimeout: false,
+    permissionsVerified: false,
+    rollbackPreserved: true,
+  });
+  const gate = Cxp13Uat.step07({ properties });
+  assert.equal(gate.pass, false);
+  assert.deepEqual(gate.missing, ['noTimeout', 'invocationUnder270000Ms']);
+  const promotion = Cxp13Uat.step08({ properties });
+  assert.equal(promotion.pass, false);
+  assert.equal(promotion.missing.includes('permissionsVerified'), true);
 });

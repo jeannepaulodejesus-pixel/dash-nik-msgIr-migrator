@@ -1,6 +1,8 @@
 var Cxp13Uat = (function () {
   'use strict';
   var EVIDENCE_KEY = 'CXP13_UAT_EVIDENCE_V1';
+  var PENDING_EVIDENCE_KEY = 'CXP13_UAT_PENDING_EVIDENCE_V1';
+  var NEGATIVE_AND_TIMING_KEYS = Object.freeze(['duplicate','invalid','concurrency','rollbackPreserved','multiInvocation','noTimeout']);
   function resolve(name, path) { if (typeof globalThis !== 'undefined' && globalThis[name]) return globalThis[name]; return require(path); }
   function services(overrides) { return resolve('Cxp13Runtime', '../ingestion/Cxp13Runtime.js').hostedServices(overrides); }
   function read(props) { var raw = props.getProperty(EVIDENCE_KEY); if (!raw) return {}; try { return JSON.parse(raw); } catch (_error) { return {}; } }
@@ -34,22 +36,45 @@ var Cxp13Uat = (function () {
   function step06(overrides) { var runtime = services(overrides); var intake = resolve('RtaIntakeService', '../services/RtaIntakeService.js'); var status = intake.getIntakeStatus(runtime); var started = intake.startLatest(status.batchToken, runtime); var pass = started.status === 'QUEUED'; mark(runtime.properties, 'duplicateQueued', pass); return output('CXP13UatStep06QueueDuplicate', pass, { status: started.status }); }
   function recordNegative(overrides, evidence) {
     var runtime = services(overrides); var supplied = evidence || {};
-    ['duplicate','invalid','concurrency','rollbackPreserved','multiInvocation'].forEach(function (key) { mark(runtime.properties, key, supplied[key] === true); });
-    mark(runtime.properties, 'maxInvocationMs', Number(supplied.maxInvocationMs));
-    return output('recordCxp13UatNegativeEvidence', true, { recorded: true });
+    var missing = NEGATIVE_AND_TIMING_KEYS.concat(['permissionsVerified']).filter(function (key) { return typeof supplied[key] !== 'boolean'; });
+    var duration = Number(supplied.maxInvocationMs);
+    if (missing.length || !Number.isInteger(duration) || duration <= 0) {
+      var error = new Error('CXP-13 UAT evidence must contain every boolean observation and a positive integer maxInvocationMs.');
+      error.code = 'CXP13_UAT_EVIDENCE_INVALID';
+      error.details = Object.freeze({ invalidFields: Object.freeze(missing.concat(!Number.isInteger(duration) || duration <= 0 ? ['maxInvocationMs'] : [])) });
+      throw error;
+    }
+    NEGATIVE_AND_TIMING_KEYS.concat(['permissionsVerified']).forEach(function (key) { mark(runtime.properties, key, supplied[key]); });
+    mark(runtime.properties, 'maxInvocationMs', duration);
+    return output('recordCxp13UatNegativeEvidence', true, { maxInvocationMs: duration, recorded: true });
+  }
+  function recordPending(overrides) {
+    var runtime = services(overrides); var raw = runtime.properties.getProperty(PENDING_EVIDENCE_KEY); var supplied;
+    try { supplied = JSON.parse(raw || ''); }
+    catch (_error) {
+      var error = new Error('Set CXP13_UAT_PENDING_EVIDENCE_V1 to the documented JSON object before running the recorder.');
+      error.code = 'CXP13_UAT_EVIDENCE_INVALID';
+      throw error;
+    }
+    var result = recordNegative(runtime, supplied);
+    runtime.properties.deleteProperty(PENDING_EVIDENCE_KEY);
+    return result;
   }
   function step07(overrides) {
     var runtime = services(overrides); var evidence = read(runtime.properties);
-    var pass = evidence.duplicate === true && evidence.invalid === true && evidence.concurrency === true && evidence.rollbackPreserved === true && evidence.multiInvocation === true && Number.isFinite(evidence.maxInvocationMs) && evidence.maxInvocationMs < 270000;
-    mark(runtime.properties, 'negativeAndTiming', pass); return output('CXP13UatStep07VerifyNegativeAndTiming', pass, { maxInvocationMs: evidence.maxInvocationMs || null });
+    var missing = NEGATIVE_AND_TIMING_KEYS.filter(function (key) { return evidence[key] !== true; });
+    if (!Number.isFinite(evidence.maxInvocationMs)) missing.push('maxInvocationMs');
+    else if (evidence.maxInvocationMs >= 270000) missing.push('invocationUnder270000Ms');
+    var pass = missing.length === 0;
+    mark(runtime.properties, 'negativeAndTiming', pass); return output('CXP13UatStep07VerifyNegativeAndTiming', pass, { maxInvocationMs: Number.isFinite(evidence.maxInvocationMs) ? evidence.maxInvocationMs : null, missing: Object.freeze(missing) });
   }
   function step08(overrides) {
     var runtime = services(overrides); var evidence = read(runtime.properties);
-    var required = ['prerequisites','setup','webStatus','discovery','start','success','duplicateQueued','negativeAndTiming'];
+    var required = ['prerequisites','setup','webStatus','discovery','start','success','duplicateQueued','negativeAndTiming','permissionsVerified'];
     var missing = required.filter(function (key) { return evidence[key] !== true; });
     return output('CXP13UatStep08PromotionGate', missing.length === 0, { missing: Object.freeze(missing), promotionReady: missing.length === 0 });
   }
-  return Object.freeze({ EVIDENCE_KEY: EVIDENCE_KEY, recordNegative: recordNegative, step00: step00, step01: step01, step02: step02, step03: step03, step04: step04, step05: step05, step06: step06, step07: step07, step08: step08 });
+  return Object.freeze({ EVIDENCE_KEY: EVIDENCE_KEY, NEGATIVE_AND_TIMING_KEYS: NEGATIVE_AND_TIMING_KEYS, PENDING_EVIDENCE_KEY: PENDING_EVIDENCE_KEY, recordNegative: recordNegative, recordPending: recordPending, step00: step00, step01: step01, step02: step02, step03: step03, step04: step04, step05: step05, step06: step06, step07: step07, step08: step08 });
 })();
 
 function CXP13UatStep00VerifyPrerequisites() { return Cxp13Uat.step00(); }
@@ -61,5 +86,5 @@ function CXP13UatStep05ReconcileSuccess() { return Cxp13Uat.step05(); }
 function CXP13UatStep06QueueDuplicate() { return Cxp13Uat.step06(); }
 function CXP13UatStep07VerifyNegativeAndTiming() { return Cxp13Uat.step07(); }
 function CXP13UatStep08PromotionGate() { return Cxp13Uat.step08(); }
-function recordCxp13UatNegativeEvidence(evidence) { return Cxp13Uat.recordNegative(null, evidence); }
+function recordCxp13UatNegativeEvidence() { return Cxp13Uat.recordPending(); }
 if (typeof module !== 'undefined' && module.exports) module.exports = Cxp13Uat;
