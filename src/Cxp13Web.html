@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{font:15px/1.5 Arial,sans-serif;color:#17212b;background:#f5f7fa}body{margin:0}.wrap{max-width:720px;margin:32px auto;padding:0 18px}.card{background:#fff;border:1px solid #d9e0e7;border-radius:12px;padding:22px;box-shadow:0 4px 18px #17212b10}h1{font-size:24px;margin:0 0 4px}.muted{color:#607080}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:20px 0}.metric{background:#f7f9fb;border-radius:8px;padding:12px}.label{font-size:12px;color:#607080;text-transform:uppercase}.value{font-weight:700;word-break:break-word}button{border:0;border-radius:8px;background:#165dff;color:#fff;font-weight:700;padding:11px 16px;cursor:pointer}button:disabled{background:#9aa8b8;cursor:not-allowed}.error{color:#a32020;margin-top:14px;white-space:pre-wrap}.ok{color:#18743c}
+  </style>
+</head>
+<body><main class="wrap"><section class="card"><h1>RTA intake</h1><div class="muted">Process the latest complete controlled-inbox delivery.</div><div class="grid"><div class="metric"><div class="label">Bundle</div><div id="bundle" class="value">Loading…</div></div><div class="metric"><div class="label">Run status</div><div id="status" class="value">Loading…</div></div><div class="metric"><div class="label">Active week</div><div id="week" class="value">—</div></div><div class="metric"><div class="label">Active data</div><div id="active" class="value">—</div></div></div><button id="start" disabled>Process latest bundle</button><div id="health" class="muted"></div><div id="error" class="error" role="alert"></div></section></main>
+<script>
+  const ui={bundle:document.getElementById('bundle'),status:document.getElementById('status'),week:document.getElementById('week'),active:document.getElementById('active'),start:document.getElementById('start'),health:document.getElementById('health'),error:document.getElementById('error')};
+  let current=null,timer=null;
+  function render(value){current=value;ui.bundle.textContent=value.batchToken||'No complete bundle';ui.status.textContent=value.status||'IDLE';ui.week.textContent=value.activeWeekKey||'—';ui.active.textContent=value.activeDataAtUtc||'—';ui.health.textContent=value.health?(value.health.healthy?'System healthy':'Health: '+value.health.codes.join(', ')):'';ui.error.textContent=value.error?value.error.code:'';const busy=['QUEUED','PROCESSING'].includes(value.status);ui.start.disabled=busy||value.status!=='READY';if(timer)clearTimeout(timer);if(busy)timer=setTimeout(refreshRun,5000)}
+  function fail(error){ui.error.textContent=error&&error.message?error.message:'Request failed';ui.start.disabled=false}
+  function refresh(){google.script.run.withSuccessHandler(render).withFailureHandler(fail).cxp13GetIntakeStatus()}
+  function refreshRun(){google.script.run.withSuccessHandler(render).withFailureHandler(fail).cxp13GetRunStatus(current&&current.runId)}
+  ui.start.addEventListener('click',()=>{ui.start.disabled=true;ui.error.textContent='';google.script.run.withSuccessHandler(render).withFailureHandler(fail).cxp13StartLatestBundle(current.batchToken)});
+  refresh();
+</script></body></html>

@@ -32,6 +32,7 @@ test('loads DEV configuration from environment-prefixed PropertiesService keys',
       CXP_DEV_DRIVE_INBOX_FOLDER_ID: 'dev-inbox',
       CXP_DEV_MASTER_TEMPLATE_SPREADSHEET_ID: 'dev-template',
       CXP_DEV_LEGACY_PARITY_EXPORT_FOLDER_ID: 'dev-parity-export',
+      CXP_DEV_RTA_ALLOWED_DOMAIN: 'example.test',
     }),
   );
 
@@ -42,6 +43,7 @@ test('loads DEV configuration from environment-prefixed PropertiesService keys',
     driveInboxFolderId: 'dev-inbox',
     masterTemplateSpreadsheetId: 'dev-template',
     legacyParityExportFolderId: 'dev-parity-export',
+    rtaAllowedDomain: 'example.test',
     staleDataThresholdMinutes: null,
   });
   assert.equal(Object.isFrozen(config), true);

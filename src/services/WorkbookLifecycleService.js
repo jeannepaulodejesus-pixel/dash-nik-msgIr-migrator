@@ -415,16 +415,18 @@ var WorkbookLifecycleService = (function () {
 
     function alignActiveTarget(configuration) {
       var config = configuration || resolveConfig().load(resolvedPorts.properties);
-      var snapshot = getActiveWeeklyWorkbook(config);
-      if (!snapshot.active) {
+      var control = openSpreadsheet(resolvedPorts, config.controlSpreadsheetId);
+      var registry = resolveWeekRegistry().create(control);
+      var active = registry.findActive();
+      if (!active) {
         throw resolveErrorCodes().create('LIFECYCLE_ACTIVE_TARGET_MISMATCH', {
           details: { reason: 'no_active_row' },
         });
       }
-      setTargetProperty(resolvedPorts, config, snapshot.active.targetSpreadsheetId);
+      setTargetProperty(resolvedPorts, config, active.targetSpreadsheetId);
       return Object.freeze({
         aligned: true,
-        weekKey: snapshot.active.weekKey,
+        weekKey: active.weekKey,
       });
     }
 
