@@ -335,6 +335,85 @@ test('backup repository creates and verifies at most one missing dataset per dur
   assert.equal(spreadsheet.events.filter(([name]) => name === 'copyTo').length, 5);
 });
 
+// Google Sheets materializes copied date cells as new Date instances. Backup
+// fidelity compares their scalar timestamps, while retaining exact type/value
+// comparison for every other cell and all formula strings.
+test('incremental backup accepts copied Date instances but rejects changed timestamps', () => {
+  const BackupRepository = loadModule('../src/repository/BackupRepository.js');
+  const owner = new FakeUser('owner@example.test');
+  const spreadsheet = rawSpreadsheet(
+    allNormalizedPayloads(),
+    owner,
+    new FakeUser('other@example.test'),
+  );
+  const handled = spreadsheet.getSheetByName('_RAW_HANDLED');
+  handled.values[1][0] = new Date('2026-08-17T00:00:00.000Z');
+  const originalCopySheet = spreadsheet.copySheet.bind(spreadsheet);
+  spreadsheet.copySheet = (source) => {
+    const copy = originalCopySheet(source);
+    copy.values = copy.values.map((row) => row.map((value) =>
+      value instanceof Date ? new Date(value.getTime()) : value));
+    return copy;
+  };
+  const repository = BackupRepository.create(spreadsheet, {
+    session: { getEffectiveUser: () => owner },
+    spreadsheetApp: { ProtectionType: { SHEET: 'SHEET' } },
+  });
+
+  const first = repository.createGroupStep('run-date-copy');
+  assert.equal(first.createdDatasetName, 'Handled');
+  const backup = spreadsheet.getSheetByName('_CXP06_BAK_HANDLED_run-date-copy');
+  assert.notStrictEqual(backup.values[1][0], handled.values[1][0]);
+  assert.equal(backup.values[1][0].getTime(), handled.values[1][0].getTime());
+
+  backup.values[1][0] = new Date(handled.values[1][0].getTime() + 1);
+  const completeGroup = {
+    complete: true,
+    runId: first.group.runId,
+    sheetsByDataset: first.group.sheetsByDataset,
+  };
+  assert.throws(
+    () => repository.verifyDataset(completeGroup, 'Handled'),
+    (error) => error?.code === 'MIGRATION_BACKUP_FAILED',
+  );
+});
+
+// Defect caught: hosted incremental backup failures collapse the failing
+// dataset, operation, and Sheets service message into one generic error.
+test('incremental backup failure preserves bounded dataset and operation diagnostics', () => {
+  const BackupRepository = loadModule('../src/repository/BackupRepository.js');
+  const owner = new FakeUser('owner@example.test');
+  const spreadsheet = rawSpreadsheet(
+    allNormalizedPayloads(),
+    owner,
+    new FakeUser('other@example.test'),
+  );
+  const repository = BackupRepository.create(spreadsheet, {
+    session: { getEffectiveUser: () => owner },
+    spreadsheetApp: { ProtectionType: { SHEET: 'SHEET' } },
+  });
+
+  assert.equal(repository.createGroupStep('run-diagnostics').createdDatasetName, 'Handled');
+  spreadsheet.getSheetByName('_RAW_OFFERED').copyTo = () => {
+    throw new Error('synthetic Sheets service copy failure\nwith unsafe whitespace');
+  };
+
+  assert.throws(
+    () => repository.createGroupStep('run-diagnostics'),
+    (error) => {
+      assert.equal(error?.code, 'MIGRATION_BACKUP_FAILED');
+      assert.deepEqual(error?.details, {
+        causeMessage: 'synthetic Sheets service copy failure with unsafe whitespace',
+        datasetName: 'Offered',
+        operation: 'copy_raw_sheet',
+        originalName: 'Error',
+        reason: 'copy_raw_sheet_failed',
+      });
+      return true;
+    },
+  );
+});
+
 // Defect caught: recovery discovery treats a partial prior copy set as a complete rollback source.
 test('backup repository reports incomplete run-scoped groups without exposing cell values', () => {
   const BackupRepository = loadModule('../src/repository/BackupRepository.js');

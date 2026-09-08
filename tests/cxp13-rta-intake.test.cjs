@@ -121,6 +121,75 @@ test('generic controller checkpoints each worker step, keeps one successor, and 
   assert.equal(commitCalls, 2);
 });
 
+test('pipeline status retains bounded backup operation diagnostics after trigger failure', () => {
+  const properties = propertyStore();
+  let nextTrigger = 0;
+  const triggers = [];
+  const scriptApp = {
+    deleteTrigger(trigger) {
+      const index = triggers.indexOf(trigger);
+      if (index >= 0) triggers.splice(index, 1);
+    },
+    getProjectTriggers: () => triggers.slice(),
+    newTrigger(handler) {
+      return {
+        timeBased() { return this; },
+        after() { return this; },
+        create() {
+          const id = `diagnostic-${++nextTrigger}`;
+          const trigger = {
+            getHandlerFunction: () => handler,
+            getUniqueId: () => id,
+          };
+          triggers.push(trigger);
+          return trigger;
+        },
+      };
+    },
+  };
+  const clock = { now: () => new Date('2026-09-08T03:02:53.600Z') };
+  const controller = Pipeline.create({
+    handler: 'continueDiagnosticTest',
+    stateKey: 'DIAGNOSTIC_STATE',
+    executorFactory: () => ({
+      auditFailure() {},
+      backup() {
+        throw ErrorCodes.create('MIGRATION_BACKUP_FAILED', {
+          details: {
+            causeMessage: 'Service timed out: Spreadsheets',
+            datasetName: 'Offered',
+            ignoredSecret: 'must-not-persist',
+            operation: 'copy_raw_sheet',
+            reason: 'copy_raw_sheet_failed',
+          },
+        });
+      },
+      prepare: () => ({
+        checkpoint: {
+          data: {},
+          request: {},
+          runId: 'run-diagnostic-status',
+          startedAtUtc: '2026-09-08T03:02:53.600Z',
+        },
+      }),
+    }),
+  });
+  const deps = { clock, properties, scriptApp };
+
+  controller.start({ environment: 'UAT' }, deps);
+  controller.continueRun(deps);
+  assert.throws(
+    () => controller.continueRun(deps),
+    (error) => error?.code === 'MIGRATION_BACKUP_FAILED',
+  );
+  assert.deepEqual(controller.getStatus(deps).lastErrorDetails, {
+    causeMessage: 'Service timed out: Spreadsheets',
+    datasetName: 'Offered',
+    operation: 'copy_raw_sheet',
+    reason: 'copy_raw_sheet_failed',
+  });
+});
+
 test('terminal status mapping separates success duplicate validation and processing errors', () => {
   assert.equal(RtaIntakeService.mapTerminal({ status: 'SUCCESS' }), 'SUCCESS');
   assert.equal(RtaIntakeService.mapTerminal({ status: 'FAILED_SOURCE', errorCode: 'SOURCE_DUPLICATE_SUBMISSION' }), 'DUPLICATE');

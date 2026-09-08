@@ -50,6 +50,36 @@ UAT source diagnostics (also in `DevWorkbookBootstrap.js`): `listCxpUatSourceFil
 
 The configured Drive Inbox accepts only the timestamped naming contract in [`docs/rta-intake-contract.md`](rta-intake-contract.md). CXP-13 does not scan arbitrary Drive locations or accept browser uploads.
 
+### Release readiness (CXP-14)
+
+CXP-14 adds no new environment ID or secret. It consumes the active environment keys owned by CXP-11 through CXP-13 and persists only internal versioned setup/evidence records:
+
+- `CXP14_RELEASE_VERSION` (one-time UAT identity; required before Step 00)
+- `CXP14_SOURCE_BUNDLE_DIGEST` (optional 64-hex fallback when FILE_LEDGER has no SUCCESS fingerprint)
+- `CXP14_RELEASE_SETUP_STATE_V1`
+- `CXP14_UAT_EVIDENCE_V1`
+- `CXP14_EXPECTED_PEAK_RUNS_V1`
+- `CXP14_DECLARED_MAXIMUM_RUNS_V1`
+- `CXP13_INGESTION_TELEMETRY_V1`
+- fail-closed overrides `CXP14_UAT_PENDING_EVIDENCE_V1` and `CXP14_EXPECTED_PEAK_PENDING_RUN_V1`
+
+These properties may contain only bounded status, count, duration, digest, and boolean evidence defined in [`docs/cxp14-release-contract.md`](cxp14-release-contract.md). They must never contain Script Property values, resource IDs, emails, filenames, source rows, cell values, formulas, tokens, or secrets.
+
+### CXP-14 UAT fixture folders
+
+Hosted UAT intake automation stores Drive folder IDs in operational Script Properties, never in CXP-14 evidence:
+
+| Key | Purpose |
+|---|---|
+| `CXP14_UAT_FIXTURE_FOLDERS_V1` | Named catalog of expected-peak, declared-maximum, negative, and parity Inbox/export folders |
+| `CXP14_UAT_OPERATOR_INBOX_FOLDER_ID` | Previous `CXP_UAT_DRIVE_INBOX_FOLDER_ID` when it was not already a catalog folder |
+| `CXP14_UAT_NEGATIVE_PROGRESS_V1` | Slot names and observation counts for Step 05; no resource IDs |
+| `CXP14_UAT_PARITY_PHASE_V1` | `SOURCE`, `EXPORT`, or `COMPLETE` for Step 07 |
+
+Run `configureCxp14UatFixtureFolders()` once on the UAT deployment to write the catalog and, when empty, seed `CXP_UAT_DRIVE_INBOX_FOLDER_ID` and `CXP_UAT_LEGACY_PARITY_EXPORT_FOLDER_ID`. Each later CXP-14 step retargets those CXP-13/CXP-11 keys to the slot it needs. Folder IDs must stay out of `CXP14_UAT_EVIDENCE_V1` and performance records.
+
+CXP-14 UAT helpers require `CXP_ENV=UAT` and refuse DEV/PROD. Exact prior PROD configuration values needed for rollback belong in an approved secure operator-controlled location outside the repository and outside CXP-14 evidence properties.
+
 ## Local clasp target
 
 `CXP_CLASP_SCRIPT_ID` is a local process variable consumed only by `npm run clasp:configure`. It is written to the ignored `.clasp.json` with `"rootDir": "src"`. The generator uses exclusive-create semantics; remove or rename an obsolete local target deliberately before configuring another one.
@@ -64,4 +94,4 @@ Downstream ingestion must convert UTC source and acquisition datetime values by 
 
 ## Promotion boundary
 
-Promotion changes Script Properties and the local/CI clasp target, not source. CXP-00 permits only DEV/UAT target validation and does not authorize a production push. CXP-12 owns the approval-bound DEV → UAT → PROD checklist (required destination keys, master template, ACTIVE registry alignment, HealthCheck, maintenance trigger inventory). PROD still requires explicit operator acknowledgment; CXP-14 owns cutover push and production runbooks. See [`docs/cxp12-uat-runbook.md`](cxp12-uat-runbook.md) Step 08 and [`docs/weekly-workbook-lifecycle-contract.md`](weekly-workbook-lifecycle-contract.md).
+Promotion changes Script Properties and the local/CI clasp target, not source. CXP-00 permits only DEV/UAT target validation and does not authorize a production push. CXP-12 owns the approval-bound DEV → UAT → PROD checklist (required destination keys, master template, ACTIVE registry alignment, HealthCheck, maintenance trigger inventory). PROD still requires explicit operator acknowledgment; CXP-14 owns cutover push and production runbooks. A production canary uses only the next approved real hourly bundle on the live ACTIVE workbook; synthetic fixtures remain in UAT or an isolated disposable target. Exact rollback values are backed up securely outside the repository and verified before cutover. See [`docs/cxp12-uat-runbook.md`](cxp12-uat-runbook.md) Step 08, [`docs/weekly-workbook-lifecycle-contract.md`](weekly-workbook-lifecycle-contract.md), and [`docs/cxp14-production-runbook.md`](cxp14-production-runbook.md).

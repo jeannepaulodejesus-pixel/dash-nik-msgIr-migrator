@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const vm = require('node:vm');
 
 function loadModule(relativePath) {
   try {
@@ -95,7 +96,57 @@ test('sheet value codec round-trips controlled blanks without coercing other val
   });
   assert.equal(SheetValueCodec.matricesEqual(matrix, matrix.map((row) => row.slice())), true);
   assert.equal(
+    SheetValueCodec.matricesEqual(
+      [[new Date('2026-08-23T00:00:00.000Z')]],
+      [[new Date('2026-08-23T00:00:00.000Z')]],
+    ),
+    true,
+  );
+  assert.equal(
+    SheetValueCodec.matricesEqual(
+      [[new Date('2026-08-23T00:00:00.000Z')]],
+      [[new Date('2026-08-23T00:00:00.001Z')]],
+    ),
+    false,
+  );
+  assert.equal(
+    SheetValueCodec.matricesEqual(
+      [[new Date('2026-08-23T00:00:00.000Z')]],
+      [['2026-08-23T00:00:00.000Z']],
+    ),
+    false,
+  );
+  assert.equal(
     SheetValueCodec.matricesEqual(matrix, [matrix[0], ['Athlete', '0', false, matrix[1][3], '']]),
+    false,
+  );
+});
+
+// Defect caught: Date tag spoofing throws, or cross-realm Date values are rejected.
+test('sheet value codec uses Date internal slots and keeps formulas and scalars strict', () => {
+  const SheetValueCodec = loadModule('../src/services/SheetValueCodec.js');
+  const epoch = Date.parse('2026-08-23T00:00:00.000Z');
+  const crossRealmDate = vm.runInNewContext(`new Date(${epoch})`);
+  const spoofedDateTag = { [Symbol.toStringTag]: 'Date' };
+
+  assert.equal(
+    SheetValueCodec.matricesEqual([[new Date(epoch)]], [[crossRealmDate]]),
+    true,
+  );
+  assert.equal(
+    SheetValueCodec.matricesEqual([[new Date(Number.NaN)]], [[new Date(Number.NaN)]]),
+    false,
+  );
+  assert.equal(
+    SheetValueCodec.matricesEqual([[spoofedDateTag]], [[new Date(epoch)]]),
+    false,
+  );
+  assert.equal(
+    SheetValueCodec.matricesEqual([['=SUM(A1:A2)', 1, true]], [['=SUM(A1:A2)', 1, true]]),
+    true,
+  );
+  assert.equal(
+    SheetValueCodec.matricesEqual([['=SUM(A1:A2)', 1]], [['=SUM(A1:A3)', '1']]),
     false,
   );
 });

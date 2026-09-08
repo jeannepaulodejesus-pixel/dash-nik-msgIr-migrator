@@ -11,6 +11,9 @@ node_modules/
 coverage/
 *.log
 
+# Generated local UAT workload artifacts (hashes live in provenance JSON)
+outputs/
+
 # Editor and operating-system files
 .DS_Store
 Thumbs.db

@@ -219,6 +219,29 @@ test('stage validation accepts only exact formula-free persisted normalized payl
   assert.equal(StageValidator.validate(payloads, coercedSnapshots).rowCounts.Handled, 1);
 });
 
+// Defect caught: TRUE/FALSE flag cells become booleans in Google Sheets and fail text-column staging.
+test('stage validation accepts numeric 0/1 flag text and rejects boolean TRUE/FALSE cells', () => {
+  const StageValidator = loadModule('../src/validation/StageValidator.js');
+  const payloads = allNormalizedPayloads();
+  payloads[0].records[0]['Service Level Met'] = '0';
+  const numericSnapshots = snapshotsForPayloads(payloads);
+  const columnIndex = numericSnapshots[0].values[0].indexOf('Service Level Met');
+  numericSnapshots[0].values[1][columnIndex] = 0;
+  assert.equal(StageValidator.validate(payloads, numericSnapshots).rowCounts.Handled, 1);
+
+  payloads[0].records[0]['Service Level Met'] = 'FALSE';
+  const booleanSnapshots = snapshotsForPayloads(payloads);
+  booleanSnapshots[0].values[1][columnIndex] = false;
+  assert.throws(
+    () => StageValidator.validate(payloads, booleanSnapshots),
+    (error) =>
+      error?.code === 'MIGRATION_STAGE_VALIDATION_FAILED' &&
+      error.details.reason === 'invalid_type' &&
+      error.details.column === 'Service Level Met' &&
+      error.details.rowNumber === 2,
+  );
+});
+
 // Defect caught: stage formulas, duplicate keys, invalid dates, or wrong text types reach raw data.
 test('stage validation fails closed with a bounded reason for every persisted-stage violation', () => {
   const StageValidator = loadModule('../src/validation/StageValidator.js');

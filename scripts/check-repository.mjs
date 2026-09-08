@@ -46,7 +46,7 @@ const TEXT_EXTENSIONS = new Set([
   '.yml',
 ]);
 
-const EXCLUDED_DIRECTORIES = new Set(['.git', 'coverage', 'node_modules']);
+const EXCLUDED_DIRECTORIES = new Set(['.git', 'coverage', 'node_modules', 'outputs']);
 
 function normalizePath(filePath) {
   return filePath.replaceAll('\\', '/');

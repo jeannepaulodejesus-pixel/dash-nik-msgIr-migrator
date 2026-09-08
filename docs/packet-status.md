@@ -22,7 +22,7 @@ Valid states are `Not started`, `In progress`, `Blocked`, and `Complete`. A pack
 | CXP-11 — Excel-vs-Google-Sheets Parity Harness and Source-Error Ledger | Complete | Delivery `CXP-11-v1`; hosted DEV promotion passed 2026-09-01 |
 | CXP-12 — Weekly Workbook Lifecycle, Scheduling, and Environment Promotion | Complete | Delivery `CXP-12-v1`; hosted DEV promotion passed 2026-08-31 |
 | CXP-13 — RTA Intake Surface and Operational Status | Complete | Delivery `CXP-13-v1`; hosted DEV promotion passed 2026-09-06 and packet owner accepted completion 2026-09-06 |
-| CXP-14 — Performance Hardening, UAT, Cutover, and Production Runbook | Not started | Requires CXP-00 through CXP-13 complete |
+| CXP-14 — Performance Hardening, UAT, Cutover, and Production Runbook | In progress | Repository implementation complete; hosted UAT, validation, PROD authorization, and cutover remain open |
 
 ## CXP-00 completion handoff
 
@@ -453,3 +453,16 @@ Superseded by `CXP-01-v3` only for source timestamp interpretation: fixed PST re
 - **Blockers:** None for CXP-13.
 - **Next-packet inputs:** CXP-14 may consume the completed intake surface, continuation controller, sanitized status contract, hosted evidence, and UAT runbook for performance hardening and environment promotion.
 - **PROD:** Not authorized; CXP-14 owns production deployment and cutover.
+
+## CXP-14 repository implementation status
+
+- **Delivery state:** Repository implementation complete on 2026-09-07; the packet remains `In progress` because hosted UAT, final real-export parity, production authorization, cutover, and first-cycle observation have not occurred.
+- **Implemented:** Strict release/performance evidence contracts; expected-peak and declared-maximum profiles; unchanged 270,000 ms cooperative boundary with 240,000 ms objective; versioned resumable setup; parameterless UAT Step00–08 helpers; progressive immutable-identity UAT evidence; critical-path bulk-call guard; performance, permissions, deployment, rollback, UAT, and production-runbook artifacts; reproducible synthetic UAT fixture generator (`npm run generate:cxp14-fixtures`) that emits three distinct expected-peak bundles, one declared-maximum bundle, negative Inbox fixtures, and a CXP-11 export whose fingerprint matches its accepted source bundle.
+- **Execution continuity:** CXP-06 transactional boundaries and CXP-11/CXP-12/CXP-13 setup, continuation, status, and zero-padded entrypoint conventions remain authoritative and are exercised by regression tests.
+- **Local evidence:** CXP-14 focused tests passed 17/17, including unit-scale fixture identity, distinct expected-peak fingerprints, negative discovery/schema failures, and a parity export whose `sourceBundleFingerprint` matches its accepted source bundle. CXP-06 boundary regression passed 38/38. CXP-11 through CXP-13 predecessor suites passed 88/88. The full repository suite passed 312/312; 136 JavaScript files passed syntax checks; 245 text files passed repository guardrails; seven critical-path modules passed the bulk-call guard; `git diff --check` passed.
+- **Data-quality controls:** Evidence validation covers completeness, uniqueness/identity, validity, cross-field consistency, integrity, timeliness, and workload volume/shape. Promotion fails closed and names every missing predicate without exposing source values or environment identifiers.
+- **Tooling note:** Verification used the direct Node commands represented by the package scripts because the local global npm launcher could not locate its `npm-cli.js`; this is an environment launcher issue, not a test failure.
+- **Hosted evidence:** Not run. The expected-peak three-run benchmark, declared-maximum stress run, separate CXP-13 UAT rehearsal, effective-identity permission checks, failure/recovery rehearsal, lifecycle/status validation, and final real-export parity remain blocking gates.
+- **PROD:** No PROD deployment, Script Property change, canary, rollback, or cutover action was performed or authorized.
+- **Blockers:** Authorized hosted UAT access and identities, accepted operational window, operator drop of the generated synthetic Inbox/parity packages plus a real weekly Excel recalculation whose FILE_LEDGER fingerprint is copied into the live manifest, delivery/business validator sign-off, secure external rollback snapshot, and explicit production authorization.
+- **Next action:** Freeze an immutable release candidate, initialize its UAT evidence identity, and execute [`docs/cxp14-uat-runbook.md`](cxp14-uat-runbook.md) Steps 00–08 in order. Complete the deployment and rollback checklists only from observed evidence.

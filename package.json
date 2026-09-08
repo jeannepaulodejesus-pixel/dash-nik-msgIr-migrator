@@ -8,9 +8,12 @@
   },
   "scripts": {
     "clasp:configure": "node scripts/configure-clasp.mjs",
-    "clasp:push": "clasp push",
+    "clasp:push": "node scripts/check-critical-path.mjs && clasp push",
     "clasp:status": "clasp show-file-status",
+    "context:check": "node scripts/check-context-contract.mjs",
+    "generate:cxp14-fixtures": "node scripts/generate-cxp14-uat-fixtures.mjs",
     "guardrails": "node scripts/check-repository.mjs",
+    "guardrails:critical-path": "node scripts/check-critical-path.mjs",
     "lint": "node scripts/check-js.mjs",
     "test": "node --test",
     "test:cxp01": "node --test tests/cxp01-contracts.test.cjs",
@@ -27,9 +30,10 @@
     "test:cxp11": "node --test tests/cxp11-parity-validation.test.cjs tests/cxp11-parity-run-state.test.cjs tests/cxp11-uat-entrypoints.test.cjs",
     "test:cxp12": "node --test tests/cxp12-weekly-lifecycle.test.cjs",
     "test:cxp13": "node --test tests/cxp13-rta-intake.test.cjs",
+    "test:cxp14": "node --test tests/cxp14-release-readiness.test.cjs tests/cxp14-orchestration.test.cjs tests/cxp14-uat-fixtures.test.cjs",
     "test:bootstrap": "node --test tests/cxp-dev-workbook-bootstrap.test.cjs",
     "test:control-headers": "node --test tests/cxp-control-workbook-headers.test.cjs",
-    "verify": "npm run lint && npm test && npm run guardrails"
+    "verify": "npm run lint && npm test && npm run guardrails && npm run guardrails:critical-path && npm run context:check"
   },
   "devDependencies": {
     "@google/clasp": "^3.4.0"

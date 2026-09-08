@@ -48,9 +48,73 @@ var Cxp13Runtime = (function () {
       return false;
     }
   }
+  function telemetryModule() {
+    if (typeof Cxp13IngestionTelemetry !== 'undefined') return Cxp13IngestionTelemetry;
+    if (typeof require === 'function') {
+      try { return require('./Cxp13IngestionTelemetry.js'); } catch (_error) { return null; }
+    }
+    return null;
+  }
+  function withTelemetry(properties, apply) {
+    var module = telemetryModule();
+    if (!module || !properties) return;
+    apply(module, properties);
+  }
+  function increment(properties, kind) {
+    withTelemetry(properties, function (telemetry, props) { telemetry.increment(props, kind); });
+  }
+  function wrapMethod(target, methodName, kind, properties) {
+    if (!target || typeof target[methodName] !== 'function') return target;
+    var original = target[methodName].bind(target);
+    var facade = Object.assign({}, target);
+    facade[methodName] = function () {
+      increment(properties, kind);
+      return original.apply(null, arguments);
+    };
+    return facade;
+  }
+  function wrapLockService(lockService, properties) {
+    if (!lockService || typeof lockService.getScriptLock !== 'function') return lockService;
+    var originalGet = lockService.getScriptLock.bind(lockService);
+    return Object.assign({}, lockService, {
+      getScriptLock: function () {
+        var lock = originalGet();
+        if (!lock) return lock;
+        var tryLock = lock.tryLock ? lock.tryLock.bind(lock) : null;
+        var waitLock = lock.waitLock ? lock.waitLock.bind(lock) : null;
+        return {
+          releaseLock: lock.releaseLock ? lock.releaseLock.bind(lock) : undefined,
+          tryLock: function (ms) {
+            increment(properties, 'lock');
+            return tryLock ? tryLock(ms) : false;
+          },
+          waitLock: waitLock,
+        };
+      },
+    });
+  }
+  function instrumentServices(services) {
+    var properties = services && services.properties;
+    if (!properties) return services;
+    var wrapped = Object.assign({}, services);
+    wrapped.spreadsheetApp = wrapMethod(services.spreadsheetApp, 'openById', 'spreadsheet', properties);
+    if (wrapped.spreadsheetApp && services.spreadsheetApp && typeof services.spreadsheetApp.flush === 'function') {
+      wrapped.spreadsheetApp = wrapMethod(wrapped.spreadsheetApp, 'flush', 'flush', properties);
+    }
+    wrapped.driveApp = wrapMethod(services.driveApp, 'getFileById', 'drive', properties);
+    wrapped.lockService = wrapLockService(services.lockService, properties);
+    var originalFlush = services.flush;
+    wrapped.flush = function () {
+      increment(properties, 'flush');
+      if (typeof originalFlush === 'function') return originalFlush();
+      if (services.spreadsheetApp && typeof services.spreadsheetApp.flush === 'function') return services.spreadsheetApp.flush();
+      return undefined;
+    };
+    return wrapped;
+  }
   function hostedServices(overrides) {
     var supplied = overrides || {};
-    return Object.assign({}, supplied, {
+    return instrumentServices(Object.assign({}, supplied, {
       clock: supplied.clock || { now: function () { return new Date(); } },
       driveApi: supplied.driveApi || (typeof Drive === 'undefined' ? null : Drive),
       driveApp: supplied.driveApp || (typeof DriveApp === 'undefined' ? null : DriveApp),
@@ -60,7 +124,7 @@ var Cxp13Runtime = (function () {
       session: supplied.session || (typeof Session === 'undefined' ? null : Session),
       spreadsheetApp: supplied.spreadsheetApp || (typeof SpreadsheetApp === 'undefined' ? null : SpreadsheetApp),
       utilities: supplied.utilities || (typeof Utilities === 'undefined' ? null : Utilities),
-    });
+    }));
   }
   function requireContext(state, services) {
     var config = configModule().load(services.properties);
@@ -117,6 +181,11 @@ var Cxp13Runtime = (function () {
       auditFailure: function (current, error) {
         var config = configModule().load(services.properties);
         var control = services.spreadsheetApp.openById(config.controlSpreadsheetId);
+        withTelemetry(services.properties, function (telemetry, props) {
+          if (error && error.details && error.details.rollbackStatus && error.details.rollbackStatus !== 'VERIFIED') {
+            telemetry.noteLastKnownGood(props, false);
+          }
+        });
         runService.recordFailure(current.checkpoint, error, {
           clock: services.clock,
           repository: runRepoModule().create(control),
@@ -127,8 +196,17 @@ var Cxp13Runtime = (function () {
         return runService.prepare(runtime.request, runtime.operations, Object.assign({}, runtime.runServices, {
           createCheckpoint: function (runContext) {
             var duplicate = runContext.operationResults.checkDuplicate;
+            var payloads = runContext.operationResults.validateSchema.payloads || [];
+            var counts = {};
+            payloads.forEach(function (payload) {
+              counts[payload.datasetName] = payload.records ? payload.records.length : (Number.isInteger(payload.rowCount) ? payload.rowCount : 0);
+            });
+            withTelemetry(services.properties, function (telemetry, props) {
+              telemetry.noteDigest(props, duplicate.fingerprint);
+              telemetry.noteRowCounts(props, counts);
+            });
             return Object.freeze({
-              datasetNames: runContext.operationResults.validateSchema.payloads.map(function (payload) { return payload.datasetName; }),
+              datasetNames: payloads.map(function (payload) { return payload.datasetName; }),
               fingerprint: duplicate.fingerprint,
               sourceFiles: duplicate.sourceFiles,
             });
@@ -148,9 +226,19 @@ var Cxp13Runtime = (function () {
           var index = progress ? progress.nextDatasetIndex : 0;
           var runContext = { operationResults: {}, request: checkpoint.request, runId: checkpoint.runId, startedAtUtc: checkpoint.startedAtUtc };
           runtime.operations.resumeDataset(runContext, data, names[index]);
-          return Object.freeze({ commitProgress: runtime.operations.commitDatasetStep(runContext, progress || { complete: false, lastCompletedDatasetName: null, nextDatasetIndex: 0 }) });
+          var stepped = runtime.operations.commitDatasetStep(runContext, progress || { complete: false, lastCompletedDatasetName: null, nextDatasetIndex: 0 });
+          if (stepped && stepped.rowCounts) {
+            withTelemetry(services.properties, function (telemetry, props) { telemetry.noteRowCounts(props, stepped.rowCounts); });
+          }
+          return Object.freeze({ commitProgress: stepped });
         }
-        return runService.resume(checkpoint, runtime.operations, runtime.runServices);
+        var resumed = runService.resume(checkpoint, runtime.operations, runtime.runServices);
+        if (resumed && resumed.runRecord && resumed.runRecord.inputRowCounts) {
+          withTelemetry(services.properties, function (telemetry, props) {
+            telemetry.noteRowCounts(props, resumed.runRecord.inputRowCounts);
+          });
+        }
+        return resumed;
       },
     });
   }

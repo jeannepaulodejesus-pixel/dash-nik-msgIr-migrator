@@ -141,8 +141,28 @@ var FileLedgerRepository = (function () {
       }
     }
 
+    function findLatestSuccess() {
+      try {
+        ensureHeaders(sheet);
+        var lastRow = sheet.getLastRow();
+        if (lastRow < 2) {
+          return null;
+        }
+        var rows = sheet.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+        for (var index = rows.length - 1; index >= 0; index -= 1) {
+          if (rows[index][2] === 'SUCCESS') {
+            return fromRow(rows[index]);
+          }
+        }
+        return null;
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'INGESTION_FILE_LEDGER_READ_FAILED');
+      }
+    }
+
     return Object.freeze({
       append: append,
+      findLatestSuccess: findLatestSuccess,
       findSuccessfulByFingerprint: findSuccessfulByFingerprint,
       findSuccessfulByRunId: findSuccessfulByRunId,
     });

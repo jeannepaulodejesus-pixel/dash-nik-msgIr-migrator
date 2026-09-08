@@ -43,6 +43,34 @@ var BackupRepository = (function () {
     return editor && typeof editor.getEmail === 'function' ? editor.getEmail() : '';
   }
 
+  function boundedCauseMessage(error) {
+    if (!error || typeof error.message !== 'string') {
+      return null;
+    }
+    return error.message.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 500) || null;
+  }
+
+  function backupFailure(error, datasetName, operation) {
+    var errorCodes = resolveErrorCodes();
+    var normalized = errorCodes.normalize(error, 'MIGRATION_BACKUP_FAILED');
+    var details = Object.assign({}, normalized.details || {}, {
+      operation: operation || 'unknown',
+      reason: (operation || 'unknown') + '_failed',
+    });
+    var causeMessage = boundedCauseMessage(error);
+    if (datasetName) {
+      details.datasetName = datasetName;
+    }
+    if (causeMessage) {
+      details.causeMessage = causeMessage;
+    }
+    return errorCodes.create(normalized.code, {
+      cause: error,
+      details: details,
+      message: normalized.message,
+    });
+  }
+
   function backupName(datasetName, runId) {
     return NAME_PREFIX + TOKEN_BY_DATASET[datasetName] + '_' + runId;
   }
@@ -361,33 +389,46 @@ var BackupRepository = (function () {
     }
 
     function createGroupStep(runId) {
+      var binding = null;
+      var operation = 'validate_run_id';
       try {
         requireRunId(runId);
+        operation = 'discover_backup_group';
         var group = discoverGroups().filter(function (candidate) {
           return candidate.runId === runId;
         })[0] || null;
         if (group && group.complete) {
+          operation = 'verify_backup_group';
           return Object.freeze({
             complete: true,
             createdDatasetName: null,
             group: verifyGroup(group),
           });
         }
-        var binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
+        operation = 'select_missing_dataset';
+        binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
           return !group || !group.sheetsByDataset[candidate.datasetName];
         })[0];
+        operation = 'read_raw_dataset';
         var entry = rawEntry(binding);
+        operation = 'copy_raw_sheet';
         var copy = entry.sheet.copyTo(spreadsheet);
+        operation = 'name_backup_sheet';
         copy.setName(backupName(binding.datasetName, runId));
+        operation = 'hide_backup_sheet';
         copy.hideSheet();
+        operation = 'normalize_backup_protection';
         normalizeProtection(copy);
 
+        operation = 'rediscover_backup_group';
         group = discoverGroups().filter(function (candidate) {
           return candidate.runId === runId;
         })[0];
+        operation = 'read_backup_dataset';
         var snapshot = readGroup(group).filter(function (candidate) {
           return candidate.datasetName === binding.datasetName;
         })[0];
+        operation = 'verify_backup_dataset';
         if (
           !snapshot ||
           !resolveCodec().matricesEqual(entry.values, snapshot.values) ||
@@ -401,7 +442,7 @@ var BackupRepository = (function () {
           group: group,
         });
       } catch (error) {
-        throw resolveErrorCodes().normalize(error, 'MIGRATION_BACKUP_FAILED');
+        throw backupFailure(error, binding && binding.datasetName, operation);
       }
     }
 

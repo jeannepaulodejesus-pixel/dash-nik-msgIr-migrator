@@ -611,3 +611,50 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 - **Decision:** Keep the synchronous service API for local and composed callers, but make the hosted entrypoint execute a 27-step idempotent plan. Persist the cursor after each successful step, stop normal work after four minutes, resume through a time-driven trigger, create a delayed safety trigger before mutations, and serialize invocations with a script lock.
 - **Rationale:** Apps Script enforces a six-minute execution limit. The observed hosted run ended at exactly six minutes, while the prior installer had no cursor or continuation boundary. The platform limit cannot be disabled; checkpointing and retry-safe continuation remove the monolithic execution dependency.
 - **Consequences:** A hosted install can span multiple executions and reports progress through `getCxp07HandledOfferedTransformationStatus()`. Formula anchors are written individually on the hosted path, increasing constant formula-write calls from four to 20 while preserving the same bounded model. Trigger timing and an individual service call that itself exceeds the platform limit remain hosted constraints.
+
+## CXP-14 decisions
+
+### DEC-065 — Preserve the established execution boundary and measure scheduler-inclusive completion separately
+
+- **Date:** 2026-09-07
+- **Packet:** CXP-14
+- **Status:** Accepted; repository implementation complete; hosted evidence pending
+- **Decision:** Retain the 270,000 ms cooperative invocation boundary, 60,000 ms next-step reserve, 15,000 ms handoff margin, one-successor continuation rule, 420,000 ms recovery watchdog, and 90,000 ms contention backoff. Add a blocking 240,000 ms invocation objective and distinct scheduler-inclusive windows of 20 minutes at expected peak and 30 minutes at declared maximum.
+- **Rationale:** CXP-14 hardens the completed system; it must not bypass the transaction/continuation safety behavior already proven by CXP-06 and inherited by CXP-13. Per-invocation duration alone cannot represent scheduler delay or end-to-end operational freshness.
+- **Consequences:** Timing evidence records both active and scheduler-inclusive durations. Reaching 240,000 ms fails the objective; reaching 270,000 ms fails the hard boundary. Hosted workload runs remain required before release.
+
+### DEC-066 — Use strict progressive UAT evidence bound to one immutable release identity
+
+- **Date:** 2026-09-07
+- **Packet:** CXP-14
+- **Status:** Accepted; implemented
+- **Decision:** Initialize CXP-14 UAT evidence with contract version, release version, and source-bundle digest, then merge only allowlisted boolean predicate patches. The identity cannot change; unexpected fields, invalid types, inconsistent performance records, and incomplete promotion evidence fail closed.
+- **Rationale:** Hosted steps finish across separate executions and operator observations, so evidence must accumulate without allowing a partial write to erase an earlier gate or silently retarget another candidate.
+- **Consequences:** Step00–08 can reconcile progressive evidence while promotion returns a deterministic sorted missing-gate list. Persisted evidence excludes source values, user identifiers, filenames, formulas, environment IDs, and secrets.
+
+### DEC-067 — Keep production cutover approval-bound and outside repository completion
+
+- **Date:** 2026-09-07
+- **Packet:** CXP-14
+- **Status:** Accepted; repository controls implemented; PROD authorization pending
+- **Decision:** Repository implementation does not authorize PROD. Cutover requires completed hosted UAT, final matching real-export parity, effective-identity permission evidence, delivery and business validation, a rehearsed secure external rollback snapshot, explicit production acknowledgment, and healthy canary/first-cycle observation.
+- **Rationale:** Local tests cannot prove Google-hosted quotas, scheduler timing, sharing restrictions, workbook parity, or operational authorization. Exact rollback configuration is sensitive and cannot be stored in repository evidence.
+- **Consequences:** CXP-14 remains `In progress` after repository verification. UAT helpers refuse PROD, and no synthetic canary may replace live production raw data.
+
+### DEC-068 — Hosted CXP-14 UAT orchestrates predecessor work and records allowlisted evidence internally
+
+- **Date:** 2026-09-08
+- **Packet:** CXP-14
+- **Status:** Accepted; implemented
+- **Decision:** Each numbered CXP-14 UAT step calls the CXP-11/12/13 helpers it needs, builds privacy-bounded evidence from hosted state, and records it through the existing validators. Operators drop Inbox fixtures and re-run the same step after queued continuations; they do not paste pending JSON on the happy path. `prodAcknowledged` remains the only explicit human predicate, set by `acknowledgeCxp14Production()`. `permissionsVerified` means hosted protection, domain, and deny checks passed; the editor identity cannot impersonate RTA or validator users. `rollbackRehearsed` is derived from hosted CXP-06/13 recovery and last-known-good preservation; the external secure backup required by DEC-067 stays outside CXP-14 evidence.
+- **Rationale:** Operator-transcribed peak JSON stalled hosted UAT and could not reconstruct service-call counts, chunk counts, phase durations, or timeout flags from RUN_LOG/FILE_LEDGER. Long Apps Script jobs must yield rather than spin in the editor. Fabricating those counts or treating a timed-out invocation as a pass would weaken the release contract.
+- **Consequences:** CXP-13 writes a privacy-bounded telemetry bag; CXP-14 harvests it into the exact performance submission shape and refuses timeout or unbounded runs. The expected-peak store is profile-aware so declared-maximum uses one SUCCESS run. Step 02 requires a deployed critical-path stamp generated from the bulk-call guard. `npm run verify` and `npm run clasp:push` fail when that stamp is stale. Organizational items such as live-PROD canary comms stay out of `deploymentChecklistComplete`.
+
+### DEC-069 — CXP-14 hosted UAT retargets Inbox folders from a Script Property catalog
+
+- **Date:** 2026-09-08
+- **Packet:** CXP-14
+- **Status:** Accepted; implemented
+- **Decision:** Operator-owned UAT fixture Drive folders are stored in `CXP14_UAT_FIXTURE_FOLDERS_V1` after `configureCxp14UatFixtureFolders()`. Steps 03–05 and 07 retarget `CXP_UAT_DRIVE_INBOX_FOLDER_ID` (and Step 07 also retargets `CXP_UAT_LEGACY_PARITY_EXPORT_FOLDER_ID`) to the next catalog slot, then drive one CXP-13/CXP-11 wave. Folder IDs never enter CXP-14 evidence. The Inbox is not switched while a run is still queued. Missing discovery still fails as `inboxBundle`.
+- **Rationale:** Manual one-folder drops stalled hosted UAT. CXP-13 only reads the configured Inbox, so rotating that Script Property per step is the supported intake pointer. DEV/UAT/PROD environment identity remains outside promotion evidence (ADR-010). The parameterless configure helper writes the UAT fixture catalog into Script Properties so hosted steps can retarget without operator JSON.
+- **Consequences:** Operators run the configure helper once after clasp push. Re-running a numbered CXP-14 step is enough to advance peak, declared-maximum, negative, and parity fixtures. Manual drops remain valid when the catalog is absent.

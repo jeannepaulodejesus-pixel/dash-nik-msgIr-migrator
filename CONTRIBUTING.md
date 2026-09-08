@@ -2,7 +2,7 @@
 
 ## Packet workflow
 
-1. Read `CODEX_HANDOFF.md`, `docs/packet-status.md`, `docs/decision-log.md`, and all dependency-packet completion notes.
+1. Follow the startup sequence in `AGENTS.md`, then use `docs/ai/context-index.md` to retrieve the active packet contract, status, relevant decisions, and dependency notes by heading. Do not full-read archives larger than 32 KiB unless the task explicitly requires it.
 2. Implement one CXP packet per branch or pull request. Do not begin a packet whose dependencies are incomplete.
 3. Record architecture ambiguity in `docs/decision-needed.md` instead of inventing a business rule.
 4. Add deterministic tests or verification evidence for every packet-owned behavior.

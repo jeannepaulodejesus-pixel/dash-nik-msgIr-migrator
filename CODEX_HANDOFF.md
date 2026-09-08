@@ -74,7 +74,7 @@ Excel-vs-Sheets parity validation
 
 ## 5. Codex Execution Protocol
 1. Execute **one packet per branch/PR**. Do not combine packets unless the dependency table explicitly allows parallel work and the repository owner chooses to merge them.
-2. Before coding a packet, read this document, `docs/packet-status.md`, the latest `docs/decision-log.md`, and all completion notes from dependency packets.
+2. Before coding a packet, follow the startup sequence in `AGENTS.md`, then use `docs/ai/context-index.md` to retrieve the active packet status, relevant decisions, and dependency completion notes by heading. Do not full-read archives larger than 32 KiB unless the task explicitly requires it.
 3. Do not change an approved architecture decision silently. If blocked, record the issue in `docs/decision-needed.md`, implement only non-controversial work, and stop at the packet gate.
 4. Do not invent workbook formulas or metric semantics. CXP-01 is the migration contract for business logic.
 5. Every packet must include tests or deterministic verification evidence appropriate to its scope.
@@ -679,7 +679,7 @@ Excel-vs-Sheets parity validation
 ## 12. Kickoff Prompt for Codex
 
 ```text
-Read CODEX_HANDOFF.md completely before modifying the repository.
+Follow the startup sequence in AGENTS.md, then use docs/ai/context-index.md to retrieve only the relevant CODEX_HANDOFF.md packet and architecture sections.
 Execute exactly one packet at a time, beginning with CXP-00 unless packet-status.md shows it complete.
 Treat the legacy workbook migration contract from CXP-01 as the sole authority for business formulas and metric lineage.
 Do not build an Excel converter and do not reproduce Excel structured-reference formulas cell-by-cell.

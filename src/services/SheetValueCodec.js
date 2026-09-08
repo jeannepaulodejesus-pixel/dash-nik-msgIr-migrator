@@ -41,9 +41,30 @@ var SheetValueCodec = (function () {
       var other = right[rowIndex];
       return Array.isArray(row) && Array.isArray(other) && row.length === other.length &&
         row.every(function (value, columnIndex) {
-          return value === other[columnIndex];
+          var otherValue = other[columnIndex];
+          var valueEpoch = dateEpoch(value);
+          var otherEpoch = dateEpoch(otherValue);
+          var valueIsDate = valueEpoch !== null;
+          var otherIsDate = otherEpoch !== null;
+          if (valueIsDate || otherIsDate) {
+            return valueIsDate && otherIsDate &&
+              !Number.isNaN(valueEpoch) &&
+              valueEpoch === otherEpoch;
+          }
+          return value === otherValue;
         });
     });
+  }
+
+  function dateEpoch(value) {
+    if (Object.prototype.toString.call(value) !== '[object Date]') {
+      return null;
+    }
+    try {
+      return Date.prototype.getTime.call(value);
+    } catch (_error) {
+      return null;
+    }
   }
 
   function normalizePersistedValue(column, value) {

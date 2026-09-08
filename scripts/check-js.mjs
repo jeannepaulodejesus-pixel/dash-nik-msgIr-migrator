@@ -2,7 +2,7 @@ import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const EXCLUDED_DIRECTORIES = new Set(['.git', 'coverage', 'node_modules']);
+const EXCLUDED_DIRECTORIES = new Set(['.git', 'coverage', 'node_modules', 'outputs']);
 const JAVASCRIPT_EXTENSIONS = new Set(['.cjs', '.js', '.mjs']);
 
 async function listJavaScriptFiles(projectRoot) {

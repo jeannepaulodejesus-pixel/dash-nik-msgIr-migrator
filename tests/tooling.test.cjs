@@ -105,3 +105,28 @@ test('allows configuration key names and documented placeholders without values'
 
   assert.deepEqual(violations, []);
 });
+
+test('blocks single-cell and row-indexed Spreadsheet calls in critical paths', async () => {
+  const guard = await importIfPresent('../scripts/check-critical-path.mjs');
+  assert.equal(typeof guard?.findCriticalPathViolations, 'function');
+
+  const violations = guard.findCriticalPathViolations([
+    {
+      path: 'src/services/CommitService.js',
+      content: 'sheet.getRange(rowIndex, 1).setValue(value);',
+    },
+    {
+      path: 'src/repository/RawDataRepository.js',
+      content: 'sheet.getRange(1, 1, matrix.length, width).setValues(matrix);',
+    },
+    {
+      path: 'src/not-critical.js',
+      content: 'sheet.getRange(rowIndex, 1).setValue(value);',
+    },
+  ]);
+
+  assert.deepEqual(
+    violations.map((violation) => violation.rule).sort(),
+    ['row-indexed-range-call', 'single-cell-spreadsheet-call'],
+  );
+});

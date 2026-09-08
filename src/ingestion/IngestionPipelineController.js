@@ -10,14 +10,35 @@ var IngestionPipelineController = (function () {
   var CONTENTION_BACKOFF_MS = 90000;
   var ACTIVE = Object.freeze(['QUEUED', 'PREPARING', 'BACKUP_PENDING', 'BACKING_UP', 'COMMIT_PENDING', 'COMMITTING']);
 
-  function nowMs(deps) { return new Date(deps.clock.now()).getTime(); }
+  function telemetryModule() {
+    if (typeof Cxp13IngestionTelemetry !== 'undefined') return Cxp13IngestionTelemetry;
+    if (typeof require === 'function') {
+      try { return require('./Cxp13IngestionTelemetry.js'); } catch (_error) { return null; }
+    }
+    return null;
+  }
+  function withTelemetry(deps, apply) {
+    var module = telemetryModule();
+    if (!module || !deps || !deps.properties) return;
+    apply(module, deps.properties);
+  }
+  function nowMs(deps) {
+    var value = deps && deps.clock && typeof deps.clock.now === 'function' ? deps.clock.now() : new Date();
+    var date = value instanceof Date ? value : new Date(value);
+    return date.getTime();
+  }
   function nowIso(deps) { return new Date(nowMs(deps)).toISOString(); }
   function load(properties, key) {
     var raw = properties.getProperty(key);
     if (!raw) return null;
     try { return JSON.parse(raw); } catch (_error) { throw new Error('Persisted ingestion pipeline state is invalid.'); }
   }
-  function save(properties, key, state) { properties.setProperty(key, JSON.stringify(state)); }
+  function save(properties, key, state) {
+    properties.setProperty(key, JSON.stringify(state));
+    withTelemetry({ properties: properties }, function (telemetry, props) {
+      telemetry.increment(props, 'properties');
+    });
+  }
   function matchingTriggers(scriptApp, handler) {
     return scriptApp.getProjectTriggers().filter(function (trigger) {
       return trigger && typeof trigger.getHandlerFunction === 'function' && trigger.getHandlerFunction() === handler;
@@ -41,7 +62,7 @@ var IngestionPipelineController = (function () {
   }
   function boundedDetails(error) {
     var source = error && error.details && typeof error.details === 'object' ? error.details : {};
-    var allowed = ['boundary', 'datasetName', 'duplicateColumns', 'expectedSourceCount', 'missingColumns', 'missingDatasets', 'missingDatasetSheets', 'presentDatasets', 'reason', 'rollbackStatus', 'sheetName', 'unexpectedColumns'];
+    var allowed = ['boundary', 'causeMessage', 'datasetName', 'duplicateColumns', 'expectedSourceCount', 'missingColumns', 'missingDatasets', 'missingDatasetSheets', 'operation', 'presentDatasets', 'reason', 'rollbackStatus', 'sheetName', 'unexpectedColumns'];
     var result = {};
     allowed.forEach(function (key) { if (source[key] !== undefined) result[key] = source[key]; });
     return result;
@@ -72,8 +93,31 @@ var IngestionPipelineController = (function () {
   }
   function create(options) {
     var opts = options || {};
+    var activeProperties = null;
     if (!opts.stateKey || !opts.handler || typeof opts.executorFactory !== 'function') throw new Error('Pipeline controller configuration is incomplete.');
     function executor(state, deps) { return opts.executorFactory(state, deps); }
+    function queuedTrigger(scriptApp, handler, delay) {
+      replaceTrigger(scriptApp, handler, delay);
+      withTelemetry({ properties: activeProperties }, function (telemetry, props) {
+        telemetry.increment(props, 'trigger');
+      });
+    }
+    function bindDeps(supplied) {
+      var deps = resolveDeps(supplied);
+      activeProperties = deps.properties;
+      return deps;
+    }
+    function observePhase(state, deps) {
+      withTelemetry(deps, function (telemetry, props) {
+        telemetry.notePhase(props, state.status, nowIso(deps));
+      });
+    }
+    function observeChunk(deps) {
+      withTelemetry(deps, function (telemetry, props) { telemetry.noteChunk(props); });
+    }
+    function observeContention(deps) {
+      withTelemetry(deps, function (telemetry, props) { telemetry.noteContention(props); });
+    }
     function recordFailure(state, error, deps) {
       state.status = 'FAILED';
       state.endedAtUtc = nowIso(deps);
@@ -89,7 +133,7 @@ var IngestionPipelineController = (function () {
       } catch (auditError) {
         state.failureAuditStatus = 'PENDING';
         state.lastAuditErrorCode = auditError && auditError.code ? auditError.code : 'REPORTING_LOG_WRITE_FAILED';
-        replaceTrigger(deps.scriptApp, opts.handler, SELF_RESUME_DELAY_MS);
+        queuedTrigger(deps.scriptApp, opts.handler, SELF_RESUME_DELAY_MS);
       }
       save(deps.properties, opts.stateKey, state);
       throw error;
@@ -99,7 +143,7 @@ var IngestionPipelineController = (function () {
       state.phaseStartedAtUtc = nowIso(deps);
       state.updatedAtUtc = state.phaseStartedAtUtc;
       save(deps.properties, opts.stateKey, state);
-      replaceTrigger(deps.scriptApp, opts.handler, SAFETY_DELAY_MS);
+      queuedTrigger(deps.scriptApp, opts.handler, SAFETY_DELAY_MS);
       try {
         var prepared = executor(state, deps).prepare(state);
         if (!prepared || !prepared.checkpoint) throw new Error('Pipeline preparation did not produce a checkpoint.');
@@ -108,7 +152,7 @@ var IngestionPipelineController = (function () {
         state.status = 'BACKUP_PENDING';
         state.updatedAtUtc = nowIso(deps);
         save(deps.properties, opts.stateKey, state);
-        replaceTrigger(deps.scriptApp, opts.handler, CONTINUATION_DELAY_MS);
+        queuedTrigger(deps.scriptApp, opts.handler, CONTINUATION_DELAY_MS);
         return publicResult(state, true);
       } catch (error) { return recordFailure(state, error, deps); }
     }
@@ -117,7 +161,7 @@ var IngestionPipelineController = (function () {
       var measured = state.maxBackupStepMs || 0;
       var packed = Object.create(null);
       state.status = 'BACKING_UP'; state.phaseStartedAtUtc = nowIso(deps); state.updatedAtUtc = state.phaseStartedAtUtc;
-      save(deps.properties, opts.stateKey, state); replaceTrigger(deps.scriptApp, opts.handler, SAFETY_DELAY_MS);
+      save(deps.properties, opts.stateKey, state); queuedTrigger(deps.scriptApp, opts.handler, SAFETY_DELAY_MS);
       try {
         while (true) {
           var stepStart = nowMs(deps);
@@ -132,21 +176,23 @@ var IngestionPipelineController = (function () {
           if (result.complete) {
             state.checkpoint.data.backupRunId = state.checkpoint.runId;
             state.status = 'COMMIT_PENDING'; state.updatedAtUtc = nowIso(deps);
-            save(deps.properties, opts.stateKey, state); replaceTrigger(deps.scriptApp, opts.handler, CONTINUATION_DELAY_MS);
+            save(deps.properties, opts.stateKey, state); queuedTrigger(deps.scriptApp, opts.handler, CONTINUATION_DELAY_MS);
             return publicResult(state, true);
           }
           var name = result.createdDatasetName;
           if (!name || packed[name] || !canStartAnotherStep(nowMs(deps) - started, measured)) {
             state.status = 'BACKUP_PENDING'; state.updatedAtUtc = nowIso(deps);
-            save(deps.properties, opts.stateKey, state); replaceTrigger(deps.scriptApp, opts.handler, CONTINUATION_DELAY_MS);
+            save(deps.properties, opts.stateKey, state); queuedTrigger(deps.scriptApp, opts.handler, CONTINUATION_DELAY_MS);
             return publicResult(state, true);
           }
           packed[name] = true;
+          observeChunk(deps);
         }
       } catch (error) {
         if (error && error.code === 'INGESTION_LOCK_TIMEOUT') {
+          observeContention(deps);
           state.status = 'BACKUP_PENDING'; state.updatedAtUtc = nowIso(deps); save(deps.properties, opts.stateKey, state);
-          replaceTrigger(deps.scriptApp, opts.handler, CONTENTION_BACKOFF_MS); return publicResult(state, true);
+          queuedTrigger(deps.scriptApp, opts.handler, CONTENTION_BACKOFF_MS); return publicResult(state, true);
         }
         return recordFailure(state, error, deps);
       }
@@ -154,7 +200,7 @@ var IngestionPipelineController = (function () {
     function commit(state, deps) {
       var started = nowMs(deps);
       state.status = 'COMMITTING'; state.phaseStartedAtUtc = nowIso(deps); state.updatedAtUtc = state.phaseStartedAtUtc;
-      save(deps.properties, opts.stateKey, state); replaceTrigger(deps.scriptApp, opts.handler, SAFETY_DELAY_MS);
+      save(deps.properties, opts.stateKey, state); queuedTrigger(deps.scriptApp, opts.handler, SAFETY_DELAY_MS);
       try {
         var result = executor(state, deps).commit(state);
         if (result && result.runRecord && result.runRecord.status === 'SUCCESS') {
@@ -167,46 +213,59 @@ var IngestionPipelineController = (function () {
         state.lastCompletedCommitDataset = progress.lastCompletedDatasetName;
         state.maxCommitStepMs = Math.max(state.maxCommitStepMs || 0, nowMs(deps) - started);
         state.status = 'COMMIT_PENDING'; state.updatedAtUtc = nowIso(deps);
-        save(deps.properties, opts.stateKey, state); replaceTrigger(deps.scriptApp, opts.handler, progress.complete ? CONTINUATION_DELAY_MS : SELF_RESUME_DELAY_MS);
+        save(deps.properties, opts.stateKey, state); queuedTrigger(deps.scriptApp, opts.handler, progress.complete ? CONTINUATION_DELAY_MS : SELF_RESUME_DELAY_MS);
+        if (!progress.complete) observeChunk(deps);
         return publicResult(state, true);
       } catch (error) {
         if (error && error.code === 'INGESTION_LOCK_TIMEOUT') {
+          observeContention(deps);
           state.status = 'COMMIT_PENDING'; state.updatedAtUtc = nowIso(deps); save(deps.properties, opts.stateKey, state);
-          replaceTrigger(deps.scriptApp, opts.handler, CONTENTION_BACKOFF_MS); return publicResult(state, true);
+          queuedTrigger(deps.scriptApp, opts.handler, CONTENTION_BACKOFF_MS); return publicResult(state, true);
         }
         return recordFailure(state, error, deps);
       }
     }
     function continueRun(services) {
-      var deps = resolveDeps(services);
-      var state = load(deps.properties, opts.stateKey);
-      if (!state) return Object.freeze({ continuationScheduled: false, runId: null, status: 'IDLE' });
-      if (state.version !== 1) throw new Error('Persisted ingestion pipeline state is unsupported.');
-      if (state.status === 'FAILED' && state.failureAuditStatus === 'PENDING' && state.checkpoint) {
-        var retryError = new Error('Retrying terminal ingestion failure audit.');
-        retryError.code = state.lastErrorCode || 'INGESTION_OPERATION_FAILED';
-        retryError.details = state.lastErrorDetails || {};
-        try {
-          executor(state, deps).auditFailure(state, retryError);
-          state.failureAuditStatus = 'RECORDED'; state.lastAuditErrorCode = null; state.updatedAtUtc = nowIso(deps);
-          save(deps.properties, opts.stateKey, state); removeTriggers(deps.scriptApp, opts.handler); return publicResult(state, false);
-        } catch (auditError) {
-          state.lastAuditErrorCode = auditError && auditError.code ? auditError.code : 'REPORTING_LOG_WRITE_FAILED';
-          state.updatedAtUtc = nowIso(deps); save(deps.properties, opts.stateKey, state);
-          replaceTrigger(deps.scriptApp, opts.handler, SELF_RESUME_DELAY_MS); return publicResult(state, true);
+      var deps = bindDeps(services);
+      withTelemetry(deps, function (telemetry, props) {
+        telemetry.beginInvocation(props, nowIso(deps), nowMs(deps));
+        telemetry.noteContinuation(props);
+      });
+      try {
+        var state = load(deps.properties, opts.stateKey);
+        if (!state) return Object.freeze({ continuationScheduled: false, runId: null, status: 'IDLE' });
+        if (state.version !== 1) throw new Error('Persisted ingestion pipeline state is unsupported.');
+        observePhase(state, deps);
+        if (state.status === 'FAILED' && state.failureAuditStatus === 'PENDING' && state.checkpoint) {
+          var retryError = new Error('Retrying terminal ingestion failure audit.');
+          retryError.code = state.lastErrorCode || 'INGESTION_OPERATION_FAILED';
+          retryError.details = state.lastErrorDetails || {};
+          try {
+            executor(state, deps).auditFailure(state, retryError);
+            state.failureAuditStatus = 'RECORDED'; state.lastAuditErrorCode = null; state.updatedAtUtc = nowIso(deps);
+            save(deps.properties, opts.stateKey, state); removeTriggers(deps.scriptApp, opts.handler); return publicResult(state, false);
+          } catch (auditError) {
+            state.lastAuditErrorCode = auditError && auditError.code ? auditError.code : 'REPORTING_LOG_WRITE_FAILED';
+            state.updatedAtUtc = nowIso(deps); save(deps.properties, opts.stateKey, state);
+            queuedTrigger(deps.scriptApp, opts.handler, SELF_RESUME_DELAY_MS); return publicResult(state, true);
+          }
         }
+        if (state.status === 'COMPLETE' || state.status === 'FAILED') { removeTriggers(deps.scriptApp, opts.handler); return publicResult(state, false); }
+        if ((state.status === 'BACKING_UP' || state.status === 'COMMITTING' || state.status === 'PREPARING') && state.phaseStartedAtUtc) {
+          var age = nowMs(deps) - new Date(state.phaseStartedAtUtc).getTime();
+          if (age >= 0 && age < ACTIVE_SETTLE_MS) { queuedTrigger(deps.scriptApp, opts.handler, Math.max(CONTINUATION_DELAY_MS, ACTIVE_SETTLE_MS - age)); return publicResult(state, true); }
+        }
+        if (state.status === 'QUEUED' || !state.checkpoint) return prepare(state, deps);
+        if (state.status === 'BACKUP_PENDING' || state.status === 'BACKING_UP') return backup(state, deps);
+        return commit(state, deps);
+      } finally {
+        withTelemetry(deps, function (telemetry, props) {
+          telemetry.endInvocation(props, nowIso(deps), nowMs(deps));
+        });
       }
-      if (state.status === 'COMPLETE' || state.status === 'FAILED') { removeTriggers(deps.scriptApp, opts.handler); return publicResult(state, false); }
-      if ((state.status === 'BACKING_UP' || state.status === 'COMMITTING' || state.status === 'PREPARING') && state.phaseStartedAtUtc) {
-        var age = nowMs(deps) - new Date(state.phaseStartedAtUtc).getTime();
-        if (age >= 0 && age < ACTIVE_SETTLE_MS) { replaceTrigger(deps.scriptApp, opts.handler, Math.max(CONTINUATION_DELAY_MS, ACTIVE_SETTLE_MS - age)); return publicResult(state, true); }
-      }
-      if (state.status === 'QUEUED' || !state.checkpoint) return prepare(state, deps);
-      if (state.status === 'BACKUP_PENDING' || state.status === 'BACKING_UP') return backup(state, deps);
-      return commit(state, deps);
     }
     function start(seed, services) {
-      var deps = resolveDeps(services);
+      var deps = bindDeps(services);
       var lock = deps.lockService && deps.lockService.getScriptLock ? deps.lockService.getScriptLock() : null;
       if (lock && (!lock.tryLock || lock.tryLock(5000) !== true)) {
         var lockError = new Error('Another ingestion run is active.'); lockError.code = 'INGESTION_RUN_ALREADY_ACTIVE'; throw lockError;
@@ -218,15 +277,22 @@ var IngestionPipelineController = (function () {
         }
         var timestamp = nowIso(deps);
         var state = Object.assign({}, seed || {}, { checkpoint: null, endedAtUtc: null, lastErrorCode: null, lastErrorDetails: {}, runId: seed && seed.runId || null, startedAtUtc: timestamp, status: 'QUEUED', updatedAtUtc: timestamp, version: 1 });
+        withTelemetry(deps, function (telemetry, props) {
+          telemetry.reset(props, {
+            packagingKind: state.packagingKind || null,
+            runToken: state.batchToken || state.runId || null,
+            sourceBundleDigest: state.sourceBundleDigest || null,
+          });
+        });
         save(deps.properties, opts.stateKey, state);
-        replaceTrigger(deps.scriptApp, opts.handler, CONTINUATION_DELAY_MS);
+        queuedTrigger(deps.scriptApp, opts.handler, CONTINUATION_DELAY_MS);
         return publicResult(state, true);
       } finally {
         if (lock && lock.releaseLock) lock.releaseLock();
       }
     }
     function getStatus(services) {
-      var deps = resolveDeps(services); var state = load(deps.properties, opts.stateKey);
+      var deps = bindDeps(services); var state = load(deps.properties, opts.stateKey);
       return state ? publicResult(state, matchingTriggers(deps.scriptApp, opts.handler).length > 0) : Object.freeze({ continuationScheduled: false, runId: null, status: 'IDLE' });
     }
     return Object.freeze({ continueRun: continueRun, getStatus: getStatus, start: start });
