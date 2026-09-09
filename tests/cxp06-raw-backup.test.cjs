@@ -319,9 +319,9 @@ test('backup repository creates and verifies at most one missing dataset per dur
 
   const expectedDatasets = ['Handled', 'Offered', 'AHT - Raw', 'Auxes - Raw', 'Staff'];
   expectedDatasets.forEach((datasetName, index) => {
-    const copyCountBefore = spreadsheet.events.filter(([name]) => name === 'copyTo').length;
+    const copyCountBefore = spreadsheet.events.filter(([name]) => name === 'rangeCopyTo').length;
     const result = repository.createGroupStep('run-incremental');
-    const copyCountAfter = spreadsheet.events.filter(([name]) => name === 'copyTo').length;
+    const copyCountAfter = spreadsheet.events.filter(([name]) => name === 'rangeCopyTo').length;
 
     assert.equal(copyCountAfter - copyCountBefore, 1);
     assert.equal(result.createdDatasetName, datasetName);
@@ -332,7 +332,32 @@ test('backup repository creates and verifies at most one missing dataset per dur
   const completed = repository.createGroupStep('run-incremental');
   assert.equal(completed.complete, true);
   assert.equal(completed.createdDatasetName, null);
-  assert.equal(spreadsheet.events.filter(([name]) => name === 'copyTo').length, 5);
+  assert.equal(spreadsheet.events.filter(([name]) => name === 'rangeCopyTo').length, 5);
+});
+
+test('named backup remains discoverable and retryable when its first copy fails', () => {
+  const BackupRepository = loadModule('../src/repository/BackupRepository.js');
+  const owner = new FakeUser('owner@example.test');
+  const spreadsheet = rawSpreadsheet(allNormalizedPayloads(), owner, new FakeUser('other@example.test'));
+  const repository = BackupRepository.create(spreadsheet, {
+    session: { getEffectiveUser: () => owner },
+    spreadsheetApp: { ProtectionType: { SHEET: 'SHEET' } },
+  });
+  const backupName = '_CXP06_BAK_HANDLED_retryable-copy';
+  spreadsheet.failWriteSheet = backupName;
+  assert.throws(() => repository.createGroupStep('retryable-copy', null, 'Handled'), { code: 'MIGRATION_BACKUP_FAILED' });
+  const interrupted = repository.discoverGroups().find((group) => group.runId === 'retryable-copy');
+  assert.ok(interrupted);
+  assert.equal(interrupted.sheetsByDataset.Handled.sheetName, backupName);
+  assert.equal(interrupted.sheetsByDataset.Handled.hidden, true);
+
+  spreadsheet.failWriteSheet = null;
+  const retried = repository.createGroupStep('retryable-copy', interrupted, 'Handled');
+  assert.equal(retried.createdDatasetName, 'Handled');
+  assert.deepEqual(
+    spreadsheet.getSheetByName(backupName).getDataRange().getValues(),
+    spreadsheet.getSheetByName('_RAW_HANDLED').getDataRange().getValues(),
+  );
 });
 
 // Google Sheets materializes copied date cells as new Date instances. Backup
@@ -348,13 +373,6 @@ test('incremental backup accepts copied Date instances but rejects changed times
   );
   const handled = spreadsheet.getSheetByName('_RAW_HANDLED');
   handled.values[1][0] = new Date('2026-08-17T00:00:00.000Z');
-  const originalCopySheet = spreadsheet.copySheet.bind(spreadsheet);
-  spreadsheet.copySheet = (source) => {
-    const copy = originalCopySheet(source);
-    copy.values = copy.values.map((row) => row.map((value) =>
-      value instanceof Date ? new Date(value.getTime()) : value));
-    return copy;
-  };
   const repository = BackupRepository.create(spreadsheet, {
     session: { getEffectiveUser: () => owner },
     spreadsheetApp: { ProtectionType: { SHEET: 'SHEET' } },
@@ -394,20 +412,18 @@ test('incremental backup failure preserves bounded dataset and operation diagnos
   });
 
   assert.equal(repository.createGroupStep('run-diagnostics').createdDatasetName, 'Handled');
-  spreadsheet.getSheetByName('_RAW_OFFERED').copyTo = () => {
-    throw new Error('synthetic Sheets service copy failure\nwith unsafe whitespace');
-  };
+  spreadsheet.failWriteSheet = '_CXP06_BAK_OFFERED_run-diagnostics';
 
   assert.throws(
     () => repository.createGroupStep('run-diagnostics'),
     (error) => {
       assert.equal(error?.code, 'MIGRATION_BACKUP_FAILED');
       assert.deepEqual(error?.details, {
-        causeMessage: 'synthetic Sheets service copy failure with unsafe whitespace',
+        causeMessage: 'synthetic write failure: _CXP06_BAK_OFFERED_run-diagnostics',
         datasetName: 'Offered',
-        operation: 'copy_raw_sheet',
+        operation: 'copy_raw_range',
         originalName: 'Error',
-        reason: 'copy_raw_sheet_failed',
+        reason: 'copy_raw_range_failed',
       });
       return true;
     },

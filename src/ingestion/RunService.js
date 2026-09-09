@@ -359,7 +359,7 @@
       if (machine.currentState() === 'VALIDATING_STAGE') {
         machine.transition('COMMITTING');
       }
-      if (machine.currentState() !== 'COMMITTING') {
+      if (RunStateMachine.TERMINAL_STATES.indexOf(machine.currentState()) !== -1) {
         throw ErrorCodes.create('INGESTION_INVALID_RUN_METADATA', {
           details: { field: 'checkpoint.stateHistory' }
         });
@@ -494,6 +494,19 @@
         lastHistoryTimestamp(machine)
       );
       dependencies.repository.persist([successRecord], []);
+      if (typeof operations.cleanupAfterSuccess === 'function') {
+        var cleanupResult;
+        try {
+          cleanupResult = operations.cleanupAfterSuccess(context);
+        } catch (cleanupError) {
+          cleanupResult = Object.freeze({ backupCleanupStatus: 'PENDING' });
+        }
+        context.operationResults.healthCheck = Object.freeze(Object.assign(
+          {},
+          context.operationResults.healthCheck || {},
+          cleanupResult || {},
+        ));
+      }
       return Object.freeze({
         operationResults: Object.freeze(context.operationResults),
         runRecord: successRecord

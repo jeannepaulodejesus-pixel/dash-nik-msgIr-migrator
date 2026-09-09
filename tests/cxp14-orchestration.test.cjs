@@ -59,7 +59,7 @@ function validPerformanceRun(overrides = {}) {
       staff: 300,
       total: 20300,
     },
-    schedulerInclusiveMs: 1200000,
+    schedulerInclusiveMs: 600000,
     serviceCallCounts: {
       drive: 5,
       flush: 2,
@@ -149,6 +149,55 @@ function telemetryBag(overrides = {}) {
   });
   return bag;
 }
+
+function expectedPeakRowCounts() {
+  return {
+    aht: 7000,
+    auxes: 3000,
+    handled: 5000,
+    offered: 5000,
+    staff: 300,
+    total: 20300,
+  };
+}
+
+test('expected-peak evidence accepts exact per-chunk call bounds and rejects row-proportional calls', () => {
+  const exactBounds = Cxp14ReleaseEvidence.expectedPeakCallsBounded({
+    drive: 45,
+    flush: 15,
+    lock: 45,
+    properties: 160,
+    spreadsheet: 300,
+    trigger: 45,
+  }, 5);
+  assert.equal(exactBounds.pass, true);
+  assert.deepEqual(exactBounds.missing, []);
+  assert.doesNotThrow(() => Cxp14ExpectedPeakRepository.validateSubmission(
+    expectedPeakSubmission(0, {
+      record: validPerformanceRun({ serviceCallCounts: {
+        drive: 45,
+        flush: 15,
+        lock: 45,
+        properties: 160,
+        spreadsheet: 300,
+        trigger: 45,
+      } }),
+    }),
+  ));
+  assert.throws(
+    () => Cxp14ExpectedPeakRepository.validateSubmission(expectedPeakSubmission(0, {
+      record: validPerformanceRun({ serviceCallCounts: {
+        drive: 5000,
+        flush: 5000,
+        lock: 5000,
+        properties: 20300,
+        spreadsheet: 20300,
+        trigger: 5000,
+      } }),
+    })),
+    (error) => error?.code === 'CXP14_EXPECTED_PEAK_EVIDENCE_INVALID',
+  );
+});
 
 test('Step00 records release identity from Script Properties without pending JSON', () => {
   const properties = propertyStore({
@@ -279,6 +328,94 @@ test('Step03 queues while CXP-13 is in flight and records from SUCCESS telemetry
   assert.equal(stored.releaseDigest, 'b'.repeat(64));
 });
 
+// A terminal run is the authoritative fallback when pre-terminal telemetry
+// missed row-count persistence. The fallback is accepted only for the current
+// run and cannot override timeout/window gates or be supplied as operator fact.
+test('Step03 recovers exact current-run row counts but rejects stale, operator, malformed, and slow evidence', () => {
+  const configuration = { environment: 'UAT' };
+  const emptyRows = { aht: 0, auxes: 0, handled: 0, offered: 0, staff: 0, total: 0 };
+  const runBase = {
+    endedAtUtc: '2026-09-07T01:10:00.000Z',
+    health: { healthy: true },
+    packagingKind: 'combined',
+    rowCounts: expectedPeakRowCounts(),
+    runId: 'run-current',
+    startedAtUtc: '2026-09-07T01:00:00.000Z',
+    status: 'SUCCESS',
+  };
+  function execute(run, telemetryOverrides = {}, extra = {}) {
+    const properties = propertyStore();
+    Cxp14Uat.recordEvidence({ configuration, properties }, {
+      contractVersion: Cxp14ReleaseEvidence.CONTRACT_VERSION,
+      prerequisites: true,
+      releaseVersion: 'CXP-14-v1',
+      sourceBundleDigest: 'b'.repeat(64),
+    });
+    properties.setProperty(Cxp13IngestionTelemetry.KEY, JSON.stringify(telemetryBag({
+      rowCounts: emptyRows,
+      runToken: 'run-current',
+      ...telemetryOverrides,
+    })));
+    const result = Cxp14Uat.step03({
+      ...extra,
+      configuration,
+      predecessors: {
+        cxp13: {
+          getIntakeStatus: () => ({ runId: 'run-current', status: 'SUCCESS' }),
+          getRunStatus: () => run,
+        },
+      },
+      properties,
+    });
+    return { properties, result };
+  }
+
+  const current = execute(runBase);
+  assert.equal(current.result.recordedRunCount, 1);
+  assert.equal(current.result.status, 'NOT_RECORDED');
+  assert.deepEqual(
+    JSON.parse(current.properties.getProperty(Cxp14ExpectedPeakRepository.STATE_KEY))
+      .runs[0].record.rowCounts,
+    expectedPeakRowCounts(),
+  );
+
+  const stale = execute({ ...runBase, runId: 'run-old' });
+  assert.equal(stale.result.pass, false);
+  assert.equal(stale.result.status, 'NOT_RECORDED');
+  assert.equal(stale.properties.getProperty(Cxp14ExpectedPeakRepository.STATE_KEY), null);
+
+  const operator = execute({ ...runBase, rowCounts: undefined }, {}, {
+    checks: { rowCounts: () => expectedPeakRowCounts() },
+  });
+  assert.equal(operator.result.pass, false);
+  assert.equal(operator.result.missing.includes('rowCounts'), true);
+  assert.equal(operator.properties.getProperty(Cxp14ExpectedPeakRepository.STATE_KEY), null);
+
+  const malformed = execute({
+    ...runBase,
+    rowCounts: { ...expectedPeakRowCounts(), handled: 4999, total: 20299 },
+  });
+  assert.equal(malformed.result.pass, false);
+  assert.equal(malformed.properties.getProperty(Cxp14ExpectedPeakRepository.STATE_KEY), null);
+
+  const timedOut = execute(runBase, {
+    invocations: [{
+      durationMs: 270000,
+      endedAtUtc: '2026-09-07T01:04:30.000Z',
+      startedAtUtc: '2026-09-07T01:00:00.000Z',
+    }],
+    timedOut: true,
+  });
+  assert.equal(timedOut.result.pass, false);
+  assert.equal(timedOut.result.missing.includes('noTimeout'), true);
+  assert.equal(timedOut.properties.getProperty(Cxp14ExpectedPeakRepository.STATE_KEY), null);
+
+  const slow = execute({ ...runBase, endedAtUtc: '2026-09-07T01:10:00.001Z' });
+  assert.equal(slow.result.pass, false);
+  assert.equal(slow.result.missing.includes('schedulerObjectiveMet'), true);
+  assert.equal(slow.properties.getProperty(Cxp14ExpectedPeakRepository.STATE_KEY), null);
+});
+
 test('timeout telemetry is refused by harvest and does not count as a peak run', () => {
   const harvested = Cxp14RunTelemetry.harvest({
     healthResult: 'HEALTHY',
@@ -337,6 +474,8 @@ test('timeout telemetry is refused by harvest and does not count as a peak run',
   });
   assert.equal(result.pass, false);
   assert.equal(result.status, 'NOT_RECORDED');
+  assert.equal(result.observation, 'SUCCESS');
+  assert.equal(result.missing.includes('noTimeout'), true);
   assert.equal(properties.getProperty(Cxp14ExpectedPeakRepository.STATE_KEY), null);
 });
 
@@ -362,6 +501,47 @@ test('telemetry harvest emits exact submission keys and strips runId and filenam
   assert.equal(JSON.stringify(harvested.submission).includes('cxp13-secret-run'), false);
   assert.equal(JSON.stringify(harvested.submission).includes('peak-a.xlsx'), false);
   assert.equal(harvested.submission.record.sourceBundleDigest, 'a'.repeat(64));
+});
+
+test('Step03 names leftover CXP-13 terminal status instead of collapsing to an empty peak store', () => {
+  const properties = propertyStore();
+  const configuration = { environment: 'UAT' };
+  Cxp14Uat.recordEvidence({ configuration, properties }, {
+    contractVersion: Cxp14ReleaseEvidence.CONTRACT_VERSION,
+    prerequisites: true,
+    releaseVersion: 'CXP-14-v1',
+    sourceBundleDigest: 'b'.repeat(64),
+  });
+  const blocked = Cxp14Uat.step03({
+    configuration,
+    predecessors: {
+      cxp13: {
+        getIntakeStatus: () => ({ auditActionRequired: true, status: 'PROCESSING_ERROR' }),
+        getRunStatus: () => ({ status: 'PROCESSING_ERROR' }),
+      },
+    },
+    properties,
+  });
+  assert.equal(blocked.pass, false);
+  assert.equal(blocked.fixtureSlot, 'expectedPeak1');
+  assert.equal(blocked.observation, 'PROCESSING_ERROR');
+  assert.deepEqual(blocked.missing, ['failureAudit']);
+  assert.equal(blocked.status, 'NOT_RECORDED');
+
+  const leftover = Cxp14Uat.step03({
+    configuration,
+    predecessors: {
+      cxp13: {
+        getIntakeStatus: () => ({ auditActionRequired: false, status: 'PROCESSING_ERROR' }),
+        getRunStatus: () => ({ status: 'PROCESSING_ERROR' }),
+      },
+    },
+    properties,
+  });
+  assert.equal(leftover.pass, false);
+  assert.equal(leftover.observation, 'PROCESSING_ERROR');
+  assert.equal(leftover.status, 'PROCESSING_ERROR');
+  assert.deepEqual(leftover.missing, ['expectedPeakRuns']);
 });
 
 test('Step08 stays blocked on prodAcknowledged until acknowledgeCxp14Production', () => {

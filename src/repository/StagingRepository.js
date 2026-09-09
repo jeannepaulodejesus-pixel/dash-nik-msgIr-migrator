@@ -38,6 +38,7 @@ var StagingRepository = (function () {
   }
 
   function create(spreadsheet) {
+    var encodedByDataset = Object.create(null);
     function requireRunMetadata(runMetadata) {
       if (
         !runMetadata ||
@@ -157,11 +158,118 @@ var StagingRepository = (function () {
       try {
         var entries = requireEntries(payloads);
         entries.forEach(function (entry) {
-          entry.sheet.getDataRange().clearContent();
-          var matrix = resolveCodec().encodePayload(entry.payload);
-          entry.sheet.getRange(1, 1, matrix.length, matrix[0].length).setValues(matrix);
+          writeSheetPayload(entry.sheet, entry.payload);
         });
         return rowCountSummary(entries);
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_STAGE_WRITE_FAILED');
+      }
+    }
+
+    function writeSheetPayload(sheet, payload) {
+      sheet.getDataRange().clearContent();
+      var matrix = resolveCodec().encodePayload(payload);
+      sheet.getRange(1, 1, matrix.length, matrix[0].length).setValues(matrix);
+    }
+
+    function writePayload(payload) {
+      try {
+        if (!payload || typeof payload.datasetName !== 'string') {
+          throw new Error('A normalized staging payload is required.');
+        }
+        var binding = bindingForDataset(payload.datasetName);
+        var sheet = spreadsheet && spreadsheet.getSheetByName(binding.stagingSheetName);
+        if (!sheet) {
+          throw new Error('A required staging sheet is unavailable.');
+        }
+        writeSheetPayload(sheet, payload);
+        return Object.freeze({
+          datasetName: payload.datasetName,
+          rowCount: payload.rowCount,
+        });
+      } catch (error) {
+        throw resolveErrorCodes().normalize(error, 'MIGRATION_STAGE_WRITE_FAILED');
+      }
+    }
+
+    function writePayloadChunk(payload, cursor) {
+      try {
+        if (!payload || typeof payload.datasetName !== 'string') {
+          throw new Error('A normalized staging payload is required.');
+        }
+        var chunks = typeof WorkChunks !== 'undefined' ? WorkChunks : require('../ingestion/WorkChunks.js');
+        var codec = resolveCodec();
+        var binding = bindingForDataset(payload.datasetName);
+        var sheet = spreadsheet && spreadsheet.getSheetByName(binding.stagingSheetName);
+        if (!sheet) {
+          throw new Error('A required staging sheet is unavailable.');
+        }
+        var cached = encodedByDataset[payload.datasetName];
+        if (!cached || cached.payload !== payload) {
+          cached = { matrix: codec.encodePayload(payload), payload: payload };
+          encodedByDataset[payload.datasetName] = cached;
+        }
+        var matrix = cached.matrix;
+        var schema = resolveRegistry().getSchema(payload.datasetName);
+        if (!schema || !Array.isArray(schema.columns)) {
+          throw new Error('The active staging schema is unavailable.');
+        }
+        var nextRow = cursor && Number.isInteger(cursor.nextRow) ? cursor.nextRow : 1;
+        var phase = cursor && typeof cursor.phase === 'string' ? cursor.phase : (nextRow === 1 ? 'clear' : 'write');
+        var chunkRows = cursor && Number.isInteger(cursor.chunkRows) ? cursor.chunkRows : chunks.DEFAULT_CHUNK_ROWS;
+        if (phase === 'clear') {
+          sheet.getDataRange().clearContent();
+          return Object.freeze({
+            cursor: Object.freeze({ chunkRows: chunkRows, columnCount: matrix[0].length, nextRow: 1, phase: 'write' }),
+            datasetComplete: false,
+            datasetName: payload.datasetName,
+          });
+        }
+        var window = chunks.windowFor(matrix.length, nextRow, chunkRows);
+        if (window.rowCount > 0) {
+          var intended = chunks.sliceMatrix(matrix, window.startRow, window.rowCount);
+          var dest = sheet.getRange(window.startRow, 1, window.rowCount, matrix[0].length);
+          if (phase !== 'verify') {
+            dest.setValues(intended);
+            return Object.freeze({
+              cursor: Object.freeze({
+                chunkRows: chunkRows,
+                columnCount: matrix[0].length,
+                nextRow: window.startRow,
+                phase: 'verify',
+              }),
+              datasetComplete: false,
+              datasetName: payload.datasetName,
+            });
+          }
+          var comparison = codec.compareForColumns(intended, dest.getValues(), schema.columns);
+          if (!comparison.equal) {
+            var mismatch = comparison.mismatch || {};
+            throw resolveErrorCodes().create('MIGRATION_STAGE_VALIDATION_FAILED', {
+              details: {
+                chunkStartRow: window.startRow,
+                columnIndex: Number.isInteger(mismatch.columnIndex) ? mismatch.columnIndex : null,
+                columnName: mismatch.columnName || null,
+                comparisonReason: mismatch.comparisonReason || 'value_mismatch',
+                datasetName: payload.datasetName,
+                intendedValueType: mismatch.intendedValueType || null,
+                persistedValueType: mismatch.persistedValueType || null,
+                rowOffset: Number.isInteger(mismatch.rowOffset) ? mismatch.rowOffset : null,
+                schemaType: mismatch.schemaType || null,
+              },
+            });
+          }
+        }
+        return Object.freeze({
+          cursor: Object.freeze({
+            chunkRows: chunkRows,
+            columnCount: matrix[0].length,
+            nextRow: window.nextStartRow,
+            phase: window.complete ? 'complete' : 'write',
+          }),
+          datasetComplete: window.complete === true,
+          datasetName: payload.datasetName,
+        });
       } catch (error) {
         throw resolveErrorCodes().normalize(error, 'MIGRATION_STAGE_WRITE_FAILED');
       }
@@ -210,6 +318,8 @@ var StagingRepository = (function () {
       readCheckpoint: readCheckpoint,
       readDatasetCheckpoint: readDatasetCheckpoint,
       writeAll: writeAll,
+      writePayload: writePayload,
+      writePayloadChunk: writePayloadChunk,
     });
   }
 

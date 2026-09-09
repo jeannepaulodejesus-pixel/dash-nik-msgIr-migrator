@@ -15,6 +15,13 @@ var RollbackService = (function () {
     return require('./SheetValueCodec.js');
   }
 
+  function resolveDatasetSheets() {
+    if (typeof DatasetSheets !== 'undefined') {
+      return DatasetSheets;
+    }
+    return require('../config/DatasetSheets.js');
+  }
+
   function originalCode(cause) {
     return cause && typeof cause.code === 'string' ? cause.code : null;
   }
@@ -90,6 +97,85 @@ var RollbackService = (function () {
       }
     }
 
+    function rollbackStep(group, cursor, cause) {
+      var runId = group && typeof group.runId === 'string' ? group.runId : null;
+      var causeCode = originalCode(cause);
+      try {
+        if (!group || !group.sheetsByDataset) {
+          throw new Error('A backup group is required.');
+        }
+        if (typeof dependencies.rawRepository.restoreDatasetChunk !== 'function') {
+          return rollback(group, cause);
+        }
+        var names = resolveDatasetSheets().listBindings().map(function (binding) {
+          return binding.datasetName;
+        });
+        var datasetIndex = cursor && Number.isInteger(cursor.datasetIndex) ? cursor.datasetIndex : 0;
+        if (datasetIndex >= names.length) {
+          dependencies.backupRepository.deleteGroup(group);
+          return Object.freeze({
+            backupRunId: runId,
+            complete: true,
+            datasetCount: names.length,
+            originalErrorCode: causeCode,
+            rollbackCursor: null,
+            rollbackStatus: 'VERIFIED',
+          });
+        }
+        var datasetName = names[datasetIndex];
+        var result = dependencies.rawRepository.restoreDatasetChunk(group, datasetName, cursor);
+        dependencies.flush();
+        if (result.datasetComplete) {
+          var nextIndex = datasetIndex + 1;
+          return Object.freeze({
+            backupRunId: runId,
+            complete: false,
+            datasetName: datasetName,
+            originalErrorCode: causeCode,
+            rollbackCursor: Object.freeze({
+              chunkRows: result.cursor && result.cursor.chunkRows,
+              datasetIndex: nextIndex,
+              datasetName: names[nextIndex] || null,
+              nextRow: 1,
+              phase: 'restore',
+            }),
+            rollbackStatus: 'IN_PROGRESS',
+          });
+        }
+        return Object.freeze({
+          backupRunId: runId,
+          complete: false,
+          datasetName: datasetName,
+          originalErrorCode: causeCode,
+          rollbackCursor: Object.freeze({
+            chunkRows: result.cursor.chunkRows,
+            datasetIndex: datasetIndex,
+            datasetName: datasetName,
+            columnCount: result.cursor.columnCount,
+            nextRow: result.cursor.nextRow,
+            phase: result.cursor.phase,
+            tailEndRow: result.cursor.tailEndRow,
+            trimNextRow: result.cursor.trimNextRow,
+          }),
+          rollbackStatus: 'IN_PROGRESS',
+        });
+      } catch (error) {
+        if (error && error.code === 'MIGRATION_ROLLBACK_FAILED' && error.details && error.details.rollbackStatus) {
+          throw error;
+        }
+        throw resolveErrorCodes().create('MIGRATION_ROLLBACK_FAILED', {
+          cause: error,
+          details: {
+            backupRunId: runId,
+            causeMessage: error && error.details && error.details.causeMessage || (error && error.message) || null,
+            datasetName: cursor && cursor.datasetName || null,
+            originalErrorCode: causeCode,
+            rollbackStatus: 'FAILED',
+          },
+        });
+      }
+    }
+
     function reconcile() {
       try {
         var groups = dependencies.backupRepository.discoverGroups();
@@ -143,7 +229,7 @@ var RollbackService = (function () {
       }
     }
 
-    return Object.freeze({ reconcile: reconcile, rollback: rollback });
+    return Object.freeze({ reconcile: reconcile, rollback: rollback, rollbackStep: rollbackStep });
   }
 
   return Object.freeze({ create: create });

@@ -21,7 +21,7 @@ Expected peak is the hourly release profile. Declared maximum is a stress profil
 - Operational invocation objective: less than `240000` ms.
 - Reserve before another step: `60000` ms.
 - Handoff margin: `15000` ms.
-- Expected-peak scheduler-inclusive objective: at most `1200000` ms (20 minutes), subject to owner confirmation in UAT Step 00.
+- Expected-peak scheduler-inclusive objective: at most `600000` ms (10 minutes). The existing `1200000` ms (20-minute) window remains the absolute release ceiling, but a run above the 10-minute objective does not count toward Step 03 evidence.
 - Declared-maximum scheduler-inclusive objective: at most `1800000` ms (30 minutes).
 - Automated recovery objective: at most `900000` ms after the recovery worker first runs.
 

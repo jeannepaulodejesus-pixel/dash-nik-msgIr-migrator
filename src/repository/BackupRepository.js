@@ -39,6 +39,11 @@ var BackupRepository = (function () {
     return require('../services/SheetValueCodec.js');
   }
 
+  function resolveSchemaRegistry() {
+    if (typeof SchemaRegistry !== 'undefined') return SchemaRegistry;
+    return require('../ingestion/SchemaRegistry.js');
+  }
+
   function editorEmail(editor) {
     return editor && typeof editor.getEmail === 'function' ? editor.getEmail() : '';
   }
@@ -88,6 +93,11 @@ var BackupRepository = (function () {
 
   function create(spreadsheet, services) {
     var dependencies = services || {};
+    var observer = dependencies.observer || {};
+    // Backup topology is immutable for the duration of one cooperative
+    // invocation. Cache discovery so each dataset step does not rescan every
+    // sheet; a new repository instance on the next continuation refreshes it.
+    var discoveredGroups = null;
 
     function protectionContext() {
       if (
@@ -175,6 +185,17 @@ var BackupRepository = (function () {
       protection.setUnprotectedRanges([]);
     }
 
+    function ensureSheetBounds(sheet, rowCount, columnCount) {
+      if (typeof sheet.getMaxRows === 'function' && typeof sheet.insertRowsAfter === 'function') {
+        var extraRows = rowCount - sheet.getMaxRows();
+        if (extraRows > 0) sheet.insertRowsAfter(sheet.getMaxRows(), extraRows);
+      }
+      if (typeof sheet.getMaxColumns === 'function' && typeof sheet.insertColumnsAfter === 'function') {
+        var extraColumns = columnCount - sheet.getMaxColumns();
+        if (extraColumns > 0) sheet.insertColumnsAfter(sheet.getMaxColumns(), extraColumns);
+      }
+    }
+
     function sheetReference(sheet, datasetName, token) {
       var reference = {
         datasetName: datasetName,
@@ -191,6 +212,7 @@ var BackupRepository = (function () {
     }
 
     function discoverGroups() {
+      if (discoveredGroups) return discoveredGroups;
       try {
         var groupsByRunId = Object.create(null);
         spreadsheet.getSheets().forEach(function (sheet) {
@@ -216,7 +238,7 @@ var BackupRepository = (function () {
           group.sheetsByDataset[datasetName] = sheetReference(sheet, datasetName, token);
           groupsByRunId[runId] = group;
         });
-        return Object.freeze(Object.keys(groupsByRunId).sort().map(function (runId) {
+        discoveredGroups = Object.freeze(Object.keys(groupsByRunId).sort().map(function (runId) {
           var group = groupsByRunId[runId];
           return Object.freeze({
             complete: Object.keys(group.sheetsByDataset).length === 5,
@@ -225,9 +247,19 @@ var BackupRepository = (function () {
             token: group.token,
           });
         }));
+        return discoveredGroups;
       } catch (error) {
         throw resolveErrorCodes().normalize(error, 'MIGRATION_RECOVERY_FAILED');
       }
+    }
+
+    function rememberGroup(group) {
+      if (!group || !group.runId) return;
+      var current = discoveredGroups || [];
+      var next = current.filter(function (candidate) { return candidate.runId !== group.runId; });
+      next.push(group);
+      next.sort(function (left, right) { return left.runId < right.runId ? -1 : left.runId > right.runId ? 1 : 0; });
+      discoveredGroups = Object.freeze(next);
     }
 
     function readGroup(group) {
@@ -283,8 +315,8 @@ var BackupRepository = (function () {
 
     function verifyDataset(group, datasetName) {
       try {
-        if (!group || group.complete !== true) {
-          throw new Error('A complete backup group is required.');
+        if (!group || !group.sheetsByDataset || !group.sheetsByDataset[datasetName]) {
+          throw new Error('A registered backup dataset is required.');
         }
         var binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
           return candidate.datasetName === datasetName;
@@ -325,6 +357,7 @@ var BackupRepository = (function () {
           spreadsheet.deleteSheet(sheet);
         }
       });
+      discoveredGroups = null;
       return Object.freeze({ deletedCount: Object.keys(group.sheetsByDataset).length });
     }
 
@@ -388,46 +421,67 @@ var BackupRepository = (function () {
       }
     }
 
-    function createGroupStep(runId) {
+    function createGroupStep(runId, knownGroup, requestedDatasetName) {
       var binding = null;
       var operation = 'validate_run_id';
       try {
         requireRunId(runId);
         operation = 'discover_backup_group';
-        var group = discoverGroups().filter(function (candidate) {
+        var group = knownGroup && knownGroup.runId === runId ? knownGroup : discoverGroups().filter(function (candidate) {
           return candidate.runId === runId;
         })[0] || null;
         if (group && group.complete) {
-          operation = 'verify_backup_group';
           return Object.freeze({
             complete: true,
             createdDatasetName: null,
-            group: verifyGroup(group),
+            group: group,
           });
         }
         operation = 'select_missing_dataset';
         binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
-          return !group || !group.sheetsByDataset[candidate.datasetName];
+          if (requestedDatasetName && candidate.datasetName !== requestedDatasetName) return false;
+          return !group || !group.sheetsByDataset[candidate.datasetName] || requestedDatasetName === candidate.datasetName;
         })[0];
+        if (!binding) {
+          throw new Error('A requested backup dataset is unavailable.');
+        }
         operation = 'read_raw_dataset';
         var entry = rawEntry(binding);
-        operation = 'copy_raw_sheet';
-        var copy = entry.sheet.copyTo(spreadsheet);
-        operation = 'name_backup_sheet';
-        copy.setName(backupName(binding.datasetName, runId));
+        operation = 'create_named_backup_sheet';
+        var backupSheetName = backupName(binding.datasetName, runId);
+        var copy = group && group.sheetsByDataset[binding.datasetName]
+          ? spreadsheet.getSheetByName(group.sheetsByDataset[binding.datasetName].sheetName)
+          : spreadsheet.getSheetByName(backupSheetName);
+        if (!copy) copy = spreadsheet.insertSheet(backupSheetName);
         operation = 'hide_backup_sheet';
         copy.hideSheet();
         operation = 'normalize_backup_protection';
         normalizeProtection(copy);
+        operation = 'copy_raw_range';
+        var sourceRange = entry.sheet.getDataRange();
+        ensureSheetBounds(copy, sourceRange.getNumRows(), sourceRange.getNumColumns());
+        sourceRange.copyTo(copy.getRange(1, 1, sourceRange.getNumRows(), sourceRange.getNumColumns()));
+        if (typeof dependencies.flush === 'function') {
+          operation = 'flush_backup_dataset';
+          dependencies.flush();
+        }
 
-        operation = 'rediscover_backup_group';
-        group = discoverGroups().filter(function (candidate) {
-          return candidate.runId === runId;
-        })[0];
+        operation = 'index_backup_group';
+        var sheetsByDataset = Object.assign({}, group && group.sheetsByDataset || {});
+        sheetsByDataset[binding.datasetName] = sheetReference(
+          copy,
+          binding.datasetName,
+          TOKEN_BY_DATASET[binding.datasetName],
+        );
+        group = Object.freeze({
+          complete: Object.keys(sheetsByDataset).length === resolveDatasetSheets().listBindings().length,
+          runId: runId,
+          sheetsByDataset: Object.freeze(sheetsByDataset),
+          token: runId,
+        });
+        rememberGroup(group);
         operation = 'read_backup_dataset';
-        var snapshot = readGroup(group).filter(function (candidate) {
-          return candidate.datasetName === binding.datasetName;
-        })[0];
+        var snapshot = readDataset(group, binding.datasetName);
         operation = 'verify_backup_dataset';
         if (
           !snapshot ||
@@ -439,6 +493,134 @@ var BackupRepository = (function () {
         return Object.freeze({
           complete: group.complete,
           createdDatasetName: binding.datasetName,
+          group: group,
+        });
+      } catch (error) {
+        // A named sheet may have been created before copy/protection/verification
+        // failed.  Do not retain a pre-creation discovery snapshot, otherwise the
+        // orphaned sheet is invisible to reconciliation and cannot be retried.
+        discoveredGroups = null;
+        throw backupFailure(error, binding && binding.datasetName, operation);
+      }
+    }
+
+    function sheetBounds(sheet) {
+      if (sheet && typeof sheet.getLastRow === 'function' && typeof sheet.getLastColumn === 'function') {
+        return {
+          columns: Math.max(1, sheet.getLastColumn()),
+          rows: Math.max(1, sheet.getLastRow()),
+        };
+      }
+      var range = sheet.getDataRange();
+      return { columns: range.getNumColumns(), rows: range.getNumRows() };
+    }
+
+    function resolveChunks() {
+      if (typeof WorkChunks !== 'undefined') return WorkChunks;
+      return require('../ingestion/WorkChunks.js');
+    }
+
+    function copyDatasetChunk(runId, datasetName, cursor) {
+      var chunks = resolveChunks();
+      var operation = 'validate_run_id';
+      var binding = null;
+      try {
+        requireRunId(runId);
+        binding = resolveDatasetSheets().listBindings().filter(function (candidate) {
+          return candidate.datasetName === datasetName;
+        })[0];
+        if (!binding) throw new Error('A registered backup dataset is required.');
+        operation = 'read_raw_bounds';
+        var rawSheet = spreadsheet.getSheetByName(binding.rawSheetName);
+        if (!rawSheet) throw new Error('A required raw sheet is unavailable for backup.');
+        var bounds = sheetBounds(rawSheet);
+        var schema = resolveSchemaRegistry().getSchema(datasetName);
+        var comparisonColumns = [];
+        for (var columnIndex = 0; columnIndex < bounds.columns; columnIndex += 1) {
+          comparisonColumns.push(schema && schema.columns && schema.columns[columnIndex] || { type: 'text' });
+        }
+        var nextRow = cursor && Number.isInteger(cursor.nextRow) ? cursor.nextRow : 1;
+        var phase = cursor && typeof cursor.phase === 'string' ? cursor.phase : 'copy';
+        var chunkRows = cursor && Number.isInteger(cursor.chunkRows) ? cursor.chunkRows : 1000;
+        var window = chunks.windowFor(bounds.rows, nextRow, chunkRows);
+        operation = 'ensure_backup_sheet';
+        var name = backupName(datasetName, runId);
+        var backupSheet = spreadsheet.getSheetByName(name);
+        if (!backupSheet) {
+          if (typeof spreadsheet.insertSheet === 'function') backupSheet = spreadsheet.insertSheet(name);
+          else backupSheet = spreadsheet.addSheet(name, [['']]);
+          // The sheet topology changed; refresh the per-invocation discovery
+          // cache before returning the durable group snapshot.
+          discoveredGroups = null;
+          operation = 'hide_backup_sheet';
+          backupSheet.hideSheet();
+          operation = 'normalize_backup_protection';
+          normalizeProtection(backupSheet);
+        }
+        if (window.rowCount > 0) {
+          operation = phase === 'verify' ? 'verify_backup_chunk' : 'copy_raw_chunk';
+          var source = rawSheet.getRange(window.startRow, 1, window.rowCount, bounds.columns);
+          var dest = backupSheet.getRange(window.startRow, 1, window.rowCount, bounds.columns);
+          var values = source.getValues();
+          if (phase !== 'verify') {
+            if (!resolveCodec().compareForColumns(values, dest.getValues(), comparisonColumns).equal) {
+              dest.setValues(values);
+            }
+            if (typeof observer.afterCopy === 'function') {
+              observer.afterCopy({ datasetName: datasetName, startRow: window.startRow });
+            }
+            return Object.freeze({
+              backupCursor: Object.freeze({
+                chunkRows: chunkRows,
+                columnCount: bounds.columns,
+                datasetName: datasetName,
+                nextRow: window.startRow,
+                phase: 'verify',
+              }),
+              complete: false,
+              createdDatasetName: datasetName,
+              datasetComplete: false,
+              group: discoverGroups().filter(function (candidate) {
+                return candidate.runId === runId;
+              })[0],
+            });
+          }
+          var comparison = resolveCodec().compareForColumns(values, dest.getValues(), comparisonColumns);
+          if (!comparison.equal) {
+            var mismatch = comparison.mismatch || {};
+            throw resolveErrorCodes().create('MIGRATION_BACKUP_FAILED', {
+              details: {
+                chunkStartRow: window.startRow,
+                columnIndex: Number.isInteger(mismatch.columnIndex) ? mismatch.columnIndex : null,
+                columnName: mismatch.columnName || null,
+                comparisonReason: mismatch.comparisonReason || 'value_mismatch',
+                datasetName: datasetName,
+                intendedValueType: mismatch.intendedValueType || null,
+                persistedValueType: mismatch.persistedValueType || null,
+                rowOffset: Number.isInteger(mismatch.rowOffset) ? mismatch.rowOffset : null,
+                schemaType: mismatch.schemaType || null,
+              },
+            });
+          }
+          if (typeof observer.afterVerify === 'function') {
+            observer.afterVerify({ datasetName: datasetName, startRow: window.startRow });
+          }
+        }
+        operation = 'rediscover_backup_group';
+        var group = discoverGroups().filter(function (candidate) {
+          return candidate.runId === runId;
+        })[0];
+        return Object.freeze({
+          backupCursor: Object.freeze({
+            chunkRows: chunkRows,
+            columnCount: bounds.columns,
+            datasetName: datasetName,
+            nextRow: window.nextStartRow,
+            phase: window.complete ? 'complete' : 'copy',
+          }),
+          complete: false,
+          createdDatasetName: datasetName,
+          datasetComplete: window.complete === true,
           group: group,
         });
       } catch (error) {
@@ -461,6 +643,7 @@ var BackupRepository = (function () {
     }
 
     return Object.freeze({
+      copyDatasetChunk: copyDatasetChunk,
       createGroup: createGroup,
       createGroupStep: createGroupStep,
       deleteGroup: deleteGroup,

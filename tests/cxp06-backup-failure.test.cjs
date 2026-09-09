@@ -27,9 +27,7 @@ test('backup creation failure cleans its partial run group while leaving raw unt
   const originalRaw = DatasetSheets.listBindings().map((binding) =>
     target.getSheetByName(binding.rawSheetName).values.map((row) => row.slice()),
   );
-  target.getSheetByName('_RAW_AHT').copyTo = () => {
-    throw new Error('synthetic backup copy failure');
-  };
+  target.failWriteSheet = '_CXP06_BAK_AHT_run-backup-failure';
   const ledger = {
     append() {},
     findSuccessfulByFingerprint() { return null; },

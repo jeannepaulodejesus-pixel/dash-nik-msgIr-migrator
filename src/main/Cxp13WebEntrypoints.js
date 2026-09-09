@@ -12,6 +12,7 @@ function cxp13GetIntakeStatus() { return resolveRtaIntakeService().getIntakeStat
 function cxp13StartLatestBundle(expectedBatchToken) { return resolveRtaIntakeService().startLatest(expectedBatchToken); }
 function cxp13GetRunStatus(runId) { return resolveRtaIntakeService().getRunStatus(runId); }
 function continueCxp13Ingestion() { return resolveRtaIntakeService().continueRun(); }
+function retryCxp13FailureAudit() { return resolveRtaIntakeService().retryFailureAudit(); }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = {
   continueCxp13Ingestion: continueCxp13Ingestion,
@@ -19,4 +20,5 @@ if (typeof module !== 'undefined' && module.exports) module.exports = {
   cxp13GetRunStatus: cxp13GetRunStatus,
   cxp13StartLatestBundle: cxp13StartLatestBundle,
   doGet: doGet,
+  retryCxp13FailureAudit: retryCxp13FailureAudit,
 };

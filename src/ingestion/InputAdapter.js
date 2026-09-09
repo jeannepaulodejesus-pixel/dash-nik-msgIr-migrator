@@ -50,6 +50,22 @@ var InputAdapter = (function () {
     return require('./XlsxAdapter.js');
   }
 
+  function observed(services, key, operation) {
+    var dependencies = services || {};
+    if (typeof dependencies.observeSubphase !== 'function') return operation();
+    var clock = dependencies.clock;
+    function currentMs() {
+      var value = clock && typeof clock.now === 'function' ? clock.now() : new Date();
+      return (value instanceof Date ? value : new Date(value)).getTime();
+    }
+    var started = currentMs();
+    try {
+      return operation();
+    } finally {
+      dependencies.observeSubphase(key, Math.max(0, currentMs() - started));
+    }
+  }
+
   function requireRequest(request) {
     var packaging = resolveRegistry().PACKAGING_CONTRACTS;
     var supportedKinds = [
@@ -131,6 +147,18 @@ var InputAdapter = (function () {
 
   function readSource(sourceRequest, services) {
     var source = resolveDriveService().readFile(sourceRequest.fileId, services);
+    if (
+      sourceRequest.name !== undefined &&
+      String(source.fileName) !== String(sourceRequest.name)
+    ) {
+      throw resolveErrorCodes().create('INGESTION_SELECTION_CHANGED');
+    }
+    if (
+      sourceRequest.updatedAtUtc !== undefined &&
+      String(source.lastUpdatedUtc) !== String(sourceRequest.updatedAtUtc)
+    ) {
+      throw resolveErrorCodes().create('INGESTION_SELECTION_CHANGED');
+    }
     if (!sourceRequest.datasetName) {
       return source;
     }
@@ -163,6 +191,68 @@ var InputAdapter = (function () {
       throw resolveErrorCodes().create('SOURCE_UNSUPPORTED_FORMAT');
     }
     return table;
+  }
+
+  function sourceRequestForDataset(request, datasetName) {
+    return request.sources.filter(function (source) {
+      return source.datasetName === datasetName;
+    })[0] || null;
+  }
+
+  function expectedSourceForRequest(checkpointData, sourceRequest) {
+    if (!checkpointData || !Array.isArray(checkpointData.sourceFiles) || !sourceRequest) return null;
+    return checkpointData.sourceFiles.filter(function (source) {
+      return source.fileId === sourceRequest.fileId;
+    })[0] || null;
+  }
+
+  function sameSourceIdentity(expected, actual) {
+    return Boolean(expected && actual &&
+      expected.fileId === actual.fileId &&
+      expected.contentFingerprint === actual.contentFingerprint &&
+      expected.format === actual.format &&
+      expected.lastUpdatedUtc === actual.lastUpdatedUtc &&
+      expected.sizeBytes === actual.sizeBytes);
+  }
+
+  function prepareSingleDataset(request, checkpointData, datasetName, services, suppliedSource) {
+    requireRequest(request);
+    var packaging = resolveRegistry().PACKAGING_CONTRACTS;
+    if (request.packagingKind !== packaging.SINGLE_DATASET.kind ||
+        typeof datasetName !== 'string' || !datasetName ||
+        !checkpointData || typeof checkpointData.fingerprint !== 'string') {
+      throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+        details: { boundary: 'InputAdapter.prepareSingleDataset' },
+      });
+    }
+    var sourceRequest = sourceRequestForDataset(request, datasetName);
+    var expectedSource = expectedSourceForRequest(checkpointData, sourceRequest);
+    if (!sourceRequest || !expectedSource) {
+      throw resolveErrorCodes().create('SOURCE_INCOMPLETE_BUNDLE', {
+        details: { missingDatasets: [datasetName] },
+      });
+    }
+    var dependencies = services || {};
+    var source = suppliedSource || observed(dependencies, 'acquire', function () {
+      return readSource(sourceRequest, dependencies);
+    });
+    if (!sameSourceIdentity(expectedSource, source)) {
+      throw resolveErrorCodes().create('INGESTION_SELECTION_CHANGED');
+    }
+    var table = observed(dependencies, 'convert', function () {
+      return parseSingleDatasetSource(source, dependencies);
+    });
+    return Object.freeze({
+      payload: observed(dependencies, 'schema', function () {
+        return singleDatasetPayload(
+          source,
+          table,
+          checkpointData.fingerprint,
+          request.runMetadata,
+        );
+      }),
+      sourceFile: resolveDriveService().publicMetadata(source),
+    });
   }
 
   function singleDatasetPayload(source, table, bundleFingerprint, runMetadata) {
@@ -258,7 +348,7 @@ var InputAdapter = (function () {
     return Object.freeze({
       fingerprint: normalized.fingerprint,
       fingerprintAlgorithm: 'SHA-256',
-      payloads: Object.freeze(normalized.payloads.slice()),
+      payloads: Object.freeze(Array.isArray(normalized.payloads) ? normalized.payloads.slice() : []),
       sourceFiles: Object.freeze(
         normalized.sources.map(resolveDriveService().publicMetadata),
       ),
@@ -268,7 +358,7 @@ var InputAdapter = (function () {
   function checkDuplicate(normalized, services) {
     requirePhase(
       normalized,
-      ['checkedAtUtc', 'datasetNames', 'fingerprint', 'payloads', 'request', 'sources'],
+      ['checkedAtUtc', 'datasetNames', 'fingerprint', 'request', 'sources'],
       'InputAdapter.checkDuplicate',
     );
     var dependencies = services || {};
@@ -324,6 +414,20 @@ var InputAdapter = (function () {
       checkDuplicate: function () {
         return checkDuplicate(state, services);
       },
+      prepareSingleDataset: function (context, checkpointData, datasetName) {
+        var request = requestForContext(context);
+        var sourceRequest = sourceRequestForDataset(request, datasetName);
+        var suppliedSource = state && Array.isArray(state.sources) && sourceRequest
+          ? state.sources.filter(function (source) { return source.fileId === sourceRequest.fileId; })[0]
+          : null;
+        return prepareSingleDataset(
+          request,
+          checkpointData,
+          datasetName,
+          services,
+          suppliedSource,
+        );
+      },
     });
   }
 
@@ -331,6 +435,7 @@ var InputAdapter = (function () {
     checkDuplicate: checkDuplicate,
     createOperations: createOperations,
     parse: parse,
+    prepareSingleDataset: prepareSingleDataset,
     read: read,
     validateFile: validateFile,
     validateSchema: validateSchema,

@@ -11,13 +11,23 @@ var Cxp13IngestionTelemetry = (function () {
     'recalculation', 'rollback',
   ]);
   var ROW_KEYS = Object.freeze(['aht', 'auxes', 'handled', 'offered', 'staff', 'total']);
+  var SUBPHASE_KEYS = Object.freeze([
+    'acquire', 'backup', 'commitVerify', 'commitWrite', 'convert', 'schema',
+    'stageReadback', 'stageWrite',
+  ]);
+  var activeBag = null;
+  var activeProperties = null;
   var PHASE_MAP = Object.freeze({
     BACKING_UP: 'backup',
     BACKUP_PENDING: 'backup',
     COMMITTING: 'commit',
     COMMIT_PENDING: 'commit',
+    HEALTH_CHECKING: 'healthReadback',
+    HEALTH_PENDING: 'healthReadback',
     PREPARING: 'preparation',
     QUEUED: 'preparation',
+    ROLLBACK_PENDING: 'rollback',
+    ROLLING_BACK: 'rollback',
   });
 
   function emptyCounts(keys) {
@@ -44,6 +54,7 @@ var Cxp13IngestionTelemetry = (function () {
       runToken: runToken || null,
       serviceCallCounts: emptyCounts(CALL_KEYS),
       sourceBundleDigest: null,
+      subphaseDurations: emptyCounts(SUBPHASE_KEYS),
       timedOut: false,
       version: VERSION,
       watchdogRecoveryCount: 0,
@@ -51,6 +62,7 @@ var Cxp13IngestionTelemetry = (function () {
   }
 
   function load(properties) {
+    if (activeBag && properties === activeProperties) return activeBag;
     if (!properties || typeof properties.getProperty !== 'function') return empty(null);
     var raw = properties.getProperty(KEY);
     if (!raw) return empty(null);
@@ -70,6 +82,10 @@ var Cxp13IngestionTelemetry = (function () {
   }
 
   function mutate(properties, mutator) {
+    if (activeBag && properties === activeProperties) {
+      mutator(activeBag);
+      return activeBag;
+    }
     var bag = load(properties);
     mutator(bag);
     return save(properties, bag);
@@ -114,27 +130,35 @@ var Cxp13IngestionTelemetry = (function () {
   }
 
   function beginInvocation(properties, nowIso, nowMs) {
-    return mutate(properties, function (bag) {
-      if (bag.currentInvocationStartedMs != null) {
-        var elapsed = nowMs - bag.currentInvocationStartedMs;
-        if (elapsed >= HARD_TIMEOUT_MS) {
-          bag.timedOut = true;
-          bag.watchdogRecoveryCount += 1;
-          bag.invocations.push({
-            durationMs: elapsed,
-            endedAtUtc: nowIso,
-            startedAtUtc: bag.currentInvocationStartedAtUtc,
-          });
-        }
+    activeBag = null;
+    activeProperties = null;
+    var bag = load(properties);
+    if (!bag.subphaseDurations || typeof bag.subphaseDurations !== 'object') {
+      bag.subphaseDurations = emptyCounts(SUBPHASE_KEYS);
+    }
+    if (bag.currentInvocationStartedMs != null) {
+      var elapsed = nowMs - bag.currentInvocationStartedMs;
+      if (elapsed >= HARD_TIMEOUT_MS) {
+        bag.timedOut = true;
+        bag.watchdogRecoveryCount += 1;
+        bag.invocations.push({
+          durationMs: elapsed,
+          endedAtUtc: nowIso,
+          startedAtUtc: bag.currentInvocationStartedAtUtc,
+        });
       }
-      bag.currentInvocationStartedAtUtc = nowIso;
-      bag.currentInvocationStartedMs = nowMs;
-    });
+    }
+    bag.currentInvocationStartedAtUtc = nowIso;
+    bag.currentInvocationStartedMs = nowMs;
+    save(properties, bag);
+    activeBag = bag;
+    activeProperties = properties;
+    return bag;
   }
 
   function endInvocation(properties, nowIso, nowMs) {
-    return mutate(properties, function (bag) {
-      if (bag.currentInvocationStartedMs == null) return;
+    var bag = activeBag && properties === activeProperties ? activeBag : load(properties);
+    if (bag.currentInvocationStartedMs != null) {
       var duration = nowMs - bag.currentInvocationStartedMs;
       bag.invocations.push({
         durationMs: duration,
@@ -144,7 +168,11 @@ var Cxp13IngestionTelemetry = (function () {
       if (duration >= HARD_TIMEOUT_MS) bag.timedOut = true;
       bag.currentInvocationStartedAtUtc = null;
       bag.currentInvocationStartedMs = null;
-    });
+    }
+    save(properties, bag);
+    activeBag = null;
+    activeProperties = null;
+    return bag;
   }
 
   function noteContinuation(properties) {
@@ -189,12 +217,24 @@ var Cxp13IngestionTelemetry = (function () {
     return mapped;
   }
 
+  function rowAlias(key) {
+    return {
+      AHT: 'aht', 'AHT - Raw': 'aht', aht: 'aht',
+      Auxes: 'auxes', 'Auxes - Raw': 'auxes', auxes: 'auxes',
+      Handled: 'handled', handled: 'handled',
+      Offered: 'offered', offered: 'offered',
+      Staff: 'staff', staff: 'staff',
+    }[key] || null;
+  }
+
   function noteRowCounts(properties, counts) {
     return mutate(properties, function (bag) {
-      var mapped = mapRowCounts(counts);
-      ROW_KEYS.forEach(function (key) {
-        if (Number.isInteger(mapped[key]) && mapped[key] >= 0) bag.rowCounts[key] = mapped[key];
+      if (!bag.rowCounts || typeof bag.rowCounts !== 'object') bag.rowCounts = emptyCounts(ROW_KEYS);
+      Object.keys(counts || {}).forEach(function (key) {
+        var mappedKey = rowAlias(key);
+        if (mappedKey && Number.isInteger(counts[key]) && counts[key] >= 0) bag.rowCounts[mappedKey] = counts[key];
       });
+      bag.rowCounts.total = bag.rowCounts.aht + bag.rowCounts.auxes + bag.rowCounts.handled + bag.rowCounts.offered + bag.rowCounts.staff;
     });
   }
 
@@ -206,6 +246,20 @@ var Cxp13IngestionTelemetry = (function () {
     return mutate(properties, function (bag) {
       if (preserved === false) bag.lastKnownGoodPreserved = false;
     });
+  }
+
+  function noteSubphase(properties, key, durationMs) {
+    return mutate(properties, function (bag) {
+      if (SUBPHASE_KEYS.indexOf(key) === -1 || !Number.isFinite(durationMs) || durationMs < 0) return;
+      if (!bag.subphaseDurations || typeof bag.subphaseDurations !== 'object') {
+        bag.subphaseDurations = emptyCounts(SUBPHASE_KEYS);
+      }
+      bag.subphaseDurations[key] += Math.floor(durationMs);
+    });
+  }
+
+  function noteWatchdog(properties) {
+    return mutate(properties, function (bag) { bag.watchdogRecoveryCount += 1; });
   }
 
   function noteQuotaFailure(properties) {
@@ -222,6 +276,7 @@ var Cxp13IngestionTelemetry = (function () {
     KEY: KEY,
     PHASE_DURATION_KEYS: PHASE_DURATION_KEYS,
     ROW_KEYS: ROW_KEYS,
+    SUBPHASE_KEYS: SUBPHASE_KEYS,
     VERSION: VERSION,
     beginInvocation: beginInvocation,
     empty: empty,
@@ -237,6 +292,8 @@ var Cxp13IngestionTelemetry = (function () {
     notePhase: notePhase,
     noteQuotaFailure: noteQuotaFailure,
     noteRowCounts: noteRowCounts,
+    noteSubphase: noteSubphase,
+    noteWatchdog: noteWatchdog,
     reset: reset,
     snapshot: snapshot,
   });

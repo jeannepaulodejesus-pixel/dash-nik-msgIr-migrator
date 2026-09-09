@@ -71,6 +71,11 @@ var CommitService = (function () {
     return (value instanceof Date ? value : new Date(value)).toISOString();
   }
 
+  function nowMs(clock) {
+    var value = clock && typeof clock.now === 'function' ? clock.now() : new Date();
+    return (value instanceof Date ? value : new Date(value)).getTime();
+  }
+
   function requireServices(services) {
     if (
       !services ||
@@ -98,7 +103,7 @@ var CommitService = (function () {
     }
     var rawRepository = resolveRawDataRepository().create(
       dependencies.targetSpreadsheet,
-      { observer: dependencies.rawObserver },
+      { flush: dependencies.flush, observer: dependencies.rawObserver },
     );
     if (typeof dependencies.decorateRawRepository === 'function') {
       rawRepository = dependencies.decorateRawRepository(rawRepository);
@@ -106,6 +111,8 @@ var CommitService = (function () {
     var backupRepository = resolveBackupRepository().create(
       dependencies.targetSpreadsheet,
       {
+        observer: dependencies.backupObserver,
+        flush: dependencies.flush,
         session: dependencies.session,
         spreadsheetApp: dependencies.spreadsheetApp,
       },
@@ -122,12 +129,25 @@ var CommitService = (function () {
     var transaction = {
       commitProgress: null,
       currentPayload: null,
+      currentDatasetName: null,
       datasetNames: null,
+      expectedRowCounts: null,
       fingerprint: null,
       group: null,
       payloads: null,
       sourceFiles: null,
     };
+
+    function observed(key, operation) {
+      var started = nowMs(dependencies.clock);
+      try {
+        return operation();
+      } finally {
+        if (typeof dependencies.observeSubphase === 'function') {
+          dependencies.observeSubphase(key, Math.max(0, nowMs(dependencies.clock) - started));
+        }
+      }
+    }
 
     function requireTransaction() {
       if (
@@ -212,13 +232,17 @@ var CommitService = (function () {
         throw resolveErrorCodes().normalize(error, fallbackCode);
       }
       var group = transaction.group;
+      var causeDetails = error && error.details && typeof error.details === 'object' ? error.details : {};
       var rollbackResult = rollbackService.rollback(group, error);
       transaction.group = null;
       throw resolveErrorCodes().create(fallbackCode, {
         cause: error,
         details: {
           backupRunId: group.runId,
+          datasetName: causeDetails.datasetName || null,
+          operation: causeDetails.operation || null,
           originalErrorCode: error && typeof error.code === 'string' ? error.code : null,
+          reason: causeDetails.reason || null,
           rollbackStatus: rollbackResult.rollbackStatus,
         },
       });
@@ -281,6 +305,9 @@ var CommitService = (function () {
       });
       transaction.fingerprint = checkpointData.fingerprint;
       transaction.sourceFiles = checkpointData.sourceFiles.slice();
+      transaction.expectedRowCounts = checkpointData.rowCounts && typeof checkpointData.rowCounts === 'object'
+        ? Object.assign({}, checkpointData.rowCounts)
+        : {};
       transaction.commitProgress = checkpointData.commitProgress || null;
       if (checkpointData.backupRunId) {
         var preparedGroup = backupRepository.discoverGroups().filter(function (group) {
@@ -336,6 +363,9 @@ var CommitService = (function () {
       });
       transaction.fingerprint = checkpointData.fingerprint;
       transaction.sourceFiles = checkpointData.sourceFiles.slice();
+      transaction.expectedRowCounts = checkpointData.rowCounts && typeof checkpointData.rowCounts === 'object'
+        ? Object.assign({}, checkpointData.rowCounts)
+        : {};
       transaction.commitProgress = checkpointData.commitProgress || null;
       if (checkpointData.backupRunId) {
         var preparedGroup = backupRepository.discoverGroups().filter(function (group) {
@@ -363,6 +393,42 @@ var CommitService = (function () {
           details: { boundary: 'CommitService.resumeDataset' },
         });
       }
+      var rowCount = transaction.expectedRowCounts && transaction.expectedRowCounts[datasetName];
+      var nativeFastPath = context.request && context.request.packagingKind === 'single_dataset';
+      if (nativeFastPath && (!Number.isInteger(rowCount) || rowCount < 0)) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'CommitService.resumeDataset.rowCounts' },
+        });
+      }
+      if (!nativeFastPath) {
+        var restored = stagingRepository.readDatasetCheckpoint({
+          runId: context.runId,
+          schemaVersion: context.request.schemaVersion,
+        }, datasetName);
+        var validated = resolveStageValidator().validateDatasetCheckpoint(
+          restored.payload,
+          restored.snapshot,
+        );
+        transaction.currentPayload = restored.payload;
+        transaction.payloads = [restored.payload];
+        transaction.currentDatasetName = datasetName;
+        return Object.freeze({
+          datasetName: validated.datasetName,
+          rowCount: validated.rowCount,
+        });
+      }
+      transaction.currentDatasetName = datasetName;
+      transaction.currentPayload = null;
+      return Object.freeze({
+        datasetName: datasetName,
+        rowCount: rowCount,
+      });
+    }
+
+    function hydrateCurrentPayload(context, datasetName) {
+      if (transaction.currentPayload && transaction.currentPayload.datasetName === datasetName) {
+        return transaction.currentPayload;
+      }
       var restored = stagingRepository.readDatasetCheckpoint({
         runId: context.runId,
         schemaVersion: context.request.schemaVersion,
@@ -372,6 +438,7 @@ var CommitService = (function () {
         restored.snapshot,
       );
       transaction.currentPayload = restored.payload;
+      transaction.currentDatasetName = datasetName;
       transaction.payloads = [restored.payload];
       return Object.freeze({
         datasetName: validated.datasetName,
@@ -494,6 +561,18 @@ var CommitService = (function () {
       }
     }
 
+    function recordSuccessOnce(context) {
+      if (!confirmSuccess(context)) {
+        resolveDuplicateService().recordSuccessful(
+          duplicateInput(context),
+          dependencies.ledgerRepository,
+        );
+      }
+      if (!confirmSuccess(context)) {
+        throw new Error('The successful ledger record could not be confirmed.');
+      }
+    }
+
     function commitStep(context, progress) {
       requireTransaction();
       var nextDatasetIndex = progress && progress.nextDatasetIndex;
@@ -574,10 +653,15 @@ var CommitService = (function () {
       var nextDatasetIndex = progress && progress.nextDatasetIndex;
       var datasetName = transaction.datasetNames && transaction.datasetNames[nextDatasetIndex];
       if (!Number.isInteger(nextDatasetIndex) || nextDatasetIndex < 0 ||
-          progress.complete === true || !datasetName || !transaction.currentPayload ||
-          transaction.currentPayload.datasetName !== datasetName) {
+          progress.complete === true || !datasetName) {
         throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
           details: { boundary: 'CommitService.commitDatasetStep' },
+        });
+      }
+      hydrateCurrentPayload(context, datasetName);
+      if (!transaction.currentPayload || transaction.currentPayload.datasetName !== datasetName) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'CommitService.commitDatasetStep.payload' },
         });
       }
       if (!transaction.group) {
@@ -669,19 +753,383 @@ var CommitService = (function () {
       }
     }
 
-    return Object.freeze({
+    function wrapCommitError(error, datasetName, fallbackCode) {
+      var details = error && error.details && typeof error.details === 'object' ? error.details : {};
+      throw resolveErrorCodes().create(fallbackCode || 'MIGRATION_COMMIT_FAILED', {
+        cause: error,
+        details: {
+          backupRunId: transaction.group && transaction.group.runId || null,
+          chunkStartRow: Number.isInteger(details.chunkStartRow) ? details.chunkStartRow : null,
+          columnIndex: Number.isInteger(details.columnIndex) ? details.columnIndex : null,
+          columnName: details.columnName || null,
+          comparisonReason: details.comparisonReason || null,
+          datasetName: details.datasetName || datasetName || null,
+          intendedValueType: details.intendedValueType || null,
+          operation: details.operation || null,
+          originalErrorCode: error && typeof error.code === 'string' ? error.code : null,
+          persistedValueType: details.persistedValueType || null,
+          reason: details.reason || null,
+          rowOffset: Number.isInteger(details.rowOffset) ? details.rowOffset : null,
+          schemaType: details.schemaType || null,
+        },
+      });
+    }
+
+    function stageChunk(context, cursor) {
+      var validated = context.operationResults.validateSchema;
+      var duplicate = context.operationResults.checkDuplicate;
+      if (
+        !validated ||
+        !Array.isArray(validated.payloads) ||
+        !duplicate ||
+        typeof duplicate.fingerprint !== 'string' ||
+        !Array.isArray(duplicate.sourceFiles)
+      ) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'CommitService.stageChunk' },
+        });
+      }
+      transaction.payloads = validated.payloads.slice();
+      transaction.datasetNames = transaction.payloads.map(function (payload) {
+        return payload.datasetName;
+      });
+      transaction.fingerprint = duplicate.fingerprint;
+      transaction.sourceFiles = duplicate.sourceFiles.slice();
+      var datasetIndex = cursor && Number.isInteger(cursor.datasetIndex) ? cursor.datasetIndex : 0;
+      var datasetNames = Array.isArray(validated.datasetNames) && validated.datasetNames.length
+        ? validated.datasetNames.slice()
+        : transaction.payloads.map(function (candidate) { return candidate.datasetName; });
+      transaction.datasetNames = datasetNames;
+      if (datasetIndex >= datasetNames.length) {
+        return Object.freeze({
+          complete: true,
+          prepareCursor: null,
+        });
+      }
+      var datasetName = cursor && cursor.datasetName || datasetNames[datasetIndex];
+      var payload = transaction.payloads.filter(function (candidate) {
+        return candidate.datasetName === datasetName;
+      })[0];
+      if (!payload) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'CommitService.stageChunkPayload' },
+        });
+      }
+      var workUnitStartedMs = nowMs();
+      var result = observed('stageWrite', function () {
+        return stagingRepository.writePayloadChunk(payload, cursor);
+      });
+      if (result && result.cursor && result.cursor.phase === 'verify') {
+        dependencies.flush();
+        result = observed('stageReadback', function () {
+          return stagingRepository.writePayloadChunk(payload, result.cursor);
+        });
+      }
+      if (result.datasetComplete) {
+        var nextIndex = datasetIndex + 1;
+        return Object.freeze({
+          complete: nextIndex >= datasetNames.length,
+          datasetName: payload.datasetName,
+          prepareCursor: nextIndex >= datasetNames.length ? null : Object.freeze({
+            datasetIndex: nextIndex,
+            datasetName: datasetNames[nextIndex],
+            nextRow: 1,
+            phase: 'clear',
+          }),
+          workUnitDurationMs: Math.max(0, nowMs() - workUnitStartedMs),
+        });
+      }
+      return Object.freeze({
+        complete: false,
+        datasetName: payload.datasetName,
+        prepareCursor: Object.freeze({
+          chunkRows: result.cursor.chunkRows,
+          columnCount: result.cursor.columnCount,
+          datasetIndex: datasetIndex,
+          datasetName: payload.datasetName,
+          nextRow: result.cursor.nextRow,
+          phase: result.cursor.phase,
+        }),
+        workUnitDurationMs: Math.max(0, nowMs() - workUnitStartedMs),
+      });
+    }
+
+    function backupChunk(context, cursor) {
+      requireTransaction();
+      return resolveScriptLock().withLock(
+        dependencies.lockService,
+        dependencies.lockTimeoutMs === undefined
+          ? DEFAULT_LOCK_TIMEOUT_MS
+          : dependencies.lockTimeoutMs,
+        function () {},
+        function () {
+          var groups = backupRepository.discoverGroups();
+          var ownGroup = groups.filter(function (group) {
+            return group.runId === context.runId;
+          })[0] || null;
+          var foreignGroups = groups.filter(function (group) {
+            return group.runId !== context.runId;
+          });
+          if (!ownGroup) {
+            if (typeof dependencies.beforeReconcile === 'function') {
+              dependencies.beforeReconcile(Object.freeze({
+                backupRepository: backupRepository,
+                ledgerRepository: dependencies.ledgerRepository,
+                targetSpreadsheet: dependencies.targetSpreadsheet,
+              }));
+            }
+            rollbackService.reconcile();
+          } else if (foreignGroups.length > 0) {
+            throw resolveErrorCodes().create('MIGRATION_RECOVERY_FAILED', {
+              details: { reason: 'foreign_backup_group_during_incremental_backup' },
+            });
+          }
+          if (!ownGroup) {
+            resolveDuplicateService().check(
+              duplicateInput(context),
+              dependencies.ledgerRepository,
+            );
+          }
+          var names = transaction.datasetNames;
+          var datasetIndex = cursor && Number.isInteger(cursor.datasetIndex)
+            ? cursor.datasetIndex
+            : (ownGroup ? Object.keys(ownGroup.sheetsByDataset).length : 0);
+          if (datasetIndex >= names.length || ownGroup && ownGroup.complete) {
+            transaction.group = ownGroup;
+            return Object.freeze({ backupCursor: null, complete: true, createdDatasetName: names[names.length - 1] || null });
+          }
+          var result = observed('backup', function () {
+            return backupRepository.createGroupStep(context.runId, ownGroup, names[datasetIndex]);
+          });
+          transaction.group = result.group;
+          var nextIndex = datasetIndex + 1;
+          return Object.freeze({
+            backupCursor: result.complete ? null : Object.freeze({
+              datasetIndex: nextIndex,
+              datasetName: names[nextIndex],
+              nextRow: 1,
+              phase: 'copy',
+            }),
+            complete: result.complete === true,
+            createdDatasetName: result.createdDatasetName,
+          });
+        },
+      );
+    }
+
+    function commitChunk(context, progress) {
+      requireTransaction();
+      var nextDatasetIndex = progress && progress.nextDatasetIndex;
+      var datasetName = transaction.datasetNames && transaction.datasetNames[nextDatasetIndex];
+      if (!Number.isInteger(nextDatasetIndex) || nextDatasetIndex < 0 ||
+          progress.complete === true || !datasetName) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'CommitService.commitChunk' },
+        });
+      }
+      var nativeStagedTransfer = context.request && context.request.packagingKind === 'single_dataset' &&
+        transaction.currentDatasetName === datasetName &&
+        typeof rawRepository.replaceStagedChunk === 'function';
+      if (!nativeStagedTransfer && (!transaction.currentPayload ||
+          transaction.currentPayload.datasetName !== datasetName)) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'CommitService.commitChunk.payload' },
+        });
+      }
+      var expectedRowCount = transaction.expectedRowCounts && transaction.expectedRowCounts[datasetName];
+      if (nativeStagedTransfer && (!Number.isInteger(expectedRowCount) || expectedRowCount < 0)) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'CommitService.commitChunk.rowCounts' },
+        });
+      }
+      if (!transaction.group) {
+        throw resolveErrorCodes().create('MIGRATION_BACKUP_FAILED', {
+          details: { reason: 'prepared_backup_group_unavailable' },
+        });
+      }
+      var suppliedCursor = progress.commitCursor || null;
+      if (suppliedCursor && suppliedCursor.datasetName && suppliedCursor.datasetName !== datasetName) {
+        throw resolveErrorCodes().create('INGESTION_INVALID_OPERATIONS', {
+          details: { boundary: 'CommitService.commitCursorDataset' },
+        });
+      }
+      var flushRequired = false;
+      return resolveScriptLock().withLock(
+        dependencies.lockService,
+        dependencies.lockTimeoutMs === undefined
+          ? DEFAULT_LOCK_TIMEOUT_MS
+          : dependencies.lockTimeoutMs,
+        function () { if (flushRequired) dependencies.flush(); },
+        function () {
+          try {
+            var cursor = suppliedCursor;
+            if (!cursor || cursor.phase === 'clear') {
+              resolveDuplicateService().check(
+                duplicateInput(context),
+                dependencies.ledgerRepository,
+              );
+              // Native staged transfer clears the destination and uses a
+              // contents-only copy, which is itself the values-only invariant.
+              // Keep the legacy formula preflight for payload writes, but do
+              // not scan the destination before the optimized transfer.
+              if (!nativeStagedTransfer) rawRepository.preflightOne(datasetName);
+            }
+            var workUnitStartedMs = nowMs();
+            var nativePhase = cursor && cursor.phase || 'clear';
+            var commitSubphase = nativeStagedTransfer &&
+              (nativePhase === 'verify' || nativePhase === 'trim_verify')
+              ? 'commitVerify'
+              : 'commitWrite';
+            var replaced = observed(commitSubphase, function () {
+              if (nativeStagedTransfer) {
+                return rawRepository.replaceStagedChunk(datasetName, cursor, expectedRowCount);
+              }
+              return rawRepository.replacePayloadChunk(transaction.currentPayload, cursor, { preflightVerified: true });
+            });
+            flushRequired = Boolean(!nativeStagedTransfer && replaced && replaced.cursor && replaced.cursor.phase === 'verify');
+            if (flushRequired) {
+              dependencies.flush();
+              flushRequired = false;
+              replaced = observed('commitVerify', function () {
+                return rawRepository.replacePayloadChunk(
+                  transaction.currentPayload,
+                  replaced.cursor,
+                  { preflightVerified: true },
+                );
+              });
+            }
+            if (replaced.datasetComplete) {
+              var followingIndex = nextDatasetIndex + 1;
+              return Object.freeze({
+                commitCursor: null,
+                complete: followingIndex === transaction.datasetNames.length,
+                lastCompletedDatasetName: datasetName,
+                nextDatasetIndex: followingIndex,
+                rowCounts: Object.freeze((function () {
+                  var counts = {};
+                  counts[datasetName] = replaced.rowCount;
+                  return counts;
+                })()),
+                workUnitDurationMs: Math.max(0, nowMs() - workUnitStartedMs),
+              });
+            }
+            return Object.freeze({
+              commitCursor: Object.freeze(Object.assign({ datasetName: datasetName }, replaced.cursor)),
+              complete: false,
+              lastCompletedDatasetName: datasetName,
+              nextDatasetIndex: nextDatasetIndex,
+              rowCounts: Object.freeze((function () {
+                var counts = {};
+                counts[datasetName] = replaced.rowCount;
+                return counts;
+              })()),
+              workUnitDurationMs: Math.max(0, nowMs() - workUnitStartedMs),
+            });
+          } catch (error) {
+            wrapCommitError(error, datasetName, 'MIGRATION_COMMIT_FAILED');
+          }
+        },
+      );
+    }
+
+    function healthDatasetStep(context, cursor, expectedRowCounts) {
+      requireTransaction();
+      var names = transaction.datasetNames;
+      var index = cursor && Number.isInteger(cursor.nextDatasetIndex) ? cursor.nextDatasetIndex : 0;
+      if (index >= names.length) {
+        return Object.freeze({
+          complete: false,
+          healthCursor: Object.freeze({ nextDatasetIndex: names.length, readyToFinalize: true }),
+        });
+      }
+      var datasetName = names[index];
+      var expectedRowCount = expectedRowCounts && expectedRowCounts[datasetName];
+      rawRepository.inspectOne(datasetName, expectedRowCount);
+      return Object.freeze({
+        complete: false,
+        healthCursor: Object.freeze({ nextDatasetIndex: index + 1 }),
+      });
+    }
+
+    function healthFinalize(context) {
+      requireTransaction();
+      try {
+        recordSuccessOnce(context);
+        return Object.freeze({
+          // The protected rollback point is retained until RunService has
+          // durably persisted the terminal SUCCESS record.
+          backupCleanupStatus: 'RETAINED_UNTIL_AUDIT',
+          datasetCount: transaction.datasetNames.length,
+          ledgerStatus: 'CONFIRMED',
+        });
+      } catch (error) {
+        wrapCommitError(error, null, 'CALCULATION_HEALTH_CHECK_FAILED');
+      }
+    }
+
+    function cleanupAfterSuccess() {
+      requireTransaction();
+      if (!transaction.group) {
+        return Object.freeze({ backupCleanupStatus: 'DELETED' });
+      }
+      try {
+        backupRepository.deleteGroup(transaction.group);
+        transaction.group = null;
+        return Object.freeze({ backupCleanupStatus: 'DELETED' });
+      } catch (cleanupError) {
+        // The success audit is already durable. Retaining the protected
+        // backup is safe cleanup debt and must not turn success into rollback.
+        return Object.freeze({ backupCleanupStatus: 'PENDING' });
+      }
+    }
+
+    function rollbackChunk(context, cursor) {
+      requireTransaction();
+      if (!transaction.group) {
+        throw resolveErrorCodes().create('MIGRATION_BACKUP_FAILED', {
+          details: { reason: 'prepared_backup_group_unavailable' },
+        });
+      }
+      var pending = context && context.pendingFailure || {};
+      var cause = {
+        code: pending.code || 'MIGRATION_COMMIT_FAILED',
+        details: pending.details || {},
+      };
+      return resolveScriptLock().withLock(
+        dependencies.lockService,
+        dependencies.lockTimeoutMs === undefined
+          ? DEFAULT_LOCK_TIMEOUT_MS
+          : dependencies.lockTimeoutMs,
+        function () {},
+        function () {
+          var result = rollbackService.rollbackStep(transaction.group, cursor, cause);
+          if (result.complete) transaction.group = null;
+          return result;
+        },
+      );
+    }
+
+    var operations = {
+      backupChunk: backupChunk,
       backupStep: backupStep,
+      commitChunk: commitChunk,
       commitDatasetStep: commitDatasetStep,
       commitStep: commitStep,
       stage: stage,
+      stageChunk: stageChunk,
       validateStage: validateStage,
       commit: commit,
       recalculate: recalculate,
       healthCheck: healthCheck,
+      healthDatasetStep: healthDatasetStep,
+      healthFinalize: healthFinalize,
+      cleanupAfterSuccess: cleanupAfterSuccess,
       resume: resume,
       resumeBackup: resumeBackup,
       resumeDataset: resumeDataset,
-    });
+      rollbackChunk: rollbackChunk,
+    };
+    return Object.freeze(operations);
   }
 
   return Object.freeze({ createOperations: createOperations });

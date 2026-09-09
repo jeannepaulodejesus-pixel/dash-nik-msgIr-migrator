@@ -33,7 +33,7 @@ Use this map after the required startup sequence. Open only sources relevant to 
 ## Retrieval examples
 
 ```powershell
-rg -n "^## CXP-14|^### DEC-06[5-9]" docs/packet-status.md docs/decision-log.md
+rg -n "^## CXP-14|^### DEC-06[5-9]|^### DEC-070" docs/packet-status.md docs/decision-log.md
 rg -n "^## (Required UAT predicates|Performance gates|Cutover and rollback)" docs/cxp14-release-contract.md
 ```
 

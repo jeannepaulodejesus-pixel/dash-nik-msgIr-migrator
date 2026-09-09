@@ -158,6 +158,7 @@ test('commit service runs its pre-reconciliation hook inside the existing lock',
     'parse',
     'validateSchema',
     'checkDuplicate',
+    'prepareSingleDataset',
   ]);
 
   const owner = new FakeUser('owner@example.test');
@@ -212,18 +213,26 @@ test('commit service runs its pre-reconciliation hook inside the existing lock',
     targetSpreadsheet: target,
   });
   assert.deepEqual(Object.keys(commitOperations), [
+    'backupChunk',
     'backupStep',
+    'commitChunk',
     'commitDatasetStep',
     'commitStep',
     'stage',
+    'stageChunk',
     'validateStage',
     'commit',
     'recalculate',
     'healthCheck',
+    'healthDatasetStep',
+    'healthFinalize',
+    'cleanupAfterSuccess',
     'resume',
     'resumeBackup',
     'resumeDataset',
+    'rollbackChunk',
   ]);
+  assert.equal(typeof commitOperations.cleanupAfterSuccess, 'function');
   assert.deepEqual(target.events.slice(-3), [
     ['decorateStagingRepository'],
     ['decorateRawRepository'],
@@ -264,7 +273,7 @@ test('commit service runs its pre-reconciliation hook inside the existing lock',
   const rawWrites = target.events.filter(
     ([name, sheetName]) => name === 'setValues' && sheetName.startsWith('_RAW_'),
   );
-  const copies = target.events.filter(([name]) => name === 'copyTo');
+  const copies = target.events.filter(([name]) => name === 'rangeCopyTo');
   assert.equal(stageWrites.length, 5);
   assert.equal(rawWrites.length, 5);
   assert.equal(copies.length, 5);
@@ -276,7 +285,7 @@ test('commit service runs its pre-reconciliation hook inside the existing lock',
   assert.ok(indexOf('beforeReconcile') > indexOf('tryLock'));
   assert.ok(indexOf('beforeReconcile') < indexOf('discoverGroups'));
   assert.ok(indexOf('ledgerFingerprint') > indexOf('tryLock'));
-  assert.ok(lastIndexOf('copyTo') < target.events.findIndex(
+  assert.ok(lastIndexOf('rangeCopyTo') < target.events.findIndex(
     ([name, sheetName]) => name === 'clearContent' && sheetName.startsWith('_RAW_'),
   ));
   assert.ok(indexOf('flush') < indexOf('ledgerAppend'));
@@ -392,6 +401,9 @@ test('hosted transaction resume skips staging for backup and loads only the comm
         return {
           datasetNames: DatasetSheets.listBindings().map((binding) => binding.datasetName),
           fingerprint: duplicate.fingerprint,
+          rowCounts: Object.fromEntries(
+            payloads.map((payload) => [payload.datasetName, payload.rowCount]),
+          ),
           sourceFiles: duplicate.sourceFiles,
         };
       },
@@ -403,7 +415,7 @@ test('hosted transaction resume skips staging for backup and loads only the comm
   );
   const context = {
     operationResults: {},
-    request: prepared.checkpoint.request,
+    request: Object.assign({}, prepared.checkpoint.request, { packagingKind: 'single_dataset' }),
     runId: prepared.checkpoint.runId,
     startedAtUtc: prepared.checkpoint.startedAtUtc,
   };
@@ -437,7 +449,7 @@ test('hosted transaction resume skips staging for backup and loads only the comm
   assert.equal(typeof operations.resumeDataset, 'function');
   assert.equal(typeof operations.commitDatasetStep, 'function');
   operations.resumeDataset(context, prepared.checkpoint.data, 'AHT - Raw');
-  assert.deepEqual(stagingCalls, [['one', 'AHT - Raw']]);
+  assert.deepEqual(stagingCalls, []);
   const eventStart = target.events.length;
   const progress = operations.commitDatasetStep(context, {
     complete: false,
@@ -456,7 +468,63 @@ test('hosted transaction resume skips staging for backup and loads only the comm
       .map((event) => event[1]),
     ['_RAW_AHT'],
   );
+  assert.deepEqual(stagingCalls, [['one', 'AHT - Raw']]);
   assert.ok(target.events.slice(eventStart).some(([name]) => name === 'flush'));
+
+  const noDestinationReadOptions = {
+    ...serviceOptions,
+    decorateRawRepository(repository) {
+      return Object.assign({}, repository, {
+        readOne() {
+          throw new Error('normal commit must not pre-read the destination dataset');
+        },
+      });
+    },
+  };
+  const observedCommitSubphases = [];
+  const chunkOperations = CommitService.createOperations({
+    ...noDestinationReadOptions,
+    observeSubphase(key) { observedCommitSubphases.push(key); },
+  });
+  chunkOperations.resumeDataset(context, prepared.checkpoint.data, 'AHT - Raw');
+  assert.deepEqual(stagingCalls, [['one', 'AHT - Raw']]);
+  const nativeEventStart = target.events.length;
+  const chunkProgress = chunkOperations.commitChunk(context, {
+    complete: false,
+    lastCompletedDatasetName: 'Offered',
+    nextDatasetIndex: 2,
+    commitCursor: null,
+  });
+  assert.equal(chunkProgress.lastCompletedDatasetName, 'AHT - Raw');
+  assert.equal(chunkProgress.nextDatasetIndex, 2);
+  assert.equal(chunkProgress.commitCursor.phase, 'copy');
+  const copiedProgress = chunkOperations.commitChunk(context, {
+    complete: false,
+    lastCompletedDatasetName: 'AHT - Raw',
+    nextDatasetIndex: 2,
+    commitCursor: chunkProgress.commitCursor,
+  });
+  assert.equal(copiedProgress.commitCursor.phase, 'verify');
+  const verifiedProgress = chunkOperations.commitChunk(context, {
+    complete: false,
+    lastCompletedDatasetName: 'AHT - Raw',
+    nextDatasetIndex: 2,
+    commitCursor: copiedProgress.commitCursor,
+  });
+  assert.equal(verifiedProgress.commitCursor, null);
+  assert.equal(verifiedProgress.nextDatasetIndex, 3);
+  assert.deepEqual(
+    target.events.slice(nativeEventStart)
+      .filter(([name]) => name === 'rangeCopyTo')
+      .map((event) => event.slice(0, 3)),
+    [['rangeCopyTo', '_STG_AHT', '_RAW_AHT']],
+  );
+  assert.equal(
+    target.events.slice(nativeEventStart)
+      .some(([name, sheet]) => name === 'setValues' && sheet === '_RAW_AHT'),
+    false,
+  );
+  assert.deepEqual(observedCommitSubphases, ['commitWrite', 'commitWrite', 'commitVerify']);
 });
 
 // Defect caught: the hosted continuation still creates all five full-sheet
@@ -509,7 +577,7 @@ test('commit service checkpoints one backup per fresh operation instance before 
     assert.equal(typeof operations.backupStep, 'function');
     const result = operations.backupStep(context);
     assert.equal(result.complete, index === 4);
-    assert.equal(target.events.filter(([name]) => name === 'copyTo').length, index + 1);
+    assert.equal(target.events.filter(([name]) => name === 'rangeCopyTo').length, index + 1);
   }
 
   prepared.checkpoint.data.backupRunId = prepared.checkpoint.runId;
@@ -520,7 +588,7 @@ test('commit service checkpoints one backup per fresh operation instance before 
   const result = RunService.resume(prepared.checkpoint, finalOperations, runServices);
 
   assert.equal(result.runRecord.status, 'SUCCESS');
-  assert.equal(target.events.filter(([name]) => name === 'copyTo').length, 5);
+  assert.equal(target.events.filter(([name]) => name === 'rangeCopyTo').length, 5);
 });
 
 // Defect caught: the hosted commit cursor is persisted by the controller, but
@@ -627,6 +695,44 @@ test('commit service replaces one raw dataset per cursor step and finalizes with
     5,
   );
   assert.equal(ledger.records.filter((record) => record.result === 'SUCCESS').length, 1);
+});
+
+test('dataset-scoped staging completion advances against the complete dataset index', () => {
+  const CommitService = require('../src/services/CommitService.js');
+  const owner = new FakeUser('owner@example.test');
+  const payloads = allNormalizedPayloads();
+  const offered = payloads.find((payload) => payload.datasetName === 'Offered');
+  const datasetNames = DatasetSheets.listBindings().map((binding) => binding.datasetName);
+  const target = targetSpreadsheet(payloads, owner);
+  const operations = CommitService.createOperations({
+    clock: tickingClock(),
+    decorateStagingRepository() {
+      return {
+        writePayloadChunk() {
+          return { datasetComplete: true, rowCount: offered.rowCount };
+        },
+      };
+    },
+    flush() {},
+    ledgerRepository: new TransactionLedger([]),
+    session: { getEffectiveUser: () => owner },
+    spreadsheetApp: { ProtectionType: { SHEET: 'SHEET' } },
+    targetSpreadsheet: target,
+  });
+  const result = operations.stageChunk({
+    operationResults: {
+      checkDuplicate: { fingerprint: 'sha256:resume-stage', sourceFiles: [] },
+      validateSchema: { datasetNames, payloads: [offered] },
+    },
+  }, { datasetIndex: 1, datasetName: 'Offered', nextRow: 1, phase: 'clear' });
+
+  assert.equal(result.complete, false);
+  assert.deepEqual(result.prepareCursor, {
+    datasetIndex: 2,
+    datasetName: 'AHT - Raw',
+    nextRow: 1,
+    phase: 'clear',
+  });
 });
 
 // Defect caught: commitStep re-verifies every backup against current raw after

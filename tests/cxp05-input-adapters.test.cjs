@@ -639,6 +639,7 @@ test('InputAdapter exposes CXP-04-compatible phases without crossing their side-
   assert.equal(typeof InputAdapter?.validateSchema, 'function');
   assert.equal(typeof InputAdapter?.checkDuplicate, 'function');
   assert.equal(typeof InputAdapter?.createOperations, 'function');
+  assert.equal(typeof InputAdapter?.prepareSingleDataset, 'function');
 
   const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   const file = new FakeDriveFile({
@@ -686,7 +687,46 @@ test('InputAdapter exposes CXP-04-compatible phases without crossing their side-
     'parse',
     'validateSchema',
     'checkDuplicate',
+    'prepareSingleDataset',
   ]);
+});
+
+test('five-file resume converts only the requested dataset source', () => {
+  const DriveService = loadModule('../src/services/DriveService.js');
+  const InputAdapter = loadModule('../src/ingestion/InputAdapter.js');
+  const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const datasetNames = SchemaRegistry.listSchemas().map((schema) => schema.name);
+  const files = datasetNames.map((datasetName, index) => new FakeDriveFile({
+    bytes: Buffer.from(`PK\x03\x04${datasetName}-${index}`),
+    id: `file-${index}`,
+    mimeType,
+    name: `${datasetName}.xlsx`,
+  }));
+  const reads = [];
+  const driveApp = new FakeDriveApp(files);
+  const originalGet = driveApp.getFileById.bind(driveApp);
+  driveApp.getFileById = (id) => {
+    reads.push(id);
+    return originalGet(id);
+  };
+  const conversion = xlsxServices({ Offered: tableFor('Offered') });
+  const services = { ...conversion, driveApp };
+  const request = {
+    packagingKind: 'single_dataset',
+    runMetadata: runMetadata('run-dataset-resume'),
+    sources: datasetNames.map((datasetName, index) => ({ datasetName, fileId: `file-${index}` })),
+  };
+  const offered = DriveService.readFile('file-1', { driveApp, utilities: nodeUtilities() });
+  reads.length = 0;
+  const result = InputAdapter.prepareSingleDataset(request, {
+    fingerprint: 'sha256:bundle-fingerprint',
+    sourceFiles: [DriveService.publicMetadata(offered)],
+  }, 'Offered', services);
+
+  assert.deepEqual(reads, ['file-1']);
+  assert.equal(conversion.events.filter((event) => event[0] === 'files.create').length, 1);
+  assert.equal(result.payload.datasetName, 'Offered');
+  assert.equal(result.payload.rowCount, 1);
 });
 
 // Defect caught: unsupported content reaches conversion, duplicate lookup, or staging-adjacent work.

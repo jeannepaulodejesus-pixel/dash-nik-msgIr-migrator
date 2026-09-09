@@ -482,6 +482,12 @@ var ErrorCodes = (function () {
     true,
   );
   define(
+    'LIFECYCLE_TARGET_UNAVAILABLE',
+    CATEGORIES.LIFECYCLE,
+    'The configured target workbook could not be opened.',
+    false,
+  );
+  define(
     'LIFECYCLE_REGISTRY_SCHEMA_MISMATCH',
     CATEGORIES.LIFECYCLE,
     'The WEEK_REGISTRY header does not match its controlled schema.',

@@ -23,6 +23,7 @@ var Cxp14ReleaseEvidence = (function () {
       handled: 5000,
       offered: 5000,
       staff: 300,
+      schedulerObjectiveMs: 600000,
       schedulerWindowMs: 1200000,
       totalRows: 20300,
     }),
@@ -32,6 +33,7 @@ var Cxp14ReleaseEvidence = (function () {
       handled: 10000,
       offered: 10000,
       staff: 2000,
+      schedulerObjectiveMs: 1800000,
       schedulerWindowMs: 1800000,
       totalRows: 44500,
     }),
@@ -207,15 +209,19 @@ var Cxp14ReleaseEvidence = (function () {
     if (source.noQuotaFailure !== true) missing.push('noQuotaFailure');
     var objectiveMet = boundedDuration(source.maxInvocationMs) && source.maxInvocationMs < BOUNDARIES.invocationObjectiveMs;
     var hardBoundaryMet = boundedDuration(source.maxInvocationMs) && source.maxInvocationMs < BOUNDARIES.invocationBudgetMs;
+    var schedulerObjectiveMet = Boolean(profile) && boundedDuration(source.schedulerInclusiveMs) &&
+      source.schedulerInclusiveMs <= profile.schedulerObjectiveMs;
     var windowMet = Boolean(profile) && boundedDuration(source.schedulerInclusiveMs) && source.schedulerInclusiveMs <= profile.schedulerWindowMs;
     if (!hardBoundaryMet) missing.push('invocationUnder270000Ms');
     if (!objectiveMet) missing.push('invocationUnder240000Ms');
+    if (!schedulerObjectiveMet) missing.push('schedulerObjectiveMet');
     if (!windowMet) missing.push('schedulerWindowMet');
     return deepFreeze({
       hardBoundaryMet: hardBoundaryMet,
       missing: Array.from(new Set(missing)).sort(),
       objectiveMet: objectiveMet,
-      pass: missing.length === 0 && objectiveMet && hardBoundaryMet && windowMet,
+      pass: missing.length === 0 && objectiveMet && hardBoundaryMet && schedulerObjectiveMet && windowMet,
+      schedulerObjectiveMet: schedulerObjectiveMet,
       windowMet: windowMet,
     });
   }

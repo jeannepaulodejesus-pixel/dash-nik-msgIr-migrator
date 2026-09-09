@@ -1,6 +1,6 @@
 # CXP-14 Performance Hardening, UAT, Cutover, and Production Runbook Plan
 
-**Status:** Repository implementation complete on 2026-09-07. Hosted UAT, final parity, production authorization, cutover, and observation remain open; this plan does not authorize a PROD push or PROD Script Property changes.
+**Status:** Revised latency, verification, and reliability implementation completed locally on 2026-09-09. Hosted UAT, final parity, production authorization, cutover, and observation remain open; this plan does not authorize a PROD push or PROD Script Property changes.
 
 **Dependencies:** CXP-00 through CXP-13 are complete. CXP-13 is accepted as `CXP-13-v1`; its separate hosted UAT rehearsal was intentionally deferred to this packet.
 
@@ -101,7 +101,7 @@ Evidence must never include IDs, emails, filenames, source rows, cell values, fo
 
 The packet owner must accept the numeric operational window before Step 03. Use these evidence-backed defaults unless the owner records a different stricter or looser value with rationale:
 
-- **Expected peak:** three consecutive successful UAT runs, each `<= 20 minutes` scheduler-inclusive from accepted start to terminal `SUCCESS`.
+- **Expected peak:** three consecutive successful UAT runs, each `<= 10 minutes` scheduler-inclusive from accepted start to terminal `SUCCESS`. The earlier 20-minute window remains an absolute failure ceiling, not a passing Step 03 objective.
 - **Invocation objective:** every invocation `< 240000 ms`; **hard failure** at `>= 270000 ms`, timeout, or quota error.
 - **Declared maximum:** one 44,500-row stress run completes `<= 30 minutes` with the same correctness, recovery, and boundary invariants. This is a stress objective, not permission to exceed the agreed hourly source volume.
 - **Recalculation:** health becomes ready within the accepted total run window and no bounded report/calc error scan regresses.
@@ -233,7 +233,7 @@ Immediate rollback triggers include any timeout/quota error, unexplained critica
 
 | Risk | Control |
 |---|---|
-| Numeric hourly window has not yet been owner-approved | Step 00 records the accepted value; proposed default is 20 minutes at expected peak, leaving substantial hourly margin |
+| Hosted expected-peak timing has not yet been re-proven after the reliability patch | Step 03 requires three distinct successes within the accepted 10-minute objective; 20 minutes remains the absolute ceiling |
 | CXP-13 DEV evidence omitted its exact maximum invocation duration | CXP-14 records every UAT invocation and rejects missing duration evidence |
 | Separate UAT deployment and final restricted-sharing capture were not observed in CXP-13 | Make both blocking Step 00/01/06 evidence in CXP-14 |
 | Optimization changes formulas, transaction semantics, or error classification | Freeze behavior first; require predecessor regression, hosted rerun, and separate approval for any metric change |

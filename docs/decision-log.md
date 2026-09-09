@@ -592,6 +592,15 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 - **Rationale:** The supplied Step 08 result reports `pass: true`, `missing: []`, and `promotionReady: true`; the repository verification passes 294/294 tests; and the packet owner explicitly directed completion after reviewing the distinction between DEV evidence and a separate UAT run.
 - **Consequences:** CXP-13 advances from `v1-rc` to `CXP-13-v1` with no packet blocker. Documentation must continue to distinguish observed DEV evidence from the unexecuted separate UAT environment. CXP-14 retains performance hardening, any additional UAT rehearsal, PROD configuration, deployment, and cutover authority.
 
+### DEC-070 — Treat persisted terminal records as successful CXP-13 audit completion and chunk work under generation fencing
+
+- **Date:** 2026-09-08
+- **Packet:** CXP-13 (runtime patch required for CXP-14 UAT)
+- **Status:** Accepted; implemented; hosted UAT evidence pending
+- **Decision:** An error that already carries persisted `runRecord` and `errorRecord` from `RunService.recordFailure()` is successful audit completion (`failureAuditStatus=RECORDED`), not an audit-write failure. Do not schedule automatic audit retries. A genuine audit persistence failure stays `FAILED`/`PENDING` with every `continueCxp13Ingestion` trigger removed until the operator runs parameterless `retryCxp13FailureAudit()`. Upgrade `CXP13_INGESTION_PIPELINE_STATE_V1` in place to state version 2 with a generation/lease. Replace monolithic backup/commit/health/rollback/preparation work with durable 1,000-row (or one-dataset) units that admit more work only under the established 195,000 ms packing threshold, replay by comparing destination content, and preserve bounded `originalErrorCode`, `reason`, `operation`, `datasetName`, `backupRunId`, and `rollbackStatus`.
+- **Rationale:** A 361 s `COMMITTING` invocation overran because the controller could not interrupt an in-flight Sheets call, backup reread the growing group, and the watchdog correctly adopted after 375 s. Later one-minute executions were a defect: `recordFailure()` rethrows after writing RUN_LOG/ERROR_LOG, CXP-13 treated that throw as `PENDING`, and rescheduled indefinitely. Wrappers also discarded backup subreasons needed for RCA.
+- **Consequences:** Existing CXP-13 setup/web/UAT/start/status/continuation entrypoints remain. Intake status surfaces `failureAuditStatus`, `lastAuditErrorCode`, and `auditActionRequired`. Stale workers cannot recreate triggers after a watchdog or terminal transition. CXP-14 must delete any surviving continuation trigger before deploy, reconcile with `retryCxp13FailureAudit()`, and must not record Step 03 evidence until three distinct expected-peak bundles each stay under 240,000 ms per invocation with zero leftover triggers.
+
 ## CXP-07 decisions
 
 ### DEC-035 — Install bounded native spill tables instead of transforming rows in Apps Script
@@ -658,3 +667,48 @@ Append decisions; do not rewrite accepted history. Each entry records an ID, dat
 - **Decision:** Operator-owned UAT fixture Drive folders are stored in `CXP14_UAT_FIXTURE_FOLDERS_V1` after `configureCxp14UatFixtureFolders()`. Steps 03–05 and 07 retarget `CXP_UAT_DRIVE_INBOX_FOLDER_ID` (and Step 07 also retargets `CXP_UAT_LEGACY_PARITY_EXPORT_FOLDER_ID`) to the next catalog slot, then drive one CXP-13/CXP-11 wave. Folder IDs never enter CXP-14 evidence. The Inbox is not switched while a run is still queued. Missing discovery still fails as `inboxBundle`.
 - **Rationale:** Manual one-folder drops stalled hosted UAT. CXP-13 only reads the configured Inbox, so rotating that Script Property per step is the supported intake pointer. DEV/UAT/PROD environment identity remains outside promotion evidence (ADR-010). The parameterless configure helper writes the UAT fixture catalog into Script Properties so hosted steps can retarget without operator JSON.
 - **Consequences:** Operators run the configure helper once after clasp push. Re-running a numbered CXP-14 step is enough to advance peak, declared-maximum, negative, and parity fixtures. Manual drops remain valid when the catalog is absent.
+
+### DEC-071 — Compare persisted raw chunks by schema semantics and tighten the expected-peak objective
+
+- **Date:** 2026-09-09
+- **Packet:** CXP-14
+- **Status:** Accepted; implemented; hosted UAT evidence pending
+- **Decision:** Canonicalize Sheets-native persisted values by the registered dataset schema before raw chunk read-back comparison. Date/date-time `Date` objects may equal their canonical ISO strings, and numeric values may equal schema-defined text, while changed values, numeric fields stored as text, booleans, formulas, and unrelated coercions fail closed. Persist only dataset-bound commit cursors, fence failure/audit/trigger cleanup by worker generation, expose bounded progress and type-only mismatch diagnostics, and require expected-peak Step 03 runs to meet a 600,000 ms scheduler-inclusive objective while retaining the existing 1,200,000 ms absolute ceiling.
+- **Rationale:** UAT run `cxp13-086dc8bf-5dba-4843-a8eb-bc8b4cb82998` repeatedly failed at `Handled` / `verify_raw_chunk` with `raw_write_verify_failed` and a verified rollback. The target `Created Date` cells can rehydrate as Sheets `Date` values after staging normalized them to ISO strings, but the former verifier used strict JavaScript equality. The same run also exposed excessive repeated full-dataset work and scheduler amplification.
+- **Consequences:** Equivalent hosted storage representations no longer trigger destructive false rollbacks, but genuine semantic mutations still do. Diagnostics remain privacy bounded. Existing CXP-13 setup and entrypoints remain compatible. Local regressions are necessary but insufficient; three hosted expected-peak runs must still prove the 10-minute objective, invocation boundaries, zero residual triggers, and bounded service-call scaling.
+
+### DEC-072 — Bind CXP-14 row-count evidence to the same successful CXP-13 run
+
+- **Date:** 2026-09-09
+- **Packet:** CXP-14
+- **Status:** Accepted; implemented; hosted UAT evidence pending
+- **Decision:** Merge partial CXP-13 row-count observations instead of replacing them with zero-filled maps, persist authoritative input/output counts in the terminal `RUN_LOG`, and let Step 03 recover counts only from the current successful run/checkpoint when its run token and source digest match. Ignore operator-supplied count patches and reject stale, malformed, timed-out, or scheduler-over-budget evidence.
+- **Rationale:** A hosted SUCCESS observation reported `missing:["rowCounts"]` even though the same run had the exact 20,300-row workload. The telemetry path discarded earlier dataset counts on later partial updates and the terminal audit retained the original empty request. Reconstructing counts from an unrelated run or accepting pasted values would make evidence non-authoritative.
+- **Consequences:** A patched deployment can complete Step 03 from an already completed current run without weakening the 240,000 ms invocation objective, 270,000 ms hard boundary, or 600,000 ms scheduler-inclusive objective. The older timed-out evidence remains invalid and must not be promoted; if same-run identity or digest binding is unavailable, Step 03 continues to fail closed.
+
+### DEC-073 — Preserve terminal auditability for preparation failures
+
+- **Date:** 2026-09-09
+- **Packet:** CXP-13/CXP-14 runtime patch
+- **Status:** Accepted; implemented; hosted UAT evidence pending
+- **Decision:** Create a metadata-only checkpoint as preparation advances through the source, parse, schema, and duplicate states. Permit `RunService.recordFailure()` to transition any nonterminal state directly to its classified failure state, and invoke the audit path even when staging has not produced a durable transaction checkpoint. Persist that checkpoint if audit retry is required; never retry automatically.
+- **Rationale:** The chunked preparation refactor moved work out of `RunService.prepare()`. A source or schema failure before staging could therefore be marked `RECORDED` without writing `RUN_LOG`/`ERROR_LOG`, because the controller had no checkpoint to audit.
+- **Consequences:** Early failures retain the same bounded error details and exactly-once audit semantics as commit failures. No source rows or credentials are added to the checkpoint, and the established zero-trigger/manual-retry rule remains unchanged.
+
+### DEC-074 — Simplify the CXP-14 five-file normal ingestion path without weakening recovery
+
+- **Date:** 2026-09-09
+- **Packet:** CXP-13/CXP-14 runtime patch
+- **Status:** Accepted; implemented locally; hosted UAT evidence pending
+- **Decision:** Validate complete five-file identity and duplicate status once, persist metadata-only dataset progress, and on a later invocation reacquire, convert, parse, and schema-validate only the current dataset. Reuse each invocation's parsed payload and encoded matrix. Replace acquisition-sensitive adaptive sizing with normal work units capped at 5,000 rows and 200,000 cells. Stage by idempotent overwrite, flush, and one schema-semantic readback without a destination pre-read or final five-sheet scan. Back up one dataset per work unit into a pre-created, discoverable hidden/protected sheet using server-side range `copyTo`, flush, and one semantic verification; interrupted copies remain retryable by dataset. Commit by one clear, bounded writes, and one readback per unit without a second full-dataset comparison. Limit terminal health to structural/schema bounds, row counts, formula absence, ledger success, cleanup, and audit persistence. Buffer telemetry counters until handoff or completion and record only safe aggregate subphase durations. Progress totals count encoded header rows.
+- **Rationale:** A successful 20,300-row UAT run took 1,640,810 ms, with almost all time reported under a misleading `VALIDATING_STAGE` label. Code review showed that each continuation repeatedly reacquired and converted all five sources, while staging, backup, commit, and health repeated destination reads and full-dataset verification already covered by durable unit checkpoints.
+- **Consequences:** Public CXP-11/12/13/14 setup, start, continuation, status, and UAT entrypoints remain compatible. The 195,000 ms admission point, 240,000 ms objective, 270,000 ms hard boundary, reserve/margin, watchdog, one-successor rule, locks, generation fencing, backup protection, chunked rollback, trailing-row cleanup, and exactly-once audit behavior are unchanged. Combined-workbook behavior is compatible but not performance-redesigned. A new immutable release identity and three fresh hosted expected-peak successes are required; the older timed-out and 27-minute runs are diagnostic only.
+
+### DEC-075 — Make terminal audit the durable commit point for CXP-14 cleanup
+
+- **Date:** 2026-09-10
+- **Packet:** CXP-13/CXP-14 runtime patch
+- **Status:** Accepted; implemented locally; hosted UAT evidence pending
+- **Decision:** Retain the protected rollback backup through terminal health and persist the successful `RUN_LOG` before post-success backup cleanup. Make success-ledger recording retry-idempotent, treat cleanup failure after durable audit as cleanup debt instead of rollback, keep preflight failures audit-pending unless an audit actually persists, replace the consumed successor on initial lock contention, and attribute native staged verification to `commitVerify` telemetry.
+- **Rationale:** Review found that cleanup could remove the only rollback point before audit persistence, preflight failures could be labeled recorded without an audit, initial lock contention could strand a one-shot continuation, and native verification time was reported as writing.
+- **Consequences:** Audit persistence failure retains a recoverable backup; cleanup cannot reverse an already durable success; inaccessible workbook failures remain explicitly actionable; contention retains exactly one successor; and CXP-14 timing evidence separates write and verification work. Public predecessor and CXP-14 entrypoints remain unchanged.

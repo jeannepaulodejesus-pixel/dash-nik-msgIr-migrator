@@ -89,9 +89,48 @@ class FakeRange {
 
   clearContent() {
     this.sheet.spreadsheet.events.push(['clearContent', this.sheet.name]);
-    this.sheet.values = this.sheet.values.map((row) => row.map(() => ''));
-    this.sheet.formulas = this.sheet.formulas.map((row) => row.map(() => ''));
+    if (this.row === 1 && this.column === 1 && this.rowCount >= this.sheet.values.length) {
+      this.sheet.values = [['']];
+      this.sheet.formulas = [['']];
+      return this;
+    }
+    for (let rowOffset = 0; rowOffset < this.rowCount; rowOffset += 1) {
+      const targetRow = this.row - 1 + rowOffset;
+      if (!this.sheet.values[targetRow]) continue;
+      for (let columnOffset = 0; columnOffset < this.columnCount; columnOffset += 1) {
+        this.sheet.values[targetRow][this.column - 1 + columnOffset] = '';
+        if (this.sheet.formulas[targetRow]) {
+          this.sheet.formulas[targetRow][this.column - 1 + columnOffset] = '';
+        }
+      }
+    }
     return this;
+  }
+
+  writeWindow(values, formulas) {
+    const startR = this.row - 1;
+    const startC = this.column - 1;
+    while (this.sheet.values.length < startR) {
+      this.sheet.values.push(['']);
+      this.sheet.formulas.push(['']);
+    }
+    values.forEach((line, rowOffset) => {
+      const targetRow = startR + rowOffset;
+      if (!this.sheet.values[targetRow]) {
+        this.sheet.values[targetRow] = [];
+        this.sheet.formulas[targetRow] = [];
+      }
+      const nextVals = this.sheet.values[targetRow].slice();
+      const nextForms = (this.sheet.formulas[targetRow] || []).slice();
+      line.forEach((cell, columnOffset) => {
+        nextVals[startC + columnOffset] = cell;
+        nextForms[startC + columnOffset] = formulas
+          ? (formulas[rowOffset][columnOffset] || '')
+          : (typeof cell === 'string' && cell.startsWith('=') ? cell : '');
+      });
+      this.sheet.values[targetRow] = nextVals;
+      this.sheet.formulas[targetRow] = nextForms;
+    });
   }
 
   copyTo(destination, options) {
@@ -104,9 +143,13 @@ class FakeRange {
       destination.sheet.name,
       options,
     ]);
-    const values = this.getValues();
-    destination.sheet.values = values.map((row) => row.slice());
-    destination.sheet.formulas = values.map((row) => row.map(() => ''));
+    const values = this.getValues().map((row) => row.map((value) =>
+      value instanceof Date ? new Date(value.getTime()) : value,
+    ));
+    const formulas = options && options.contentsOnly
+      ? values.map((row) => row.map(() => ''))
+      : this.getFormulas();
+    destination.writeWindow(values, formulas);
     return this;
   }
 
@@ -128,9 +171,18 @@ class FakeRange {
 
   getValues() {
     return Array.from({ length: this.rowCount }, (_, rowOffset) =>
-      Array.from({ length: this.columnCount }, (_, columnOffset) =>
-        this.sheet.values[this.row - 1 + rowOffset]?.[this.column - 1 + columnOffset] ?? '',
-      ),
+      Array.from({ length: this.columnCount }, (_, columnOffset) => {
+        const absoluteRow = this.row + rowOffset;
+        const absoluteColumn = this.column + columnOffset;
+        const value = this.sheet.values[absoluteRow - 1]?.[absoluteColumn - 1] ?? '';
+        return typeof this.sheet.spreadsheet.readTransform === 'function'
+          ? this.sheet.spreadsheet.readTransform(value, {
+            column: absoluteColumn,
+            row: absoluteRow,
+            sheetName: this.sheet.name,
+          })
+          : value;
+      }),
     );
   }
 
@@ -139,10 +191,7 @@ class FakeRange {
       throw new Error(`synthetic write failure: ${this.sheet.name}`);
     }
     this.sheet.spreadsheet.events.push(['setValues', this.sheet.name]);
-    this.sheet.values = values.map((row) => row.slice());
-    this.sheet.formulas = values.map((row) =>
-      row.map((value) => (typeof value === 'string' && value.startsWith('=') ? value : '')),
-    );
+    this.writeWindow(values);
     return this;
   }
 }
@@ -171,6 +220,14 @@ class FakeSheet {
       Math.max(1, this.values.length),
       Math.max(1, ...this.values.map((row) => row.length)),
     );
+  }
+
+  getLastColumn() {
+    return Math.max(1, ...this.values.map((row) => row.length));
+  }
+
+  getLastRow() {
+    return Math.max(1, this.values.length);
   }
 
   getName() {
@@ -208,11 +265,12 @@ class FakeSheet {
 }
 
 class FakeSpreadsheet {
-  constructor(defaultEditors = []) {
+  constructor(defaultEditors = [], options = {}) {
     this.defaultEditors = defaultEditors.slice();
     this.events = [];
     this.failWriteSheet = null;
     this.nextSheetId = 1;
+    this.readTransform = options.readTransform || null;
     this.sheets = [];
   }
 
@@ -222,6 +280,10 @@ class FakeSpreadsheet {
     const sheet = new FakeSheet(this, name, safeValues, safeFormulas);
     this.sheets.push(sheet);
     return sheet;
+  }
+
+  insertSheet(name) {
+    return this.addSheet(name, [['']]);
   }
 
   copySheet(source) {

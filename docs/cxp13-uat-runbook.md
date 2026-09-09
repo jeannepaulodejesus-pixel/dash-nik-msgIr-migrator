@@ -10,13 +10,16 @@
 
 ## Ordered run
 
-Run Steps 00–04. Step 04 must return `QUEUED`; follow `continueCxp13Ingestion` executions or allow its triggers to run until `cxp13GetRunStatus` is terminal. Record every invocation duration and verify a multi-invocation resume. Run Step 05 only after `SUCCESS`.
+Run Steps 00–04. Before any new ingestion, delete every surviving `continueCxp13Ingestion` trigger and do not start another run until this patch is deployed. After UAT deploy, run parameterless `retryCxp13FailureAudit()` once if the pipeline is `FAILED` with `failureAuditStatus=PENDING`; it must report `RECORDED` and leave zero triggers. Step 04 must return `QUEUED`; follow `continueCxp13Ingestion` executions or allow its triggers to run until `cxp13GetRunStatus` is terminal. Every invocation must stay under 240,000 ms and none may reach 270,000 ms. Record every invocation duration and verify a multi-invocation resume. Run Step 05 only after `SUCCESS` with zero remaining continuation triggers.
 
 Run Step 06 to queue the identical bundle and wait for `DUPLICATE`. Separately exercise:
 
 - a newest incomplete or invalid-header bundle (`VALIDATION_FAILED`, no raw mutation);
 - a second start while the first is active (`INGESTION_RUN_ALREADY_ACTIVE`);
+- a controlled commit-failure scenario that completes verified rollback, writes exactly one terminal audit (`FAILED`/`RECORDED`), and leaves no continuation trigger;
 - the existing CXP-06 UAT mid-commit failure/rollback seam against the same active workbook, proving the prior valid dataset remains usable.
+
+Do not automatically retry a terminal audit. Only `retryCxp13FailureAudit()` may retry a genuine `AUDIT_PENDING` persistence failure after operator repair.
 
 After observing every scenario, set temporary Script Property `CXP13_UAT_PENDING_EVIDENCE_V1` to:
 

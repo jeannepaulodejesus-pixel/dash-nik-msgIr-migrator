@@ -194,7 +194,11 @@ var Cxp14UatOrchestrator = (function () {
     return missing;
   }
   function activePipeline(status) {
-    return Boolean(status && ['QUEUED', 'PROCESSING', 'RUNNING', 'PREPARING', 'BACKUP_PENDING', 'BACKING_UP', 'COMMIT_PENDING', 'COMMITTING'].indexOf(status) !== -1);
+    return Boolean(status && [
+      'QUEUED', 'PROCESSING', 'RUNNING', 'PREPARING', 'BACKUP_PENDING', 'BACKING_UP',
+      'COMMIT_PENDING', 'COMMITTING', 'HEALTH_PENDING', 'HEALTH_CHECKING',
+      'ROLLBACK_PENDING', 'ROLLING_BACK',
+    ].indexOf(status) !== -1);
   }
   function folders() {
     return resolve('Cxp14UatFixtureFolders', '../release/Cxp14UatFixtureFolders.js');
@@ -248,7 +252,18 @@ var Cxp14UatOrchestrator = (function () {
   function recordFromTelemetry(runtime, profile, repository) {
     var evidence = runtime.readEvidence();
     var telemetry = resolve('Cxp13IngestionTelemetry', '../ingestion/Cxp13IngestionTelemetry.js').snapshot(runtime.properties);
-    var run = runtime.predecessors && runtime.predecessors.cxp13 ? invoke(runtime.predecessors.cxp13.getRunStatus) : null;
+    var cxp13 = runtime.predecessors && runtime.predecessors.cxp13;
+    var run = cxp13 ? invoke(cxp13.getRunStatus) : null;
+    var intake = cxp13 ? invoke(cxp13.getIntakeStatus) : null;
+    var telemetryDigest = digestOf(telemetry.sourceBundleDigest);
+    var runDigest = digestOf(run && run.sourceBundleDigest);
+    var currentRun = Boolean(run && intake && run.runId && intake.runId && String(run.runId) === String(intake.runId));
+    var sameRunToken = Boolean(currentRun && telemetry.runToken &&
+      (String(telemetry.runToken) === String(run.runId) || String(telemetry.runToken) === String(run.batchToken)));
+    if ((!telemetry.rowCounts || !telemetry.rowCounts.total) && run && run.status === 'SUCCESS' &&
+        run.rowCounts && run.rowCounts.total > 0 && sameRunToken && telemetryDigest && (!runDigest || runDigest === telemetryDigest)) {
+      telemetry = Object.assign({}, telemetry, { rowCounts: Object.assign({}, run.rowCounts) });
+    }
     var harvest = resolve('Cxp14RunTelemetry', '../release/Cxp14RunTelemetry.js').harvest({
       activeWeekKeyAligned: Boolean(run && run.health && run.health.healthy) || check(runtime, 'activeWeekKeyAligned', false),
       endedAtUtc: run && run.endedAtUtc || telemetry.invocations.length && telemetry.invocations[telemetry.invocations.length - 1].endedAtUtc,
@@ -281,6 +296,14 @@ var Cxp14UatOrchestrator = (function () {
     var intake = invoke(cxp13.getIntakeStatus) || invoke(cxp13.discover);
     var discovery = discoveryOutcome(intake);
     if (discovery) return { fixtureSlot: pointed.fixtureSlot || slot || null, observation: discovery, status: discovery };
+    if (intake && intake.auditActionRequired === true) {
+      return {
+        fixtureSlot: pointed.fixtureSlot || slot || null,
+        missing: Object.freeze(['failureAudit']),
+        observation: intake.status || 'PROCESSING_ERROR',
+        status: 'NOT_RECORDED',
+      };
+    }
     if (intake && activePipeline(intake.status)) return { fixtureSlot: pointed.fixtureSlot || slot || null, status: 'QUEUED' };
     if (intake && (intake.status === 'READY' || intake.pass === true) && typeof cxp13.start === 'function') {
       var started = invoke(cxp13.start);
@@ -334,12 +357,40 @@ var Cxp14UatOrchestrator = (function () {
     }
     var wave = driveCxp13Wave(runtime, slot);
     if (wave.status === 'QUEUED') return queued(stepName, { fixtureSlot: wave.fixtureSlot || slot || null, status: 'QUEUED' });
-    if (wave.observation === 'SUCCESS' || (wave.status === 'SUCCESS')) {
-      recordFromTelemetry(runtime, profile, repository);
+    if (wave.observation === 'SUCCESS' || wave.status === 'SUCCESS') {
+      var harvested = recordFromTelemetry(runtime, profile, repository);
+      if (!harvested || harvested.recorded !== true) {
+        return output(stepName, false, {
+          fixtureSlot: wave.fixtureSlot || slot || null,
+          missing: Object.freeze(uniqueMissing((harvested && harvested.missing) || ['performanceRecord'])),
+          observation: 'SUCCESS',
+          recordedRunCount: already.recordedRunCount,
+          requiredRunCount: already.requiredRunCount,
+          status: 'NOT_RECORDED',
+        });
+      }
     } else if (wave.missing && wave.missing.length) {
       return output(stepName, false, {
         fixtureSlot: wave.fixtureSlot || slot || null,
         missing: wave.missing,
+        observation: wave.observation || null,
+        recordedRunCount: already.recordedRunCount,
+        requiredRunCount: already.requiredRunCount,
+        status: 'NOT_RECORDED',
+      });
+    } else if (wave.observation) {
+      return output(stepName, false, {
+        fixtureSlot: wave.fixtureSlot || slot || null,
+        missing: already.missing,
+        observation: wave.observation,
+        recordedRunCount: already.recordedRunCount,
+        requiredRunCount: already.requiredRunCount,
+        status: wave.observation,
+      });
+    } else if (wave.status === 'IDLE') {
+      return output(stepName, false, {
+        fixtureSlot: wave.fixtureSlot || slot || null,
+        missing: Object.freeze(['inboxBundle']),
         recordedRunCount: already.recordedRunCount,
         requiredRunCount: already.requiredRunCount,
         status: 'NOT_RECORDED',

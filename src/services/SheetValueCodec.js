@@ -56,6 +56,56 @@ var SheetValueCodec = (function () {
     });
   }
 
+  function valueKind(value) {
+    if (dateEpoch(value) !== null) return 'date';
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'array';
+    return typeof value;
+  }
+
+  function valuesEqualForColumn(column, left, right) {
+    var safeColumn = column && typeof column === 'object' ? column : { type: 'text' };
+    var normalizedLeft = normalizePersistedValue(safeColumn, left);
+    var normalizedRight = normalizePersistedValue(safeColumn, right);
+    if (normalizedLeft === normalizedRight) return true;
+    var leftEpoch = dateEpoch(normalizedLeft);
+    var rightEpoch = dateEpoch(normalizedRight);
+    return leftEpoch !== null && rightEpoch !== null &&
+      !Number.isNaN(leftEpoch) && leftEpoch === rightEpoch;
+  }
+
+  function compareForColumns(left, right, columns) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length ||
+        !Array.isArray(columns)) {
+      return Object.freeze({ equal: false, mismatch: Object.freeze({ reason: 'matrix_shape' }) });
+    }
+    for (var rowIndex = 0; rowIndex < left.length; rowIndex += 1) {
+      var row = left[rowIndex];
+      var other = right[rowIndex];
+      if (!Array.isArray(row) || !Array.isArray(other) || row.length !== other.length ||
+          row.length !== columns.length) {
+        return Object.freeze({ equal: false, mismatch: Object.freeze({ reason: 'row_shape', rowOffset: rowIndex }) });
+      }
+      for (var columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
+        if (!valuesEqualForColumn(columns[columnIndex], row[columnIndex], other[columnIndex])) {
+          return Object.freeze({
+            equal: false,
+            mismatch: Object.freeze({
+              columnIndex: columnIndex,
+              columnName: columns[columnIndex] && columns[columnIndex].name || null,
+              comparisonReason: 'normalized_value_mismatch',
+              intendedValueType: valueKind(row[columnIndex]),
+              persistedValueType: valueKind(other[columnIndex]),
+              rowOffset: rowIndex,
+              schemaType: columns[columnIndex] && columns[columnIndex].type || 'text',
+            }),
+          });
+        }
+      }
+    }
+    return Object.freeze({ equal: true, mismatch: null });
+  }
+
   function dateEpoch(value) {
     if (Object.prototype.toString.call(value) !== '[object Date]') {
       return null;
@@ -75,12 +125,18 @@ var SheetValueCodec = (function () {
     ) {
       return String(value);
     }
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    if (column.type === 'date_time' && typeof value === 'string' &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+      var parsedEpoch = new Date(value).getTime();
+      if (!Number.isNaN(parsedEpoch)) return new Date(parsedEpoch).toISOString();
+    }
+    var epoch = dateEpoch(value);
+    if (epoch !== null && !Number.isNaN(epoch)) {
       if (column.type === 'date') {
-        return value.toISOString().slice(0, 10);
+        return new Date(epoch).toISOString().slice(0, 10);
       }
       if (column.type === 'date_time') {
-        return value.toISOString();
+        return new Date(epoch).toISOString();
       }
     }
     return value;
@@ -88,9 +144,11 @@ var SheetValueCodec = (function () {
 
   return Object.freeze({
     decodeMatrix: decodeMatrix,
+    compareForColumns: compareForColumns,
     encodePayload: encodePayload,
     matricesEqual: matricesEqual,
     normalizePersistedValue: normalizePersistedValue,
+    valuesEqualForColumn: valuesEqualForColumn,
   });
 })();
 

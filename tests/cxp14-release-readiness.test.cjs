@@ -58,7 +58,7 @@ function validPerformanceRun(overrides = {}) {
       staff: 300,
       total: 20300,
     },
-    schedulerInclusiveMs: 1200000,
+    schedulerInclusiveMs: 600000,
     serviceCallCounts: {
       drive: 5,
       flush: 2,
@@ -203,7 +203,7 @@ test('invocation objective and hard boundaries are exact', () => {
     noQuotaFailure: true,
     noTimeout: true,
     profile: 'EXPECTED_PEAK',
-    schedulerInclusiveMs: 1200000,
+    schedulerInclusiveMs: 600000,
   };
   const objectivePass = Cxp14ReleaseEvidence.evaluateTiming({ ...base, maxInvocationMs: 239999 });
   const objectiveFail = Cxp14ReleaseEvidence.evaluateTiming({ ...base, maxInvocationMs: 240000 });
@@ -219,8 +219,9 @@ test('invocation objective and hard boundaries are exact', () => {
   assert.equal(hardFail.pass, false);
 });
 
-// CXP14 boundary AC: scheduler-inclusive windows are separate from per-invocation duration.
-test('scheduler-inclusive windows accept equality and reject one millisecond over', () => {
+// CXP14 boundary AC: expected peak has a 10-minute objective inside the
+// retained 20-minute hard window; declared maximum remains 30 minutes.
+test('scheduler objective and hard-window boundaries are exact by profile', () => {
   const evaluate = (profile, schedulerInclusiveMs) => Cxp14ReleaseEvidence.evaluateTiming({
     maxInvocationMs: 239999,
     noQuotaFailure: true,
@@ -228,10 +229,36 @@ test('scheduler-inclusive windows accept equality and reject one millisecond ove
     profile,
     schedulerInclusiveMs,
   });
-  assert.equal(evaluate('EXPECTED_PEAK', 1200000).windowMet, true);
-  assert.equal(evaluate('EXPECTED_PEAK', 1200001).windowMet, false);
-  assert.equal(evaluate('DECLARED_MAXIMUM', 1800000).windowMet, true);
-  assert.equal(evaluate('DECLARED_MAXIMUM', 1800001).windowMet, false);
+  const expectedObjectiveEdge = evaluate('EXPECTED_PEAK', 600000);
+  assert.equal(expectedObjectiveEdge.schedulerObjectiveMet, true);
+  assert.equal(expectedObjectiveEdge.windowMet, true);
+  assert.equal(expectedObjectiveEdge.pass, true);
+
+  const expectedObjectiveMiss = evaluate('EXPECTED_PEAK', 600001);
+  assert.equal(expectedObjectiveMiss.schedulerObjectiveMet, false);
+  assert.equal(expectedObjectiveMiss.windowMet, true);
+  assert.equal(expectedObjectiveMiss.pass, false);
+  assert.deepEqual(expectedObjectiveMiss.missing, ['schedulerObjectiveMet']);
+
+  const expectedWindowEdge = evaluate('EXPECTED_PEAK', 1200000);
+  assert.equal(expectedWindowEdge.schedulerObjectiveMet, false);
+  assert.equal(expectedWindowEdge.windowMet, true);
+  assert.equal(expectedWindowEdge.pass, false);
+
+  const expectedWindowMiss = evaluate('EXPECTED_PEAK', 1200001);
+  assert.equal(expectedWindowMiss.schedulerObjectiveMet, false);
+  assert.equal(expectedWindowMiss.windowMet, false);
+  assert.equal(expectedWindowMiss.pass, false);
+  assert.deepEqual(expectedWindowMiss.missing, ['schedulerObjectiveMet', 'schedulerWindowMet']);
+
+  const declaredEdge = evaluate('DECLARED_MAXIMUM', 1800000);
+  assert.equal(declaredEdge.schedulerObjectiveMet, true);
+  assert.equal(declaredEdge.windowMet, true);
+  assert.equal(declaredEdge.pass, true);
+  const declaredMiss = evaluate('DECLARED_MAXIMUM', 1800001);
+  assert.equal(declaredMiss.schedulerObjectiveMet, false);
+  assert.equal(declaredMiss.windowMet, false);
+  assert.equal(declaredMiss.pass, false);
 });
 
 // CXP14 boundary AC: setup/worker handoff retains both the 60s reserve and 15s margin.

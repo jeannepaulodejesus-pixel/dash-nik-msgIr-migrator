@@ -78,6 +78,50 @@ test('cooperative budget keeps the inherited 270s reserve boundary', () => {
   assert.equal(Pipeline.canStartAnotherStep(150000, 105000), false);
 });
 
+// CXP-14 preflight regression: protected workbook access failures are terminal
+// lifecycle errors and occur before any inbox/source acquisition.
+test('RTA preflight normalizes inaccessible control and target workbooks before Drive scan', () => {
+  const baseProperties = {
+    CXP_ENV: 'UAT',
+    CXP_UAT_CONTROL_SPREADSHEET_ID: 'control-id',
+    CXP_UAT_DRIVE_INBOX_FOLDER_ID: 'inbox-id',
+    CXP_UAT_RTA_ALLOWED_DOMAIN: 'example.test',
+    CXP_UAT_TARGET_SPREADSHEET_ID: 'target-id',
+  };
+
+  [
+    { failedId: 'control-id', expectedCode: 'LIFECYCLE_CONTROL_UNAVAILABLE' },
+    { failedId: 'target-id', expectedCode: 'LIFECYCLE_TARGET_UNAVAILABLE' },
+  ].forEach(({ failedId, expectedCode }) => {
+    let driveScans = 0;
+    const opened = [];
+    const services = {
+      driveApp: {
+        getFolderById() {
+          driveScans += 1;
+          throw new Error('Drive must not be scanned after workbook preflight failure');
+        },
+      },
+      properties: propertyStore(baseProperties),
+      session: { getActiveUser: () => ({ getEmail: () => 'operator@example.test' }) },
+      spreadsheetApp: {
+        openById(id) {
+          opened.push(id);
+          if (id === failedId) throw new Error(`${id} inaccessible`);
+          return {};
+        },
+      },
+    };
+
+    assert.throws(
+      () => RtaIntakeService.startLatest('20260903T020000Z', services),
+      (error) => error?.code === expectedCode,
+    );
+    assert.equal(driveScans, 0);
+    assert.deepEqual(opened, failedId === 'control-id' ? ['control-id'] : ['control-id', 'target-id']);
+  });
+});
+
 test('generic controller checkpoints each worker step, keeps one successor, and does not replay finalization', () => {
   const values = new Map();
   const properties = { getProperty: (key) => values.get(key) || null, setProperty: (key, value) => values.set(key, value) };
@@ -214,7 +258,7 @@ test('web surface uses server entrypoints, disables repeats, and polls at five s
 
 test('parameterless setup, web, continuation, and UAT entrypoints remain declared', () => {
   const files = ['Cxp13Setup.js', 'Cxp13WebEntrypoints.js', 'Cxp13UatEntrypoints.js'].map((name) => fs.readFileSync(path.join(__dirname, '..', 'src', 'main', name), 'utf8')).join('\n');
-  ['initializeCxp13Intake','getCxp13IntakeSetupStatus','resetCxp13IntakeSetupState','doGet','cxp13GetIntakeStatus','cxp13StartLatestBundle','cxp13GetRunStatus','continueCxp13Ingestion'].forEach((name) => assert.match(files, new RegExp(`function ${name}\\(`)));
+  ['initializeCxp13Intake','getCxp13IntakeSetupStatus','resetCxp13IntakeSetupState','doGet','cxp13GetIntakeStatus','cxp13StartLatestBundle','cxp13GetRunStatus','continueCxp13Ingestion','retryCxp13FailureAudit'].forEach((name) => assert.match(files, new RegExp(`function ${name}\\(`)));
   for (let step = 0; step <= 8; step += 1) assert.match(files, new RegExp(`function CXP13UatStep0${step}`));
 });
 

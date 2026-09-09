@@ -53,6 +53,7 @@ var Cxp14RunTelemetry = (function () {
       return sum + (item && Number.isInteger(item.durationMs) ? item.durationMs : 0);
     }, 0);
     if (!cumulativeActiveMs && Number.isInteger(durationMs) && durationMs >= 0) cumulativeActiveMs = durationMs;
+    if (Number.isInteger(durationMs) && durationMs > cumulativeActiveMs) cumulativeActiveMs = durationMs;
     var schedulerInclusiveMs = Number.isInteger(source.schedulerInclusiveMs)
       ? source.schedulerInclusiveMs
       : durationMs;

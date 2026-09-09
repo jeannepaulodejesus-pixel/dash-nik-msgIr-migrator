@@ -10,6 +10,10 @@ var RunStatusRepository = (function () {
     return sheet.getLastRow() < 2 ? [] : sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
   }
   function details(value) { try { return JSON.parse(value || '{}'); } catch (_error) { return {}; } }
+  function rowCounts(value) {
+    var parsed = details(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? Object.freeze(parsed) : Object.freeze({});
+  }
   function create(spreadsheet) {
     return Object.freeze({
       findRun: function (runId) {
@@ -24,7 +28,7 @@ var RunStatusRepository = (function () {
               break;
             }
           }
-          return Object.freeze({ endedAtUtc: runRows[i][2] || null, error: error, errorCode: runRows[i][11] || null, runId: runRows[i][0], startedAtUtc: runRows[i][1] || null, status: runRows[i][10] || null });
+          return Object.freeze({ endedAtUtc: runRows[i][2] || null, error: error, errorCode: runRows[i][11] || null, rowCounts: rowCounts(runRows[i][7]), runId: runRows[i][0], startedAtUtc: runRows[i][1] || null, status: runRows[i][10] || null });
         }
         return null;
       },
